@@ -1,0 +1,16 @@
+# Tipos compartidos (result types, inputs) usados por múltiples dominios
+
+type MutationResult {
+  success: Boolean!
+  error:   String
+}
+
+input CapabilitiesInput {
+  browser:    Boolean
+  terminal:   Boolean
+  subagents:  Boolean
+  memory:     Boolean
+  mcp:        Boolean
+  filesystem: Boolean
+  sessions:   Boolean
+}

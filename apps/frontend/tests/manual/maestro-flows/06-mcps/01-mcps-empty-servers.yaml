@@ -1,0 +1,15 @@
+# MCPs: Estado vacío de servidores
+# Verifica que se muestre el mensaje y los botones Marketplace y Add Server
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- assertVisible:
+    text: "No MCP servers connected"
+- assertVisible:
+    text: "Marketplace"
+- assertVisible:
+    text: "Add MCP Server"
+- takeScreenshot: mcps-empty-servers

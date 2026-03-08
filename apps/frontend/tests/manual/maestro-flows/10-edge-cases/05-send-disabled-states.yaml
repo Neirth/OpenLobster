@@ -1,0 +1,34 @@
+# Edge Case: Botones deshabilitados durante loading
+# Ref: SPECIFICATION.md 7.12
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+# Chat: botón Send deshabilitado con textarea vacío
+- tapOn:
+    text: "Chat"
+- assertVisible:
+    text: "Send"
+# El botón Send debe estar deshabilitado cuando no hay texto
+# (verificar que no se puede tapar o que no hace nada)
+- tapOn:
+    id: "chat-message-input"
+- inputText: "H"
+# Con un carácter, el botón debería habilitarse
+- assertVisible:
+    text: "Send"
+# Tasks: botón Create deshabilitado durante isPending
+# (requiere mock de backend lento - documentar en SPEC)
+- tapOn:
+    text: "Tasks"
+- tapOn:
+    text: "New Task"
+- inputText: "Slow task"
+    id: "task-prompt"
+- inputText: "0 9 * * *"
+    id: "task-schedule"
+# Crear y verificar que durante el envío el botón muestra "Creating..." o similar
+- tapOn:
+    text: "Create Task"

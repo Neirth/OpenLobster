@@ -1,0 +1,36 @@
+{
+  "name": "openlobster",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "codegen": "graphql-codegen --config codegen.ts",
+    "codegen:watch": "graphql-codegen --config codegen.ts --watch",
+    "docker:image": "pnpm install && pnpm --filter @openlobster/frontend build && docker build -f .docker/Dockerfile.static -t ghcr.io/neirth/openlobster:v0.1.0-rc4 --platform linux/arm64 . && docker push ghcr.io/neirth/openlobster:v0.1.0-rc4"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^6.1.2",
+    "@graphql-codegen/typescript": "^5.0.8",
+    "@graphql-codegen/typescript-graphql-request": "^6.4.0",
+    "@graphql-codegen/typescript-operations": "^5.0.8",
+    "prettier": "^3.2.5",
+    "turbo": "^2.0.4"
+  },
+  "packageManager": "pnpm@9.1.0",
+  "dependencies": {
+    "graphql-tag": "^2.12.6"
+  },
+  "pnpm": {
+    "overrides": {
+      "happy-dom@<15.10.2": ">=15.10.2",
+      "esbuild@<=0.24.2": ">=0.25.0",
+      "happy-dom@<20.0.0": ">=20.0.0",
+      "tmp@<=0.2.3": ">=0.2.4",
+      "minimatch@>=9.0.0 <9.0.6": ">=9.0.6",
+      "minimatch@>=9.0.0 <9.0.7": ">=9.0.7",
+      "immutable@<3.8.3": ">=3.8.3"
+    }
+  }
+}

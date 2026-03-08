@@ -1,0 +1,113 @@
+name: Release Docker Images
+
+on:
+  push:
+    branches: [ master, 'feature/**' ]
+    tags: [ 'v*.*.*' ]
+    paths:
+      - ".docker/**"
+      - "README.md"
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    name: Build & Push per-arch images (no QEMU)
+    if: ${{ github.event_name != 'pull_request' }}
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    strategy:
+      matrix:
+        name: [basic, static]
+        arch: [amd64, arm64]
+
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Common Docker setup and logins
+        uses: ./.github/actions/docker-common
+        with:
+          app: openlobster
+          for-push: 'true'
+          dhi-registry-username: ${{ secrets.DHI_USERNAME }}
+          dhi-registry-password: ${{ secrets.DHI_PASSWORD }}
+
+      - name: Set image variables
+        run: |
+          set -euo pipefail
+          REPO_LOWER=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          IMAGE=ghcr.io/${REPO_LOWER}/openlobster
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then VERSION=${GITHUB_REF#refs/tags/}; else VERSION=${SHORT_SHA}; fi
+          if [ "${{ matrix.name }}" = "static" ]; then SUFFIX="-distroless"; else SUFFIX=""; fi
+          if [ "${{ matrix.arch }}" = "amd64" ]; then PLATFORM=linux/amd64; else PLATFORM=linux/arm64; fi
+          echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
+          echo "SHORT_SHA=${SHORT_SHA}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "SUFFIX=${SUFFIX}" >> $GITHUB_ENV
+          echo "PLATFORM=${PLATFORM}" >> $GITHUB_ENV
+          echo "ARCH=${{ matrix.arch }}" >> $GITHUB_ENV
+          echo "DOCKERFILE=.docker/Dockerfile.${{ matrix.name }}" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push per-arch image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          platforms: ${{ env.PLATFORM }}
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.VERSION }}${{ env.SUFFIX }}-${{ env.ARCH }}
+            ${{ env.IMAGE }}:${{ env.ARCH }}${{ env.SUFFIX }}
+
+  create-manifest:
+    name: Create and push manifests (multi-arch)
+    needs: build-and-push
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      matrix:
+        name: [basic, static]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push manifest tags
+        run: |
+          set -euo pipefail
+          REPO_LOWER=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          IMAGE=ghcr.io/${REPO_LOWER}/openlobster
+          SHORT=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then VERSION=${GITHUB_REF#refs/tags/}; else VERSION=${SHORT}; fi
+          if [ "${{ matrix.name }}" = "static" ]; then SUFFIX="-distroless"; else SUFFIX=""; fi
+
+          docker buildx imagetools create --tag ${IMAGE}:${VERSION}${SUFFIX} \
+            ${IMAGE}:${VERSION}${SUFFIX}-amd64 \
+            ${IMAGE}:${VERSION}${SUFFIX}-arm64
+
+          docker buildx imagetools create --tag ${IMAGE}:latest${SUFFIX} \
+            ${IMAGE}:amd64${SUFFIX} \
+            ${IMAGE}:arm64${SUFFIX}

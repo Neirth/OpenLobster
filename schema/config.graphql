@@ -1,0 +1,206 @@
+# ─── Config ─────────────────────────────────────────────────────────────────
+
+type AgentConfig {
+  name:                      String
+  systemPrompt:              String
+  provider:                  String
+  model:                     String
+  apiKey:                    String
+  baseURL:                   String
+  ollamaHost:                String
+  ollamaApiKey:              String
+  anthropicApiKey:           String
+  dockerModelRunnerEndpoint: String
+  dockerModelRunnerModel:    String
+}
+
+type CapabilitiesConfig {
+  browser:    Boolean
+  terminal:   Boolean
+  subagents:  Boolean
+  memory:     Boolean
+  mcp:        Boolean
+  filesystem: Boolean
+  sessions:   Boolean
+}
+
+type DatabaseConfig {
+  driver:       String
+  dsn:          String
+  maxOpenConns: Int
+  maxIdleConns: Int
+}
+
+type Neo4jConfig {
+  uri:      String
+  user:     String
+  password: String
+}
+
+type MemoryConfig {
+  backend:  String
+  filePath: String
+  neo4j:    Neo4jConfig
+}
+
+type SubagentsConfig {
+  maxConcurrent:   Int
+  defaultTimeout: String
+}
+
+type GraphQLConfig {
+  enabled:  Boolean
+  port:     Int
+  host:     String
+  baseUrl:  String  # Public URL of the server (e.g. https://openlobster.example.com). Used for OAuth and callbacks.
+}
+
+type LoggingConfig {
+  level: String
+  path:  String
+}
+
+type FileSecretsConfig {
+  path: String
+}
+
+type OpenbaoSecretsConfig {
+  url:   String
+  token: String
+}
+
+type SecretsConfig {
+  backend: String
+  file:    FileSecretsConfig
+  openbao: OpenbaoSecretsConfig
+}
+
+type SchedulerConfig {
+  enabled:        Boolean
+  memoryEnabled:  Boolean
+  memoryInterval: String
+}
+
+type ChannelSecretsConfig {
+  telegramEnabled:  Boolean
+  telegramToken:    String
+  discordEnabled:   Boolean
+  discordToken:     String
+  whatsAppEnabled:  Boolean
+  whatsAppPhoneId:  String
+  whatsAppApiToken: String
+  twilioEnabled:    Boolean
+  twilioAccountSid: String
+  twilioAuthToken:  String
+  twilioFromNumber: String
+  slackEnabled:     Boolean
+  slackBotToken:    String
+  slackAppToken:    String
+}
+
+type ActiveSession {
+  id:      String!
+  address: String
+  status:  String
+  channel: String
+  user:    String
+}
+
+type ChannelConfig {
+  channelId:   String!
+  channelName: String
+  enabled:     Boolean!
+}
+
+type AppConfig {
+  agent:           AgentConfig
+  capabilities:    CapabilitiesConfig
+  database:        DatabaseConfig
+  memory:         MemoryConfig
+  subagents:      SubagentsConfig
+  graphql:        GraphQLConfig
+  logging:        LoggingConfig
+  secrets:        SecretsConfig
+  scheduler:      SchedulerConfig
+  activeSessions: [ActiveSession!]!
+  channels:       [ChannelConfig!]!
+  channelSecrets: ChannelSecretsConfig
+  wizardCompleted: Boolean  # True when first-boot wizard has been completed (server-side)
+}
+
+type UpdateConfigResult {
+  agentName:    String
+  systemPrompt: String
+  provider:     String
+  channels:     [ChannelConfig!]
+}
+
+input UpdateConfigInput {
+  agentName:       String
+  systemPrompt:    String
+  provider:        String
+  model:           String
+  apiKey:          String
+  baseURL:         String
+  ollamaHost:                String
+  ollamaApiKey:              String
+  anthropicApiKey:           String
+  dockerModelRunnerEndpoint: String
+  dockerModelRunnerModel:    String
+  capabilities:               CapabilitiesInput
+
+  databaseDriver:       String
+  databaseDSN:          String
+  databaseMaxOpenConns: Int
+  databaseMaxIdleConns: Int
+
+  memoryBackend:       String
+  memoryFilePath:      String
+  memoryNeo4jURI:      String
+  memoryNeo4jUser:     String
+  memoryNeo4jPassword: String
+
+  subagentsMaxConcurrent:  Int
+  subagentsDefaultTimeout: String
+
+  graphqlEnabled:  Boolean
+  graphqlPort:     Int
+  graphqlHost:     String
+  graphqlBaseUrl:  String
+
+  loggingLevel: String
+  loggingPath:  String
+
+  secretsBackend:     String
+  secretsFilePath:    String
+  secretsOpenbaoURL:  String
+  secretsOpenbaoToken: String
+
+  schedulerEnabled:        Boolean
+  schedulerMemoryEnabled:  Boolean
+  schedulerMemoryInterval: String
+
+  channelTelegramEnabled:  Boolean
+  channelTelegramToken:    String
+  channelDiscordEnabled:   Boolean
+  channelDiscordToken:     String
+  channelWhatsAppEnabled:  Boolean
+  channelWhatsAppPhoneId:  String
+  channelWhatsAppApiToken: String
+  channelTwilioEnabled:    Boolean
+  channelTwilioAccountSid: String
+  channelTwilioAuthToken:  String
+  channelTwilioFromNumber: String
+  channelSlackEnabled:     Boolean
+  channelSlackBotToken:    String
+  channelSlackAppToken:     String
+  wizardCompleted:         Boolean
+}
+
+extend type Query {
+  config: AppConfig
+}
+
+extend type Mutation {
+  updateConfig(input: UpdateConfigInput!): UpdateConfigResult!
+}

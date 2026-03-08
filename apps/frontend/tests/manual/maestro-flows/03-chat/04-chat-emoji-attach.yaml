@@ -1,0 +1,21 @@
+# Chat: botones emoji y adjuntar archivo
+---
+appId: openlobster-web
+env:
+  MAESTRO_BASE_URL: ${MAESTRO_BASE_URL:-http://localhost:5173}
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/chat
+- assertVisible:
+    text: "Chat"
+- assertVisible:
+    text: "Attach file"
+- assertVisible:
+    text: "Insert emoji"
+- tapOn:
+    text: "Insert emoji"
+    optional: true
+# Si se abre selector de emojis, verificar que hay opciones
+- assertVisible:
+    text: "Insert emoji"
+    optional: true

@@ -1,0 +1,29 @@
+# Configuración para detectar código muerto y otros problemas
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  go: "1.24"
+
+linters:
+  enable:
+    - staticcheck   # U1000: código no usado, SA4011: código inalcanzable
+    - unused        # variables/funciones no usadas
+    - ineffassign   # asignaciones ineffectuales
+  disable:
+    - errcheck      # puede ser muy estricto inicialmente
+    - gosec         # seguridad - habilitar si se desea
+
+linters-settings:
+  staticcheck:
+    checks: ["all"]
+  unused:
+    check-exported: false
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - unused
+        - errcheck
+  max-issues-per-linter: 0
+  max-same-issues: 0

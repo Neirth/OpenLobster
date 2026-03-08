@@ -1,0 +1,98 @@
+# ─── Channel / Agent ────────────────────────────────────────────────────────
+
+type ChannelCapabilities {
+  hasVoiceMessage: Boolean!
+  hasCallStream:   Boolean!
+  hasTextStream:   Boolean!
+  hasMediaSupport: Boolean!
+}
+
+type Channel {
+  id:               String!
+  name:             String!
+  type:             String!
+  status:           String!
+  enabled:          Boolean!
+  messagesReceived: Int
+  messagesSent:     Int
+  capabilities:     ChannelCapabilities
+}
+
+type Agent {
+  id:            String!
+  name:          String!
+  version:       String!
+  status:        String!
+  uptime:        Int!
+  provider:      String
+  aiProvider:    String
+  memoryBackend: String
+  channels:      [Channel!]!
+}
+
+type Heartbeat {
+  status:    String!
+  lastCheck: Int!
+}
+
+type SubAgent {
+  id:     String!
+  name:   String!
+  status: String!
+  task:   String
+}
+
+type Metrics {
+  uptime:           Int!
+  messagesReceived: Int!
+  messagesSent:     Int!
+  activeSessions:   Int!
+  memoryNodes:      Int!
+  memoryEdges:      Int!
+  mcpTools:         Int!
+  tasksPending:     Int!
+  tasksRunning:     Int!
+  tasksDone:        Int!
+  errorsTotal:      Int!
+}
+
+type Status {
+  agent:     Agent
+  health:    Heartbeat
+  channels:  [Channel!]!
+  tools:     [Tool!]!
+  subAgents: [SubAgent!]!
+  tasks:     [Task!]!
+  mcps:      [MCP!]!
+}
+
+type SpawnSubAgentResult {
+  success: Boolean!
+  id:      String
+  error:   String
+}
+
+type KillSubAgentResult {
+  success: Boolean!
+  error:   String
+}
+
+# Agent define Query/Mutation base; otros dominios usan extend
+type Query {
+  agent:     Agent
+  channels:  [Channel!]!
+  heartbeat: Heartbeat
+  tools:     [Tool!]!
+  subAgents: [SubAgent!]!
+  status:    Status
+  metrics:   Metrics
+}
+
+type Mutation {
+  spawnSubAgent(
+    name:  String!
+    model: String!
+    task:  String
+  ): SpawnSubAgentResult!
+  killSubAgent(id: String!): KillSubAgentResult!
+}

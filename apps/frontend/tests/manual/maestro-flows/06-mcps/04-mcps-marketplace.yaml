@@ -1,0 +1,21 @@
+# MCPs: Abrir Marketplace, buscar, ver detalle
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Marketplace"
+- assertVisible:
+    text: "Marketplace"
+- tapOn:
+    id: "marketplace-search"
+- inputText: "filesystem"
+- assertVisible:
+    text: "Back"
+- tapOn:
+    text: "Close"
+- takeScreenshot: mcps-marketplace

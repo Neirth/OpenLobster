@@ -1,0 +1,32 @@
+# Edge Case: Cerrar modales con overlay
+# Ref: Modal.tsx - clic en overlay cierra
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+# Abrir modal Nueva Tarea
+- tapOn:
+    text: "Tasks"
+- tapOn:
+    text: "New Task"
+- assertVisible:
+    text: "Create Task"
+# Cerrar con overlay (clic fuera del contenido)
+- tapOn:
+    point: "50%,20%"
+- assertVisible:
+    text: "Scheduled Tasks"
+# Abrir modal Add Server
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Add MCP Server"
+- assertVisible:
+    text: "Server Name"
+# Cerrar con botón X
+- tapOn:
+    id: "modal-close"
+- assertVisible:
+    text: "MCP Servers"

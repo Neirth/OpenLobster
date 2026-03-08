@@ -1,0 +1,9 @@
+title: OpenLobster Docs
+baseurl: ""
+theme: minima
+markdown: kramdown
+
+# Build settings
+exclude:
+  - node_modules
+  - apps/frontend/node_modules

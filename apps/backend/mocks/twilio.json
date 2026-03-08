@@ -1,0 +1,25 @@
+[
+  {
+    "uuid": "twilio-api",
+    "name": "Twilio API",
+    "port": 3006,
+    "hostname": "0.0.0.0",
+    "routes": [
+      {
+        "uuid": "messages",
+        "method": "POST",
+        "path": "",
+        "responses": [
+          {
+            "uuid": "success",
+            "statusCode": 201,
+            "body": "{\"sid\": \"SM123456\", \"status\": \"queued\", \"body\": \"Hello!\"}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

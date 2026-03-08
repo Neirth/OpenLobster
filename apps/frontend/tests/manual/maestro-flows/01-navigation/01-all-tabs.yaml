@@ -1,0 +1,41 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Navegar por todas las pestañas del header
+# Requiere: frontend en http://localhost:5173, backend conectado
+
+appId:
+  web: http://localhost:5173
+---
+- launchApp:
+    url: http://localhost:5173
+- assertVisible:
+    text: "OPENLOBSTER"
+- tapOn:
+    text: "Dashboard"
+- assertVisible:
+    text: "Health"
+- assertVisible:
+    text: "Channels"
+- tapOn:
+    text: "Chat"
+- assertVisible:
+    text: "Conversations"
+- tapOn:
+    text: "Tasks"
+- assertVisible:
+    text: "Scheduled Tasks"
+- tapOn:
+    text: "Memory"
+- assertVisible:
+    text: "Memory Index"
+- tapOn:
+    text: "Tools"
+- assertVisible:
+    text: "Servers"
+- tapOn:
+    text: "Skills"
+- assertVisible:
+    text: "SKILLS"
+- tapOn:
+    text: "Settings"
+- assertVisible:
+    text: "General Configuration"

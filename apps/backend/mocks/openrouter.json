@@ -1,0 +1,25 @@
+[
+  {
+    "uuid": "openrouter-api",
+    "name": "OpenRouter API",
+    "port": 3005,
+    "hostname": "0.0.0.0",
+    "routes": [
+      {
+        "uuid": "chat-completions",
+        "method": "POST",
+        "path": "",
+        "responses": [
+          {
+            "uuid": "success",
+            "statusCode": 200,
+            "body": "{\"id\": \"or-123\", \"object\": \"chat.completion\", \"model\": \"openai/gpt-4\", \"choices\": [{\"message\": {\"role\": \"assistant\", \"content\": \"Hello from OpenRouter!\"}, \"finish_reason\": \"stop\"}]}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

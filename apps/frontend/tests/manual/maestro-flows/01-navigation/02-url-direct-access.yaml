@@ -1,0 +1,35 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Acceso directo por URL a cada vista
+# Edge case: Navegación sin pasar por el header
+
+appId:
+  web: http://localhost:5173
+---
+- launchApp:
+    url: http://localhost:5173/
+- assertVisible:
+    text: "Health"
+- launchApp:
+    url: http://localhost:5173/chat
+- assertVisible:
+    text: "Conversations"
+- launchApp:
+    url: http://localhost:5173/tasks
+- assertVisible:
+    text: "Scheduled Tasks"
+- launchApp:
+    url: http://localhost:5173/memory
+- assertVisible:
+    text: "Memory Index"
+- launchApp:
+    url: http://localhost:5173/mcps
+- assertVisible:
+    text: "Servers"
+- launchApp:
+    url: http://localhost:5173/skills
+- assertVisible:
+    text: "SKILLS"
+- launchApp:
+    url: http://localhost:5173/settings
+- assertVisible:
+    text: "General Configuration"

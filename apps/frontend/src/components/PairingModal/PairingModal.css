@@ -1,0 +1,386 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+/* ---- Container ---- */
+.pm {
+  width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ---- Info section ---- */
+.pm-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pm-label {
+  flex-shrink: 0;
+  width: 52px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pm-value {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+}
+
+.pm-channel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: capitalize;
+}
+
+.pm-channel-icon {
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-primary);
+  vertical-align: middle;
+}
+
+.pm-username {
+  font-weight: var(--weight-semibold);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-code {
+  font-family: var(--font-mono);
+  background: var(--color-bg-selected);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.08em;
+}
+
+/* ---- User-link section ---- */
+.pm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pm-section-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---- Mode tabs ---- */
+.pm-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.pm-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  background: none;
+  border: none;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-micro, 100ms) ease,
+    color var(--duration-micro, 100ms) ease;
+}
+
+.pm-tab + .pm-tab {
+  border-left: 1px solid var(--color-border);
+}
+
+.pm-tab .material-symbols-outlined {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.pm-tab:hover:not(.pm-tab--active) {
+  background: var(--color-bg-hover, rgba(255,255,255,0.05));
+}
+
+.pm-tab--active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* ---- Select ---- */
+.pm-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input, var(--color-bg-secondary));
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.pm-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* ---- Hint ---- */
+.pm-hint {
+  margin: 0;
+  font-size: var(--text-xs, 11px);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+/* ---- Display-name field ---- */
+.pm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pm-field-label {
+  font-size: var(--text-xs, 11px);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.pm-input {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input, var(--color-bg-selected));
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pm-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.pm-field-hint {
+  font-size: var(--text-xs, 11px);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ---- Actions ---- */
+.pm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 20px;
+}
+
+.pm-btn {
+  height: 36px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background var(--duration-micro, 100ms) ease;
+}
+
+.pm-btn--deny {
+  background: var(--color-bg-selected);
+  color: var(--color-text-secondary);
+}
+
+.pm-btn--deny:hover {
+  background: var(--color-error);
+  color: #fff;
+}
+
+.pm-btn--approve {
+  background: var(--color-success);
+  color: #fff;
+}
+
+.pm-btn--approve:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.pm-btn--approve:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pairing-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pairing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pairing-label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pairing-value {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+}
+
+.pairing-code {
+  font-family: var(--font-mono);
+  background: var(--color-bg-selected);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.pairing-channel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pairing-channel-icon {
+  font-size: 16px;
+  color: var(--color-primary);
+}
+
+.pairing-display-name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* User selector section */
+.pairing-user-section {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pairing-section-label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.pairing-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input, var(--color-bg-secondary));
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.pairing-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.pairing-btn-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.pairing-btn-link:hover {
+  text-decoration: underline;
+}
+
+.pairing-btn-link .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.pairing-hint {
+  font-size: var(--text-xs, 11px);
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.pairing-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.pairing-btn {
+  height: 36px;
+  padding: 0 20px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-micro) var(--ease-out);
+  border: none;
+}
+
+.pairing-btn--deny {
+  background: var(--color-bg-selected);
+  color: var(--color-text-secondary);
+}
+
+.pairing-btn--deny:hover {
+  background: var(--color-error);
+  color: #fff;
+}
+
+.pairing-btn--approve {
+  background: var(--color-success);
+  color: #fff;
+}
+
+.pairing-btn--approve:hover:not(:disabled) {
+  background: #43a047;
+}
+
+.pairing-btn--approve:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

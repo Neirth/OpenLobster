@@ -1,0 +1,17 @@
+# Chat: estado vacío sin conversaciones
+---
+appId: openlobster-web
+env:
+  MAESTRO_BASE_URL: ${MAESTRO_BASE_URL:-http://localhost:5173}
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/chat
+- assertVisible:
+    text: "Chat"
+- assertVisible:
+    text: "Conversations"
+- runFlow:
+    when:
+      visible:
+        text: "No conversations yet"
+    file: ../_helpers/assert-empty-chat.yaml

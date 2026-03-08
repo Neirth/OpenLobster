@@ -1,0 +1,19 @@
+# Settings: tabs de archivos AGENTS.md, SOUL.md, IDENTITY.md
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/settings
+- assertVisible:
+    text: "WORKSPACE FILES"
+- tapOn:
+    text: "AGENTS.md"
+- assertVisible:
+    text: "AGENTS.md"
+- tapOn:
+    text: "SOUL.md"
+- assertVisible:
+    text: "SOUL.md"
+- tapOn:
+    text: "IDENTITY.md"
+- assertVisible:
+    text: "IDENTITY.md"
+- takeScreenshot: settings-workspace-tabs

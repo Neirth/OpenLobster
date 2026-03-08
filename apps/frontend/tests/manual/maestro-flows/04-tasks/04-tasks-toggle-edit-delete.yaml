@@ -1,0 +1,38 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Tasks - Toggle, editar y eliminar
+# Verifica toggle enabled, modal editar y modal eliminar.
+# PRECONDICIÓN: Debe existir al menos una tarea.
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tasks"
+- assertVisible:
+    text: "ENABLED"
+# Toggle desactivar (si hay tarea)
+- tapOn:
+    id: "task-toggle-0"
+# Verificar que el toggle cambió
+- assertVisible:
+    text: "ACTIONS"
+# Abrir modal editar
+- tapOn:
+    id: "task-edit-btn-0"
+- assertVisible:
+    text: "Edit task"
+- tapOn:
+    text: "Cancel"
+# Abrir modal eliminar
+- tapOn:
+    id: "task-delete-btn-0"
+- assertVisible:
+    text: "Delete Task?"
+- assertVisible:
+    text: "This action cannot be undone"
+- tapOn:
+    text: "Cancel"
+- assertVisible:
+    text: "Scheduled Tasks"

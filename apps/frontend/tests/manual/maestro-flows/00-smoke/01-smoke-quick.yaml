@@ -1,0 +1,23 @@
+# Smoke test rápido - Verifica que la app carga y navega
+# Ejecutar primero para validar entorno
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL:-http://localhost:5173}
+---
+- launchApp
+- assertVisible:
+    text: "OPENLOBSTER"
+- assertVisible:
+    text: "Dashboard"
+- tapOn:
+    text: "Chat"
+- assertVisible:
+    text: "Conversations"
+- tapOn:
+    text: "Settings"
+- assertVisible:
+    text: "Settings"
+# Vuelve al dashboard
+- tapOn:
+    text: "Dashboard"

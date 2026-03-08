@@ -1,0 +1,25 @@
+# Edge Case: Marketplace búsqueda sin resultados
+# Ref: SPECIFICATION.md 2.15
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Marketplace"
+- assertVisible:
+    text: "Marketplace"
+# Buscar texto que no coincida con ningún servidor
+- tapOn:
+    id: "marketplace-search"
+- inputText: "xyznonexistent12345"
+- assertVisible:
+    text: "No results"
+# O el icono search_off / mensaje equivalente
+- tapOn:
+    text: "Back"
+- assertVisible:
+    text: "MCP Servers"

@@ -1,0 +1,10 @@
+# PairingModal: aprobar/denegar solicitud de pairing
+# Requiere: evento PairingRequestEvent activo (simulado o real)
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/
+- runFlow:
+    when:
+      visible:
+        text: "Pairing Request"
+    file: ../09-auth/02a-pairing-approve-deny.yaml

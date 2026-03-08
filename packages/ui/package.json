@@ -1,0 +1,47 @@
+{
+  "name": "@openlobster/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.tsx",
+  "types": "./index.tsx",
+  "exports": {
+    ".": "./index.tsx",
+    "./theme": "./src/theme/index.ts",
+    "./types": "./src/types/index.ts",
+    "./graphql": "./src/graphql/index.ts",
+    "./graphql/queries": "./src/graphql/queries/index.ts",
+    "./graphql/mutations": "./src/graphql/mutations/index.ts",
+    "./hooks": "./src/hooks/index.ts",
+    "./styles/tokens.css": "./src/styles/tokens.css",
+    "./styles/reset.css": "./src/styles/reset.css",
+    "./styles/global.css": "./src/styles/global.css"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "graphql": "^16.8.1",
+    "graphql-request": "^7.1.0",
+    "parse-prometheus-text-format": "^1.1.1",
+    "solid-js": "^1.8.17"
+  },
+  "peerDependencies": {
+    "@tanstack/solid-query": "^5.0.0"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^2.0.4",
+    "@types/eslint": "^8.56.10",
+    "@types/node": "^20.12.12",
+    "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.12",
+    "vitest": "^4.0.18"
+  }
+}

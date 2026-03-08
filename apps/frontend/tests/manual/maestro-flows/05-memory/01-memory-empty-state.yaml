@@ -1,0 +1,21 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Memory - Estado vacío
+# Verifica estado vacío cuando no hay nodos de memoria.
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Memory"
+- assertVisible:
+    text: "No memories yet"
+- assertVisible:
+    text: "Start a conversation with the agent"
+- assertVisible:
+    text: "Memory Index"
+- assertVisible:
+    text: "Select an entry to view details"
+- assertVisible:
+    text: "Search memories..."

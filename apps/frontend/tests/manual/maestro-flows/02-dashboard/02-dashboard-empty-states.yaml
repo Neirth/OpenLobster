@@ -1,0 +1,38 @@
+# Dashboard: estados vacíos
+# Verifica que se muestran correctamente cuando no hay datos
+---
+appId: openlobster-web
+env:
+  MAESTRO_BASE_URL: ${MAESTRO_BASE_URL:-http://localhost:5173}
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/
+- assertVisible:
+    text: "OPENLOBSTER"
+# Si no hay canales configurados
+- runFlow:
+    when:
+      visible:
+        text: "No channels configured"
+    file: ../_helpers/scroll-to-logs.yaml
+# Si no hay sesiones activas
+- runFlow:
+    when:
+      visible:
+        text: "No active sessions"
+    file: ../_helpers/scroll-to-logs.yaml
+# Si no hay servidores MCP
+- runFlow:
+    when:
+      visible:
+        text: "No MCP servers connected"
+    file: ../_helpers/scroll-to-logs.yaml
+# Logs vacíos o esperando
+- runFlow:
+    when:
+      visible:
+        text:
+          oneOf:
+            - "Waiting for logs..."
+            - "No logs available"
+    file: ../_helpers/scroll-to-logs.yaml

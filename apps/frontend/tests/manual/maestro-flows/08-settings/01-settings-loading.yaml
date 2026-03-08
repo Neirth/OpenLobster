@@ -1,0 +1,12 @@
+# Settings: pantalla de carga inicial
+# Puede mostrar "Loading configuration" o el formulario si ya cargó
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/settings
+- assertVisible:
+    text:
+      - "Loading configuration"
+      - "General Configuration"
+      - "Save Changes"
+      - "WORKSPACE FILES"
+- takeScreenshot: settings-loaded

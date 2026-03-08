@@ -1,0 +1,21 @@
+{
+  "name": "@openlobster/ui-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme": "./src/theme/index.ts",
+    "./hooks": "./src/hooks/index.ts",
+    "./graphql": "./src/graphql/index.ts",
+    "./graphql/queries": "./src/graphql/queries/index.ts",
+    "./graphql/mutations": "./src/graphql/mutations/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@openlobster/ui": "workspace:*",
+    "solid-js": "^1.8.17"
+  }
+}
