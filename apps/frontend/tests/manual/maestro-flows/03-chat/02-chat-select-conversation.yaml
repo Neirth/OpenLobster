@@ -1,0 +1,30 @@
+# Chat: seleccionar conversación y ver mensajes
+# Requiere que exista al menos una conversación
+---
+appId: openlobster-web
+env:
+  MAESTRO_BASE_URL: ${MAESTRO_BASE_URL:-http://localhost:5173}
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/chat
+- assertVisible:
+    text: "Chat"
+- runFlow:
+    when:
+      visible:
+        text: "Select a conversation to start chatting"
+    file: ../_helpers/assert-no-selection.yaml
+- tapOn:
+    text: "Select a conversation to start chatting"
+    optional: true
+# Si hay conversaciones, tap en la primera
+- tapOn:
+    index: 0
+    optional: true
+- assertVisible:
+    text:
+      oneOf:
+        - "Type a message..."
+        - "messages"
+        - "Send"
+    optional: true

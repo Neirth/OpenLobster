@@ -1,0 +1,33 @@
+# ─── Skills / System files ────────────────────────────────────────────────────
+
+type Skill {
+  name:        String!
+  description: String
+  enabled:     Boolean!
+  path:        String
+}
+
+type SystemFile {
+  name:         String!
+  path:         String!
+  content:      String
+  lastModified: String
+}
+
+type ImportSkillResult {
+  success: Boolean!
+  error:   String
+}
+
+extend type Query {
+  skills:      [Skill!]!
+  systemFiles: [SystemFile!]!
+}
+
+extend type Mutation {
+  enableSkill(name: String!): Boolean!
+  disableSkill(name: String!): Boolean!
+  deleteSkill(name: String!): Boolean!
+  importSkill(data: String!): ImportSkillResult!
+  writeSystemFile(name: String!, content: String!): MutationResult!
+}

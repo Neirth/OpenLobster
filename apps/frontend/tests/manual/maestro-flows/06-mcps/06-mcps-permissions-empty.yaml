@@ -1,0 +1,14 @@
+# MCPs: Permissions tab - estados vacíos (no users, no tools, select user)
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Permissions"
+- assertVisible:
+    text: "Select a user to manage their tool permissions"
+- takeScreenshot: mcps-permissions-empty

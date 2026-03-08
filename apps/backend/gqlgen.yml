@@ -1,0 +1,44 @@
+# gqlgen configuration for OpenLobster GraphQL API
+# See https://gqlgen.com/config/ for documentation.
+#
+# skip_validation: permite regenerar aunque el código no compile (p. ej. tras cambios
+# en el schema antes de que los resolvers estén actualizados). Evita el error
+# "validation failed: packages.Load" en rebuilds.
+skip_validation: true
+
+schema:
+  # Schema dividido por dominio — follow-schema genera un .resolvers.go por archivo
+  - ../../schema/root.graphql
+  - ../../schema/shared.graphql
+  - ../../schema/agent.graphql
+  - ../../schema/config.graphql
+  - ../../schema/conversations.graphql
+  - ../../schema/memory.graphql
+  - ../../schema/mcp.graphql
+  - ../../schema/tasks.graphql
+  - ../../schema/skills.graphql
+  - ../../schema/tools.graphql
+  - ../../schema/subscriptions.graphql
+
+exec:
+  filename: internal/application/graphql/generated/generated.go
+  package:  generated
+
+model:
+  filename: internal/application/graphql/generated/models_gen.go
+  package:  generated
+
+resolver:
+  layout:             follow-schema
+  dir:                internal/application/graphql/resolvers
+  package:            resolvers
+  # Sin subdirectorios: todos los resolvers en un solo paquete (Mutation/Query/Subscription
+  # y mutationResolver/queryResolver deben coexistir para implementar ResolverRoot).
+  filename_template:  "{name}_resolver.go"
+
+autobind: []
+
+models:
+  JSON:
+    model:
+      - github.com/99designs/gqlgen/graphql.Map

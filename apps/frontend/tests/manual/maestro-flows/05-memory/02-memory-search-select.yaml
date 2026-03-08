@@ -1,0 +1,29 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Memory - Búsqueda y selección de nodos
+# PRECONDICIÓN: Debe haber nodos en el grafo de memoria.
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Memory"
+- inputText:
+    text: "user"
+    id: "memory-search-input"
+- assertVisible:
+    text: "Memory Index"
+# Seleccionar primer nodo de la lista
+- tapOn:
+    id: "memory-node-item-0"
+- assertVisible:
+    text: "Properties"
+- assertVisible:
+    text: "Connections"
+- assertVisible:
+    text: "Graph Visualization"
+- assertVisible:
+    text: "Edit Memory Node"
+- assertVisible:
+    text: "Delete Memory Node"

@@ -1,0 +1,19 @@
+# Edge Case: PairingModal - Cerrar sin aprobar/denegar
+# Ref: SPECIFICATION.md - PairingModal edge case
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+# Requiere: simular PairingRequestEvent (mock/backend)
+# Si no hay pairing request, este flujo se salta
+- launchApp
+# Si aparece PairingModal (por evento simulado):
+- assertVisible:
+    text: "Pairing Request"
+# Cerrar con overlay o botón Close sin aprobar/denegar
+- tapOn:
+    id: "modal-close"
+# Verificar que el modal desaparece y la app sigue usable
+- assertVisible:
+    text: "OPENLOBSTER"

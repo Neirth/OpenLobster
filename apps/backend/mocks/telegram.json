@@ -1,0 +1,40 @@
+[
+  {
+    "uuid": "telegram-api",
+    "name": "Telegram Bot API",
+    "port": 3001,
+    "hostname": "0.0.0.0",
+    "routes": [
+      {
+        "uuid": "catch-all",
+        "method": "POST",
+        "path": "",
+        "responses": [
+          {
+            "uuid": "success",
+            "statusCode": 200,
+            "body": "{\"ok\": true, \"result\": {\"message_id\": 123}}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          }
+        ]
+      },
+      {
+        "uuid": "catch-all-get",
+        "method": "GET",
+        "path": "",
+        "responses": [
+          {
+            "uuid": "success",
+            "statusCode": 200,
+            "body": "{\"ok\": true, \"result\": {\"id\": 123456}}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

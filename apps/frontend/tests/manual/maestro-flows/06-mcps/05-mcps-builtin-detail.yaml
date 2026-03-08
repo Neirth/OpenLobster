@@ -1,0 +1,18 @@
+# MCPs: Ver detalle de capacidad Built-in (Browser, Terminal, etc.)
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Built-in"
+- tapOn:
+    text: "Browser"
+- assertVisible:
+    text: "Allows the agent to browse and fetch web page content"
+- tapOn:
+    text: "Close"
+- takeScreenshot: mcps-builtin-detail

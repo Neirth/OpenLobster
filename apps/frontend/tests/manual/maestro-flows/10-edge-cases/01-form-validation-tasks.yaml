@@ -1,0 +1,31 @@
+# Edge Case: Tasks - Validación de formulario
+# Campos requeridos, schedule vacío, schedule inválido
+# Ref: SPECIFICATION.md sección 1.3, 1.4, 1.5
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tasks"
+- tapOn:
+    text: "New Task"
+- assertVisible:
+    text: "Create Task"
+# 1.3 - Intentar crear sin nombre (required)
+- tapOn:
+    id: "task-prompt"
+- inputText: "Test prompt"
+# Dejar schedule vacío (1.4 - vacío = run immediately)
+- tapOn:
+    text: "Create Task"
+- assertVisible:
+    text: "Scheduled Tasks"
+# O cancelar si el backend rechaza
+- tapOn:
+    text: "New Task"
+- tapOn:
+    text: "Cancel"
+- assertVisible:
+    text: "Scheduled Tasks"

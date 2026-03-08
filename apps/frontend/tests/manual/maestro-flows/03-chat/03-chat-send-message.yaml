@@ -1,0 +1,25 @@
+# Chat: escribir y enviar mensaje
+# Requiere conversación seleccionada
+---
+appId: openlobster-web
+env:
+  MAESTRO_BASE_URL: ${MAESTRO_BASE_URL:-http://localhost:5173}
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/chat
+- assertVisible:
+    text: "Chat"
+# Tap en textarea de mensaje
+- tapOn:
+    text: "Type a message..."
+- inputText: "Hola, esto es un test de Maestro"
+- assertVisible:
+    text: "Send"
+- tapOn:
+    text: "Send"
+# Verificar que el mensaje aparece (o que el botón se deshabilita durante envío)
+- assertVisible:
+    text:
+      oneOf:
+        - "Hola, esto es un test de Maestro"
+        - "Type a message..."

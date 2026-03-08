@@ -1,0 +1,32 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Memory - Editar y eliminar nodo
+# Abre modales de editar y eliminar (sin confirmar eliminación).
+# PRECONDICIÓN: Debe haber al menos un nodo.
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Memory"
+- tapOn:
+    id: "memory-node-item-0"
+- tapOn:
+    text: "Edit Memory Node"
+- assertVisible:
+    text: "Label"
+- assertVisible:
+    text: "Add property"
+- assertVisible:
+    text: "Saving…"
+- tapOn:
+    text: "Cancel"
+- tapOn:
+    text: "Delete Memory Node"
+- assertVisible:
+    text: "Are you sure"
+- assertVisible:
+    text: "This action cannot be undone"
+- tapOn:
+    text: "Cancel"

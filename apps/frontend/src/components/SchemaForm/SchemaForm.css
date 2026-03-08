@@ -1,0 +1,167 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+.schema-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-bg-selected);
+}
+
+.schema-field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.schema-field--textarea {
+  align-items: flex-start;
+}
+
+.schema-field--group {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+.schema-field:last-child {
+  border-bottom: none;
+}
+
+.field-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.field-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+}
+
+.field-description {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.field-input,
+.field-select {
+  width: 100%;
+  max-width: 400px;
+  padding: 8px 12px;
+  background: var(--color-bg-selected);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color var(--duration-micro) var(--ease-out);
+}
+
+.field-control {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.field-input:focus,
+.field-select:focus {
+  border-color: var(--color-accent);
+}
+
+.field-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.field-textarea {
+  width: min(100%, 400px);
+  min-height: 96px;
+  max-height: 220px;
+  padding: 12px;
+  background: var(--color-bg-selected);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  transition: border-color var(--duration-micro) var(--ease-out);
+}
+
+.field-textarea:focus {
+  border-color: var(--color-accent);
+}
+
+.field-group {
+  width: 100%;
+  padding-left: 0;
+  margin-top: 0;
+  border-left: none;
+}
+
+.field-group .schema-field {
+  padding: 14px 0;
+}
+
+.schema-field--group > .field-info {
+  max-width: 720px;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg-selected);
+  border-radius: 14px;
+  transition: background var(--duration-normal) var(--ease-out);
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 4px;
+  bottom: 4px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--color-accent);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  background: #ffffff;
+  transform: translateX(20px);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+  box-shadow: 0 0 0 2px var(--color-accent-muted);
+}

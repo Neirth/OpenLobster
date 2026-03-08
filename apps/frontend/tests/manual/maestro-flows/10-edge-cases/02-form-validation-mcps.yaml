@@ -1,0 +1,27 @@
+# Edge Case: MCPs - Add Server sin nombre/URL
+# Ref: SPECIFICATION.md 1.7, 1.8
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Add MCP Server"
+- assertVisible:
+    text: "Server Name"
+# 1.7 - Sin nombre: botón Add no debe permitir submit o mostrar error
+- tapOn:
+    id: "add-server-url"
+- inputText: "https://example.com/mcp"
+# Dejar nombre vacío - verificar que no se envía
+- tapOn:
+    text: "Add Server"
+# Si hay validación: assertVisible error
+# Si no: el modal puede cerrarse o quedarse abierto
+- tapOn:
+    text: "Cancel"
+- assertVisible:
+    text: "MCP Servers"

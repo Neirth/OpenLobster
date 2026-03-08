@@ -1,0 +1,150 @@
+/* AccessTokenModal — full-screen token gate, follows app design tokens */
+
+.access-token-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--color-bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+}
+
+.access-token-modal {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2xl);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  text-align: center;
+}
+
+/* ── Icon ─────────────────────────────────────────── */
+.access-token-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-selected);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.access-token-icon .material-symbols-outlined {
+  font-size: 24px;
+  color: var(--color-accent);
+}
+
+/* ── Text ─────────────────────────────────────────── */
+.access-token-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+  letter-spacing: var(--tracking-tight, -0.02em);
+}
+
+.access-token-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+  margin: 0;
+}
+
+.access-token-description code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--color-bg-selected);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  color: var(--color-text-primary);
+}
+
+/* ── Form ─────────────────────────────────────────── */
+.access-token-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-xs);
+}
+
+.access-token-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  width: 100%;
+}
+
+.access-token-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--color-bg-selected);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  font-family: var(--font-mono);
+  padding: var(--space-md) var(--space-lg);
+  outline: none;
+  transition: border-color var(--duration-micro) var(--ease-out);
+  letter-spacing: var(--tracking-wider, 0.08em);
+}
+
+.access-token-input::placeholder {
+  color: var(--color-text-muted);
+  letter-spacing: normal;
+  font-family: var(--font-sans);
+}
+
+.access-token-input:focus {
+  border-color: var(--color-accent);
+}
+
+.access-token-input--error {
+  border-color: var(--color-error);
+}
+
+.access-token-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  text-align: left;
+}
+
+/* ── Submit button ────────────────────────────────── */
+.access-token-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--duration-micro) var(--ease-out),
+    opacity var(--duration-micro) var(--ease-out);
+}
+
+.access-token-submit:hover {
+  opacity: 0.9;
+}
+
+.access-token-submit:active {
+  opacity: 0.85;
+}
+
+.access-token-submit .material-symbols-outlined {
+  font-size: 18px;
+}

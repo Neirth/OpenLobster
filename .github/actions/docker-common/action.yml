@@ -1,0 +1,64 @@
+name: 'Docker Common Steps'
+description: 'Pasos comunes para login, setup y metadata docker.'
+inputs:
+  app:
+    required: true
+    description: 'Nombre de la app'
+  platform:
+    required: false
+    description: 'Plataforma (opcional)'
+  for-push:
+    required: false
+    default: 'false'
+    description: '¿Es para push?'
+  dhi-registry-username:
+    required: false
+    description: 'Username for dhi.io registry'
+  dhi-registry-password:
+    required: false
+    description: 'Password for dhi.io registry'
+outputs:
+  image-name:
+    description: 'Lowercase image name for Docker registry'
+    value: ${{ steps.set-image-name.outputs.image-name }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Set lowercase image name
+      id: set-image-name
+      shell: bash
+      run: |
+        echo "image-name=$(echo 'ghcr.io/${{ github.repository }}/${{ inputs.app }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log into dhi.io registry (for pulling base images)
+      if: ${{ inputs.dhi-registry-username != '' && inputs.dhi-registry-password != '' }}
+      uses: docker/login-action@v3
+      with:
+        registry: dhi.io
+        username: ${{ inputs.dhi-registry-username }}
+        password: ${{ inputs.dhi-registry-password }}
+
+    - name: Log into ghcr.io registry (for pushing output image)
+      if: ${{ inputs.for-push == 'true' }}
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract Docker metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ steps.set-image-name.outputs.image-name }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha,prefix=,format=short
+          type=raw,value=latest,enable={{is_default_branch}}

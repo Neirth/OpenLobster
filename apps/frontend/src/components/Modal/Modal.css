@@ -1,0 +1,223 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+@import '../Button/Button.css';
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-box {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+  width: 550px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-bg-selected);
+}
+
+.modal-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-micro) var(--ease-out),
+    color var(--duration-micro) var(--ease-out);
+}
+
+.modal-close:hover {
+  background: var(--color-bg-selected);
+  color: var(--color-text-primary);
+}
+
+.modal-close .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.modal-content {
+  padding: 24px;
+  overflow-y: auto;
+  max-height: calc(90vh - 120px);
+}
+
+/* Modal actions (for confirm dialogs) */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-bg-selected);
+}
+
+/* Modal form styles */
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-form .form-group label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.modal-form .form-group input,
+.modal-form .form-group select,
+.modal-form .form-group textarea {
+  padding: 10px 12px;
+  background: var(--color-bg-selected);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color var(--duration-micro) var(--ease-out);
+}
+
+.modal-form .form-group input:focus,
+.modal-form .form-group select:focus,
+.modal-form .form-group textarea:focus {
+  border-color: var(--color-accent);
+}
+
+.modal-form .form-group input::placeholder,
+.modal-form .form-group textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.modal-form .form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+  font-family: var(--font-mono);
+}
+
+.modal-form .form-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: -4px;
+}
+
+.modal-form .checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-form .checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.modal-form .checkbox-group label {
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.modal-form .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-bg-selected);
+}
+
+.modal-form .form-actions button {
+  min-width: 100px;
+}
+
+.task-type-selector {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-bg-selected);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.task-type-selector button {
+  flex: 1;
+  padding: 8px 16px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+  cursor: pointer;
+  transition: background var(--duration-micro) var(--ease-out),
+              color var(--duration-micro) var(--ease-out);
+}
+
+.task-type-selector button:first-child {
+  border-right: 1px solid var(--color-bg-selected);
+}
+
+.task-type-selector button.active {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.task-type-selector button:not(.active):hover {
+  background: var(--color-bg-selected);
+  color: var(--color-text-primary);
+}

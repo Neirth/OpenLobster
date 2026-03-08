@@ -1,0 +1,13 @@
+# AccessTokenModal: validación token vacío
+---
+- tapOn:
+    id: "access-token-input"
+- inputText: ""
+- tapOn:
+    text: "Submit"
+- assertVisible:
+    text: "Token cannot be empty"
+- inputText: "invalid-token-test"
+- tapOn:
+    text: "Submit"
+- takeScreenshot: access-token-validation

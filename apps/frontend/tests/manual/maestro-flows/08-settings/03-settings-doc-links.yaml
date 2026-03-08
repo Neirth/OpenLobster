@@ -1,0 +1,17 @@
+# Settings: enlaces de documentación
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/settings
+- assertVisible:
+    text: "USEFUL LINKS"
+- assertVisible:
+    text: "Telegram"
+- assertVisible:
+    text: "Discord"
+- assertVisible:
+    text: "WhatsApp"
+- assertVisible:
+    text: "Twilio"
+- assertVisible:
+    text: "Slack"
+- takeScreenshot: settings-doc-links

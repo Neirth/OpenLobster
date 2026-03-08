@@ -1,0 +1,11 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Ruta inexistente muestra Error404
+# Edge case: Ruta no definida
+
+appId:
+  web: http://localhost:5173
+---
+- launchApp:
+    url: http://localhost:5173/ruta-que-no-existe-xyz
+- assertVisible:
+    text: "404"

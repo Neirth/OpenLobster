@@ -1,0 +1,25 @@
+{
+  "name": "openlobster",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "codegen": "graphql-codegen --config codegen.ts",
+    "codegen:watch": "graphql-codegen --config codegen.ts --watch",
+    "docker:image": "pnpm install && pnpm --filter @openlobster/frontend build && docker build -f .docker/Dockerfile.static -t ghcr.io/neirth/openlobster:v0.1.0-rc4 --platform linux/arm64 ."
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^6.1.2",
+    "@graphql-codegen/typescript": "^5.0.8",
+    "@graphql-codegen/typescript-graphql-request": "^6.4.0",
+    "@graphql-codegen/typescript-operations": "^5.0.8",
+    "prettier": "^3.2.5",
+    "turbo": "^2.0.4"
+  },
+  "packageManager": "pnpm@9.1.0",
+  "dependencies": {
+    "graphql-tag": "^2.12.6"
+  }
+}

@@ -1,0 +1,328 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+/* ── Stat cards ─────────────────────────────────────────────── */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 48px;
+}
+
+.stat-card {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+  transition: background var(--duration-micro) var(--ease-out);
+}
+
+.stat-card:hover {
+  background: var(--color-bg-selected);
+}
+
+.stat-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-value--success {
+  color: var(--color-success);
+}
+
+.stat-value--error {
+  color: var(--color-error, #e53e3e);
+}
+
+.stat-value--warning {
+  color: var(--color-warning, #d69e2e);
+}
+
+.stat-value__icon {
+  font-size: 18px;
+  color: var(--color-success);
+  font-variation-settings: 'FILL' 1;
+}
+
+.stat-value__icon--error {
+  font-size: 18px;
+  color: var(--color-error, #e53e3e);
+  font-variation-settings: 'FILL' 1;
+}
+
+.stat-value__icon--warning {
+  font-size: 18px;
+  color: var(--color-warning, #d69e2e);
+  font-variation-settings: 'FILL' 1;
+}
+
+.stat-value__info {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+/* ── 2x2 grid ───────────────────────────────────────────────── */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 32px 40px;
+  margin-bottom: 40px;
+  align-items: start;
+}
+
+.dashboard-panel {
+  min-width: 0;
+}
+
+/* ── Section header ──────────────────────────────────────────── */
+
+.section-header {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin: 0 0 12px 0;
+}
+
+/* ── List rows ───────────────────────────────────────────────── */
+
+.list-row {
+  height: 36px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-micro) var(--ease-out);
+  cursor: default;
+}
+
+.list-row:hover {
+  background: rgba(37, 37, 37, 0.4);
+}
+
+.list-row__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.list-row__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.list-row__name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-row__name--muted {
+  color: var(--color-text-muted);
+}
+
+.list-row__sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.list-row__mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* ── Channel icon ────────────────────────────────────────────── */
+
+.channel-icon {
+  width: 24px;
+  height: 24px;
+  background: var(--color-bg-selected);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-variation-settings: 'FILL' 0, 'wght' 400;
+}
+
+/* ── Status dot ──────────────────────────────────────────────── */
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+/* ── Avatar circle ───────────────────────────────────────────── */
+
+.avatar-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: var(--weight-bold);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.avatar-circle--blue {
+  background: rgba(79, 142, 247, 0.2);
+  color: var(--color-accent);
+}
+
+.avatar-circle--yellow {
+  background: rgba(255, 152, 0, 0.2);
+  color: var(--color-warning);
+}
+
+/* ── Badge pill ──────────────────────────────────────────────── */
+
+.badge {
+  background: var(--color-bg-selected);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.badge--success {
+  background: rgba(76, 175, 80, 0.1);
+  color: var(--color-success);
+}
+
+.badge--warning {
+  background: rgba(255, 152, 0, 0.1);
+  color: var(--color-warning);
+}
+
+.badge--error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error);
+}
+
+/* ── Logs section ────────────────────────────────────────────── */
+
+.logs-section {
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+}
+
+.logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.logs-copy-icon {
+  font-size: 16px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--duration-micro) var(--ease-out);
+}
+
+.logs-copy-icon:hover {
+  color: var(--color-text-secondary);
+}
+
+.logs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logs-scroll {
+  overflow: auto;
+  max-height: 260px;
+  border-radius: var(--radius-sm);
+}
+
+.logs-content {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre;
+  min-width: max-content;
+}
+
+.log-line {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.log-prefix {
+  color: var(--color-text-secondary);
+}
+
+/* ── Dashboard MCP server favicon ───────────────────────────── */
+
+.dash-server-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+/* ── List row ellipsis ───────────────────────────────────────── */
+
+.list-row--ellipsis {
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  letter-spacing: 3px;
+  padding: 4px 0;
+  cursor: default;
+}
+
+/* ── Empty state ─────────────────────────────────────────────── */
+
+.empty-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  padding: 8px;
+  margin: 0;
+}

@@ -1,0 +1,69 @@
+# ─── Tools / MCP ──────────────────────────────────────────────────────────────
+
+type Tool {
+  name:        String!
+  description: String
+  source:      String
+}
+
+type MCPTool {
+  name:        String!
+  serverName:  String
+  description: String
+}
+
+type MCP {
+  name:   String!
+  type:   String
+  status: String
+  url:    String
+  tools:  [Tool!]!
+}
+
+type MCPServer {
+  name:         String!
+  transport:    String
+  status:       String!
+  toolCount:    Int!
+  url:          String
+  requiresAuth: Boolean
+}
+
+type MCPOAuthStatus {
+  status: String!
+  error:  String
+}
+
+type MCPConnectResult {
+  name:         String
+  transport:    String
+  status:       String
+  toolCount:    Int
+  requiresAuth: Boolean
+  url:          String
+  success:      Boolean
+  error:        String
+}
+
+type OAuthInitiateResult {
+  success: Boolean!
+  authUrl: String
+  error:   String
+}
+
+extend type Query {
+  mcps:           [MCP!]!
+  mcpServers:     [MCPServer!]!
+  mcpTools:       [MCPTool!]!
+  mcpOAuthStatus(name: String!): MCPOAuthStatus
+}
+
+extend type Mutation {
+  connectMcp(
+    name:      String!
+    transport: String
+    url:       String
+  ): MCPConnectResult!
+  disconnectMcp(name: String!): Boolean!
+  initiateOAuth(name: String!, url: String!): OAuthInitiateResult!
+}

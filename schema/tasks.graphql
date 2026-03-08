@@ -1,0 +1,40 @@
+# ─── Sub-agents / Tasks ──────────────────────────────────────────────────────
+
+type Task {
+  id:        String!
+  prompt:    String!
+  status:    String!
+  schedule:  String
+  taskType:  String
+  isCyclic:  Boolean
+  enabled:   Boolean!
+  createdAt: String
+  lastRunAt: String
+  nextRunAt: String
+}
+
+type ToggleTaskResult {
+  success: Boolean!
+  id:      String
+  enabled: Boolean
+  error:   String
+}
+
+extend type Query {
+  tasks: [Task!]!
+}
+
+extend type Mutation {
+  addTask(prompt: String!, schedule: String): Task!
+  completeTask(taskId: String!): Boolean!
+  removeTask(taskId: String!): Boolean!
+  updateTask(
+    id:       String!
+    prompt:   String!
+    schedule: String
+  ): Task
+  toggleTask(
+    id:      String!
+    enabled: Boolean!
+  ): ToggleTaskResult!
+}

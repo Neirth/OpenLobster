@@ -1,0 +1,57 @@
+/*
+ * Copyright (c) OpenLobster contributors. See LICENSE for details.
+ *
+ * Global base styles for the OpenLobster web frontend.
+ * Import after tokens.css and reset.css.
+ */
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-sunken);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-overlay);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Focus visible — keyboard navigation only */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background-color: rgba(79, 142, 247, 0.25);
+  color: var(--color-text-primary);
+}
+
+/* Monospace text */
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}

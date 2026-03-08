@@ -1,0 +1,11 @@
+# PairingModal: flujo aprobar (modo nuevo usuario)
+---
+- assertVisible:
+    text: "Pairing Request"
+- assertVisible:
+    text: "Approve"
+- assertVisible:
+    text: "Deny"
+- tapOn:
+    text: "Close"
+- takeScreenshot: pairing-modal-closed

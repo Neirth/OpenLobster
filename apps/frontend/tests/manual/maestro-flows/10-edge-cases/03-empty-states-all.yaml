@@ -1,0 +1,42 @@
+# Edge Case: Verificar todos los empty states
+# Ref: SPECIFICATION.md sección 2
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+# 2.1 Chat sin conversaciones
+- tapOn:
+    text: "Chat"
+- assertVisible:
+    text: "No conversations yet"
+- assertVisible:
+    text: "Don't be shy"
+# 2.4 Tasks vacíos
+- tapOn:
+    text: "Tasks"
+- assertVisible:
+    text: "No scheduled tasks"
+# 2.5 MCPs sin servidores
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Servers"
+- assertVisible:
+    text: "No MCP servers connected"
+# 2.9 Memory sin nodos
+- tapOn:
+    text: "Memory"
+- assertVisible:
+    text: "No memories yet"
+# 2.6 Permisos sin usuarios
+- tapOn:
+    text: "Permissions"
+- assertVisible:
+    text: "Select a user"
+# 2.10 Skills vacíos
+- tapOn:
+    text: "Skills"
+- assertVisible:
+    text: "No skills found"

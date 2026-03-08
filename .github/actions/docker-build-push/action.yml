@@ -1,0 +1,56 @@
+name: 'Docker Build & Push'
+description: 'Construye y sube la imagen docker usando los metadatos.'
+inputs:
+  app:
+    required: true
+    description: 'Nombre de la app'
+  platform:
+    required: true
+    description: 'Plataforma'
+  for-push:
+    required: false
+    default: 'false'
+    description: '¿Es para push?'
+  base-dir:
+    required: false
+    default: 'apps'
+    description: 'Directorio base donde se encuentran las apps'
+runs:
+  using: 'composite'
+  steps:
+    - name: Set lowercase image name
+      id: set-image-name
+      shell: bash
+      run: |
+        echo "image-name=$(echo 'ghcr.io/${{ github.repository }}/${{ inputs.app }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+    - name: Build and push Docker image by digest
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ${{ inputs.base-dir }}/${{ inputs.app }}/Dockerfile
+        platforms: ${{ inputs.platform }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha,scope=${{ inputs.app }}-${{ inputs.platform }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.app }}-${{ inputs.platform }}
+        outputs: type=image,name=${{ steps.set-image-name.outputs.image-name }},push-by-digest=true,name-canonical=true,push=${{ inputs.for-push == 'true' }}
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+
+    - name: Export digest
+      if: ${{ inputs.for-push == 'true' }}
+      shell: bash
+      run: |
+        mkdir -p /tmp/digests/${{ inputs.app }}
+        digest="${{ steps.build.outputs.digest }}"
+        touch "/tmp/digests/${{ inputs.app }}/${digest#sha256:}"
+
+    - name: Upload digest
+      if: ${{ inputs.for-push == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: digests-${{ inputs.app }}-${{ strategy.job-index }}
+        path: /tmp/digests/${{ inputs.app }}/*
+        if-no-files-found: error
+        retention-days: 1

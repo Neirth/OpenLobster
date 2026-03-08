@@ -1,0 +1,32 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Tasks - Crear tarea cíclica
+# Flujo de creación de tarea cíclica con expresión cron.
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tasks"
+- tapOn:
+    text: "New Task"
+- inputText:
+    text: "Daily reminder"
+    id: "task-name-input"
+- tapOn:
+    text: "Cyclic"
+- inputText:
+    text: "0 8 * * *"
+    id: "schedule-input"
+- inputText:
+    text: "Send daily summary"
+    id: "prompt-input"
+- tapOn:
+    text: "Create Task"
+- assertVisible:
+    text: "Daily reminder"
+- assertVisible:
+    text: "Cyclic"
+- assertVisible:
+    text: "0 8 * * *"

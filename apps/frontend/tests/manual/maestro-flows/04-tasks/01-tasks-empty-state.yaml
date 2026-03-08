@@ -1,0 +1,35 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Tasks - Estado vacío
+# Verifica que se muestra correctamente cuando no hay tareas programadas.
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- assertVisible:
+    text: "Tasks"
+- assertVisible:
+    text: "No scheduled tasks"
+- assertVisible:
+    text: "Create a task to automate recurring actions"
+- assertVisible:
+    text: "New Task"
+- tapOn:
+    text: "New Task"
+- assertVisible:
+    text: "Create Task"
+- assertVisible:
+    text: "Task Name"
+- assertVisible:
+    text: "Schedule"
+- assertVisible:
+    text: "Prompt"
+- assertVisible:
+    text: "One-shot"
+- assertVisible:
+    text: "Cyclic"
+- tapOn:
+    text: "Cancel"
+- assertVisible:
+    text: "No scheduled tasks"

@@ -1,0 +1,30 @@
+name: Configure Production Environment
+description: Action for configure production enviroment
+inputs:
+  kubeconfig:
+    description: A kubeconfig from cluster
+    required: true
+  ts_client_id:
+    description: Client ID of Tailscale API
+    required: true
+  ts_client_secret:
+    description: Client Secret of Tailscale API
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Tailscale
+      uses: tailscale/github-action@v2
+      if: github.ref == 'refs/heads/master'
+      with:
+        oauth-client-id: ${{ inputs.ts_client_id }}
+        oauth-secret: ${{ inputs.ts_client_secret }}
+        tags: tag:ci
+
+    - name: Copy kubeconfig from Github Secrets
+      if: github.ref == 'refs/heads/master'
+      shell: bash
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ inputs.kubeconfig }}" > ~/.kube/config
+        chmod 600 ~/.kube/config
