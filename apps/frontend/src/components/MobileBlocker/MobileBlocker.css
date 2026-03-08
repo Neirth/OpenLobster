@@ -1,0 +1,37 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+.mobile-blocker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.mobile-blocker__content {
+  text-align: center;
+  padding: var(--space-xl);
+  max-width: 600px;
+}
+
+.mobile-blocker__title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--weight-semibold);
+  color: #d0d0d0;
+  margin: 0 0 var(--space-lg) 0;
+  line-height: var(--line-height-tight);
+}
+
+.mobile-blocker__message {
+  font-size: var(--font-size-lg);
+  color: #a0a0a0;
+  margin: 0;
+  line-height: var(--line-height-normal);
+}

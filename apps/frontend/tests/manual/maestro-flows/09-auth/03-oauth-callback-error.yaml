@@ -1,0 +1,16 @@
+# OAuth Callback Error - Popup con error de OAuth
+# Trigger: Backend redirige a /?oauth_callback=error&message=...
+# Solo ejecutable si se simula la URL con query params
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL:-http://localhost:5173}/?oauth_callback=error&message=access_denied
+---
+- launchApp
+- assertVisible:
+    text: "MCP authorization failed"
+- assertVisible:
+    text: "Close window"
+- tapOn:
+    text: "Close window"
+# Nota: En entorno real, window.close() cierra el popup

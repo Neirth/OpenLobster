@@ -1,0 +1,73 @@
+/*
+ * Copyright (c) 2026 Neirth Intellectual Services
+ *
+ * This file is part of OpenLobster and is licensed under the MIT License.
+ * See the LICENSE file in the project root for license information.
+ */
+
+/* ── Graph visualization container ────────────────────────────── */
+
+.graph-visualization {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  background:
+    radial-gradient(circle, #252525 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-color: var(--color-bg-base);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.graph-container {
+  width: 100%;
+  height: 100%;
+}
+
+.graph-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-base);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  z-index: 5;
+}
+
+/* ── Graph controls (overlay) ─────────────────────────────────── */
+
+.graph-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+
+.graph-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 18px;
+  cursor: pointer;
+  transition: color var(--duration-micro) var(--ease-out);
+}
+
+.graph-btn:hover {
+  color: var(--color-text-secondary);
+}
+
+.graph-btn:active {
+  color: var(--color-text-primary);
+}

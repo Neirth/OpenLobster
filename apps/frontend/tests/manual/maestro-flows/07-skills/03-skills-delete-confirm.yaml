@@ -1,0 +1,14 @@
+# Skills: flujo de confirmación de eliminación (Sí/No)
+---
+- tapOn:
+    text: "Delete skill"
+- assertVisible:
+    text: "Delete?"
+- assertVisible:
+    text: "Yes"
+- assertVisible:
+    text: "No"
+- tapOn:
+    text: "No"
+- assertVisible:
+    text: "Skills"

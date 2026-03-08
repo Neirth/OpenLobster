@@ -1,0 +1,70 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg-base);
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+}
+
+.app-shell__main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Centered content container — max-w-5xl ~896px, generous padding */
+.app-shell__content {
+  max-width: 896px;
+  margin: 0 auto;
+  padding: 40px 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Full-width variant */
+.app-shell__content--full {
+  max-width: 100%;
+  padding: 0;
+}
+
+.app-shell__footer {
+  text-align: center;
+  padding: 12px 0;
+  font-size: 11px;
+  color: var(--color-text-muted, #444);
+  letter-spacing: 0.02em;
+}
+
+.app-shell__footer a {
+  color: #ffffff; /* enlace blanco */
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity 120ms ease;
+}
+.app-shell__footer a:visited {
+  color: #ffffff; /* same white when visited */
+}
+.app-shell__footer a:hover {
+  opacity: 0.9;
+  text-decoration: underline;
+}
+
+/* Constrained-width + full-height variant (chat, memory) */
+.app-shell__content--full-height {
+  max-width: 896px;
+  margin: 0 auto;
+  padding: 0 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}

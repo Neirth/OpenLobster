@@ -1,0 +1,18 @@
+# AccessTokenModal: aparece cuando hay 401
+# Requiere: backend devolviendo 401 (sin token o token inválido)
+# El modal es fullscreen, no hay botón cerrar; el usuario debe introducir token válido
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/
+- runFlow:
+    when:
+      visible:
+        text:
+          - "Token cannot be empty"
+          - "Access Token"
+    file: ../09-auth/01a-access-token-validation.yaml
+- runFlow:
+    when:
+      visible:
+        text: "OPENLOBSTER"
+    file: ../01-navigation/01-all-tabs.yaml

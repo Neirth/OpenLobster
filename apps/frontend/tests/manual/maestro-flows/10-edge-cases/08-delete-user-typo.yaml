@@ -1,0 +1,31 @@
+# Edge Case: Chat - Eliminar usuario con nombre incorrecto
+# El botón Eliminar permanece deshabilitado hasta que el nombre coincida
+# Ref: ChatView delete user flow
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Chat"
+# Requiere al menos una conversación seleccionada
+- tapOn:
+    text: "Delete user"
+- assertVisible:
+    text: "To confirm, type the user's name"
+# Escribir nombre incorrecto
+- tapOn:
+    id: "delete-user-confirm-input"
+- inputText: "wrongname"
+# El botón "Delete permanently" debe estar deshabilitado
+- assertVisible:
+    text: "Delete permanently"
+# Escribir nombre correcto (requiere conocer el nombre del usuario)
+# - inputText: "correctname"
+# - tapOn: "Delete permanently"
+# Cancelar en su lugar
+- tapOn:
+    text: "Cancel"
+- assertVisible:
+    text: "Conversations"

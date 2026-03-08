@@ -1,0 +1,691 @@
+package file
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/neirth/openlobster/internal/domain/models"
+	"github.com/neirth/openlobster/internal/domain/ports"
+)
+
+type Node struct {
+	ID         int
+	Label      string
+	Type       string
+	Value      string
+	Properties map[string]string
+}
+
+type Edge struct {
+	Source int
+	Target int
+	Label  string
+}
+
+type InMemoryGraph struct {
+	Nodes  map[int]*Node
+	Edges  []*Edge
+	NextID int
+}
+
+func (g *InMemoryGraph) Copy() *InMemoryGraph {
+	newNodes := make(map[int]*Node, len(g.Nodes))
+	for k, v := range g.Nodes {
+		props := make(map[string]string, len(v.Properties))
+		for pk, pv := range v.Properties {
+			props[pk] = pv
+		}
+		newNodes[k] = &Node{
+			ID:         v.ID,
+			Label:      v.Label,
+			Type:       v.Type,
+			Value:      v.Value,
+			Properties: props,
+		}
+	}
+	newEdges := make([]*Edge, len(g.Edges))
+	for i, e := range g.Edges {
+		newEdges[i] = &Edge{
+			Source: e.Source,
+			Target: e.Target,
+			Label:  e.Label,
+		}
+	}
+	return &InMemoryGraph{
+		Nodes:  newNodes,
+		Edges:  newEdges,
+		NextID: g.NextID,
+	}
+}
+
+type GMLBackend struct {
+	path        string
+	graph       *InMemoryGraph
+	mu          sync.RWMutex
+	dirty       bool
+	persistCh   chan *InMemoryGraph
+	persistDone chan struct{}
+	loopDone    chan struct{}
+}
+
+func NewGMLBackend(path string) *GMLBackend {
+	b := &GMLBackend{
+		path:        path,
+		graph:       &InMemoryGraph{Nodes: make(map[int]*Node)},
+		persistCh:   make(chan *InMemoryGraph, 1),
+		persistDone: make(chan struct{}, 1),
+		loopDone:    make(chan struct{}),
+	}
+	go b.persistLoop()
+	return b
+}
+
+func (b *GMLBackend) persistLoop() {
+	defer close(b.loopDone)
+	for graph := range b.persistCh {
+		b.doPersist(graph)
+		b.dirty = false
+		select {
+		case b.persistDone <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// Close flushes any pending in-memory state to disk and waits for the persist
+// goroutine to finish. Should be called on graceful shutdown.
+func (b *GMLBackend) Close() error {
+	b.mu.RLock()
+	dirty := b.dirty
+	var snapshot *InMemoryGraph
+	if dirty {
+		snapshot = b.graph.Copy()
+	}
+	b.mu.RUnlock()
+
+	if dirty && snapshot != nil {
+		b.schedulePersist(snapshot)
+	}
+	close(b.persistCh)
+	<-b.loopDone
+	return nil
+}
+
+// schedulePersist drains any pending snapshot from persistCh (already stale
+// since b.graph has been updated in-place) and enqueues the latest copy.
+// Must be called without b.mu held.
+func (b *GMLBackend) schedulePersist(snapshot *InMemoryGraph) {
+	select {
+	case <-b.persistCh:
+	default:
+	}
+	b.persistCh <- snapshot
+}
+
+func (b *GMLBackend) doPersist(graph *InMemoryGraph) error {
+	data := serializeGML(graph)
+	dir := b.path[:strings.LastIndex(b.path, "/")]
+	if dir != "" && dir != b.path {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(b.path, data, 0644)
+}
+
+func (b *GMLBackend) Load() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	data, err := os.ReadFile(b.path)
+	if err != nil && os.IsNotExist(err) {
+		b.graph = &InMemoryGraph{Nodes: make(map[int]*Node)}
+		b.doPersist(b.graph)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	b.graph, err = parseGML(data)
+	return err
+}
+
+func (b *GMLBackend) AddKnowledge(_ context.Context, userID string, content string, label string, relation string, _ []float64) error {
+	b.mu.Lock()
+
+	graphCopy := b.graph.Copy()
+
+	// Use the provided label for the fact node; fall back to a slug of the first
+	// few words of the content so the graph is always human-readable.
+	factLabel := label
+	if factLabel == "" {
+		words := strings.Fields(content)
+		if len(words) > 4 {
+			words = words[:4]
+		}
+		factLabel = strings.Join(words, "_")
+	}
+
+	edgeLabel := relation
+	if edgeLabel == "" {
+		edgeLabel = "HAS_FACT"
+	}
+
+	userNode := b.findOrCreateUserInGraph(graphCopy, userID)
+
+	// Deduplication: if a fact node with the same label is already connected
+	// to this user (regardless of edge type), update its value in-place instead
+	// of creating a duplicate node.
+	for _, edge := range graphCopy.Edges {
+		if edge.Source != userNode.ID {
+			continue
+		}
+		if existing, ok := graphCopy.Nodes[edge.Target]; ok && existing.Type == "fact" && strings.EqualFold(existing.Label, factLabel) {
+			existing.Value = content
+			b.graph = graphCopy
+			b.dirty = true
+			b.mu.Unlock()
+			b.schedulePersist(graphCopy.Copy())
+			return nil
+		}
+	}
+
+	// No existing fact found — create a new node and edge.
+	factID := graphCopy.NextID
+	graphCopy.NextID++
+	graphCopy.Nodes[factID] = &Node{
+		ID:    factID,
+		Label: factLabel,
+		Type:  "fact",
+		Value: content,
+	}
+	graphCopy.Edges = append(graphCopy.Edges, &Edge{
+		Source: userNode.ID,
+		Target: factID,
+		Label:  edgeLabel,
+	})
+
+	b.graph = graphCopy
+	b.dirty = true
+
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+
+	return nil
+}
+
+func (b *GMLBackend) SearchSimilar(_ context.Context, query string, limit int) ([]ports.Knowledge, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	var results []ports.Knowledge
+	queryLower := strings.ToLower(query)
+
+	for id, node := range b.graph.Nodes {
+		if node.Type == "fact" && strings.Contains(strings.ToLower(node.Value), queryLower) {
+			results = append(results, ports.Knowledge{
+				ID:      strconv.Itoa(id),
+				Content: node.Value,
+			})
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+	return results, nil
+}
+
+func (b *GMLBackend) GetUserGraph(_ context.Context, userID string) (ports.Graph, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	var nodes []models.Node
+	var edges []models.Edge
+
+	// userID vacío o "*" = grafo completo (para el dashboard que muestra todas las memorias).
+	if userID == "" || userID == "*" {
+		for _, n := range b.graph.Nodes {
+			nodes = append(nodes, models.Node{
+				ID:         strconv.Itoa(n.ID),
+				Label:      n.Label,
+				Type:       n.Type,
+				Value:      n.Value,
+				Properties: n.Properties,
+			})
+		}
+		for _, edge := range b.graph.Edges {
+			edges = append(edges, models.Edge{
+				Source: strconv.Itoa(edge.Source),
+				Target: strconv.Itoa(edge.Target),
+				Label:  edge.Label,
+			})
+		}
+		graphNodes := make([]ports.GraphNode, len(nodes))
+		graphEdges := make([]ports.GraphEdge, len(edges))
+		for i, n := range nodes {
+			graphNodes[i] = ports.GraphNode{
+				ID:         n.ID,
+				Label:      n.Label,
+				Type:       n.Type,
+				Value:      n.Value,
+				Properties: n.Properties,
+			}
+		}
+		for i, e := range edges {
+			graphEdges[i] = ports.GraphEdge{
+				Source: e.Source,
+				Target: e.Target,
+				Label:  e.Label,
+			}
+		}
+		return ports.Graph{Nodes: graphNodes, Edges: graphEdges}, nil
+	}
+
+	userNode := b.findUserNodeInGraph(b.graph, userID)
+	if userNode == nil {
+		return ports.Graph{}, nil
+	}
+
+	nodesMap := make(map[int]bool)
+	nodesMap[userNode.ID] = true
+
+	for _, edge := range b.graph.Edges {
+		if edge.Source == userNode.ID || edge.Target == userNode.ID {
+			edges = append(edges, models.Edge{
+				Source: strconv.Itoa(edge.Source),
+				Target: strconv.Itoa(edge.Target),
+				Label:  edge.Label,
+			})
+			nodesMap[edge.Source] = true
+			nodesMap[edge.Target] = true
+		}
+	}
+
+	for id := range nodesMap {
+		if n, ok := b.graph.Nodes[id]; ok {
+			nodes = append(nodes, models.Node{
+				ID:         strconv.Itoa(n.ID),
+				Label:      n.Label,
+				Type:       n.Type,
+				Value:      n.Value,
+				Properties: n.Properties,
+			})
+		}
+	}
+
+	graphNodes := make([]ports.GraphNode, len(nodes))
+	graphEdges := make([]ports.GraphEdge, len(edges))
+	for i, n := range nodes {
+		graphNodes[i] = ports.GraphNode{
+			ID:         n.ID,
+			Label:      n.Label,
+			Type:       n.Type,
+			Value:      n.Value,
+			Properties: n.Properties,
+		}
+	}
+	for i, e := range edges {
+		graphEdges[i] = ports.GraphEdge{
+			Source: e.Source,
+			Target: e.Target,
+			Label:  e.Label,
+		}
+	}
+
+	return ports.Graph{
+		Nodes: graphNodes,
+		Edges: graphEdges,
+	}, nil
+}
+
+func (b *GMLBackend) AddRelation(_ context.Context, from, to string, relType string) error {
+	b.mu.Lock()
+
+	graphCopy := b.graph.Copy()
+
+	fromNode := b.findOrCreateUserInGraph(graphCopy, from)
+	toNode := b.findOrCreateUserInGraph(graphCopy, to)
+
+	graphCopy.Edges = append(graphCopy.Edges, &Edge{
+		Source: fromNode.ID,
+		Target: toNode.ID,
+		Label:  relType,
+	})
+
+	b.graph = graphCopy
+	b.dirty = true
+
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+
+	return nil
+}
+
+func (b *GMLBackend) QueryGraph(_ context.Context, cypher string) (ports.GraphResult, error) {
+	return ports.GraphResult{Data: []map[string]interface{}{}}, nil
+}
+
+func (b *GMLBackend) UpdateNode(_ context.Context, id, label, typ, value string, properties map[string]string) error {
+	nodeID, err := strconv.Atoi(id)
+	if err != nil {
+		return fmt.Errorf("invalid node id: %s", id)
+	}
+
+	b.mu.Lock()
+	graphCopy := b.graph.Copy()
+	node, ok := graphCopy.Nodes[nodeID]
+	if !ok {
+		b.mu.Unlock()
+		return fmt.Errorf("node not found: %s", id)
+	}
+	if label != "" {
+		node.Label = label
+	}
+	if typ != "" {
+		node.Type = typ
+	}
+	node.Value = value
+	if properties != nil {
+		if node.Properties == nil {
+			node.Properties = make(map[string]string)
+		}
+		for k, v := range properties {
+			if v == "" {
+				delete(node.Properties, k)
+			} else {
+				node.Properties[k] = v
+			}
+		}
+	}
+	b.graph = graphCopy
+	b.dirty = true
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+func (b *GMLBackend) DeleteNode(_ context.Context, id string) error {
+	nodeID, err := strconv.Atoi(id)
+	if err != nil {
+		return fmt.Errorf("invalid node id: %s", id)
+	}
+
+	b.mu.Lock()
+	graphCopy := b.graph.Copy()
+	if _, ok := graphCopy.Nodes[nodeID]; !ok {
+		b.mu.Unlock()
+		return fmt.Errorf("node not found: %s", id)
+	}
+	delete(graphCopy.Nodes, nodeID)
+	var newEdges []*Edge
+	for _, e := range graphCopy.Edges {
+		if e.Source != nodeID && e.Target != nodeID {
+			newEdges = append(newEdges, e)
+		}
+	}
+	graphCopy.Edges = newEdges
+	b.graph = graphCopy
+	b.dirty = true
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+func (b *GMLBackend) InvalidateMemoryCache(_ context.Context, userID string) error {
+	return nil
+}
+
+// EditMemoryNode updates the value of a fact node, verifying it belongs to userID.
+func (b *GMLBackend) EditMemoryNode(ctx context.Context, userID, nodeID, newValue string) error {
+	b.mu.RLock()
+	userNode := b.findUserNodeInGraph(b.graph, userID)
+	if userNode == nil {
+		b.mu.RUnlock()
+		return fmt.Errorf("user not found in memory graph")
+	}
+	// Verify the target node is connected to the user via HAS_FACT.
+	nodeIDInt, err := strconv.Atoi(nodeID)
+	if err != nil {
+		b.mu.RUnlock()
+		return fmt.Errorf("invalid node id: %s", nodeID)
+	}
+	owned := false
+	for _, e := range b.graph.Edges {
+		if e.Source == userNode.ID && e.Target == nodeIDInt {
+			owned = true
+			break
+		}
+	}
+	b.mu.RUnlock()
+	if !owned {
+		return fmt.Errorf("node %s is not a fact belonging to this user", nodeID)
+	}
+	return b.UpdateNode(ctx, nodeID, "", "fact", newValue, nil)
+}
+
+// DeleteMemoryNode removes a fact node, verifying it belongs to userID.
+func (b *GMLBackend) DeleteMemoryNode(ctx context.Context, userID, nodeID string) error {
+	b.mu.RLock()
+	userNode := b.findUserNodeInGraph(b.graph, userID)
+	if userNode == nil {
+		b.mu.RUnlock()
+		return fmt.Errorf("user not found in memory graph")
+	}
+	nodeIDInt, err := strconv.Atoi(nodeID)
+	if err != nil {
+		b.mu.RUnlock()
+		return fmt.Errorf("invalid node id: %s", nodeID)
+	}
+	owned := false
+	for _, e := range b.graph.Edges {
+		if e.Source == userNode.ID && e.Target == nodeIDInt {
+			owned = true
+			break
+		}
+	}
+	b.mu.RUnlock()
+	if !owned {
+		return fmt.Errorf("node %s is not a fact belonging to this user", nodeID)
+	}
+	return b.DeleteNode(ctx, nodeID)
+}
+
+// SetUserProperty upserts a key/value pair on the user node's Properties map.
+// The property is persisted to the GML file alongside the rest of the graph.
+func (b *GMLBackend) SetUserProperty(_ context.Context, userID, key, value string) error {
+	b.mu.Lock()
+
+	graphCopy := b.graph.Copy()
+	userNode := b.findOrCreateUserInGraph(graphCopy, userID)
+	if userNode.Properties == nil {
+		userNode.Properties = make(map[string]string)
+	}
+	userNode.Properties[key] = value
+	b.graph = graphCopy
+	b.dirty = true
+
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+// UpdateUserLabel sets the Label of the user node to the human-readable display
+// name so the graph dashboard shows the real name instead of the internal UUID.
+func (b *GMLBackend) UpdateUserLabel(_ context.Context, userID, displayName string) error {
+	if displayName == "" {
+		return nil
+	}
+	b.mu.Lock()
+	graphCopy := b.graph.Copy()
+	userNode := b.findOrCreateUserInGraph(graphCopy, userID)
+	userNode.Label = displayName
+	b.graph = graphCopy
+	b.dirty = true
+	b.mu.Unlock()
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+func (b *GMLBackend) findOrCreateUserInGraph(graph *InMemoryGraph, userID string) *Node {
+	if node := b.findUserNodeInGraph(graph, userID); node != nil {
+		return node
+	}
+
+	userIDInt := graph.NextID
+	graph.NextID++
+	userNode := &Node{
+		ID:    userIDInt,
+		Label: userID,
+		Type:  "user",
+		Value: userID,
+	}
+	graph.Nodes[userIDInt] = userNode
+	return userNode
+}
+
+func (b *GMLBackend) findUserNodeInGraph(graph *InMemoryGraph, userID string) *Node {
+	for _, node := range graph.Nodes {
+		if node.Type == "user" && node.Value == userID {
+			return node
+		}
+	}
+	return nil
+}
+
+func parseGML(data []byte) (*InMemoryGraph, error) {
+	graph := &InMemoryGraph{
+		Nodes: make(map[int]*Node),
+		Edges: make([]*Edge, 0),
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	var currentNode *Node
+	var currentEdge *Edge
+	nodeRegex := regexp.MustCompile(`^\s*node\s+\[`)
+	edgeRegex := regexp.MustCompile(`^\s*edge\s+\[`)
+	closeBracketRegex := regexp.MustCompile(`^\s*\]`)
+	keyValRegex := regexp.MustCompile(`^\s*(\w+)\s+(.+)$`)
+	directedRegex := regexp.MustCompile(`^\s*directed\s+(\d+)`)
+
+	for _, line := range lines {
+		if directedRegex.MatchString(line) {
+			continue
+		}
+
+		if nodeRegex.MatchString(line) {
+			currentNode = &Node{Properties: make(map[string]string)}
+			continue
+		}
+
+		if edgeRegex.MatchString(line) {
+			currentEdge = &Edge{}
+			currentNode = nil
+			continue
+		}
+
+		if closeBracketRegex.MatchString(line) {
+			if currentNode != nil && currentNode.ID >= 0 {
+				graph.Nodes[currentNode.ID] = currentNode
+				if currentNode.ID >= graph.NextID {
+					graph.NextID = currentNode.ID + 1
+				}
+				currentNode = nil
+			} else if currentEdge != nil {
+				graph.Edges = append(graph.Edges, currentEdge)
+				currentEdge = nil
+			}
+			continue
+		}
+
+		if currentNode != nil {
+			matches := keyValRegex.FindStringSubmatch(line)
+			if len(matches) == 3 {
+				key := matches[1]
+				val := strings.Trim(matches[2], "\"")
+
+				switch key {
+				case "id":
+					currentNode.ID, _ = strconv.Atoi(val)
+				case "label":
+					currentNode.Label = val
+				case "type":
+					currentNode.Type = val
+				case "value":
+					currentNode.Value = val
+				default:
+					currentNode.Properties[key] = val
+				}
+			}
+		} else if currentEdge != nil {
+			matches := keyValRegex.FindStringSubmatch(line)
+			if len(matches) == 3 {
+				key := matches[1]
+				val := strings.Trim(matches[2], "\"")
+
+				switch key {
+				case "source":
+					currentEdge.Source, _ = strconv.Atoi(val)
+				case "target":
+					currentEdge.Target, _ = strconv.Atoi(val)
+				case "label", "relation":
+					currentEdge.Label = val
+				}
+			}
+		}
+	}
+
+	for _, node := range graph.Nodes {
+		if node.Label == "" {
+			node.Label = fmt.Sprintf("node:%d", node.ID)
+		}
+	}
+
+	return graph, nil
+}
+
+var _ ports.MemoryPort = (*GMLBackend)(nil)
+
+func serializeGML(graph *InMemoryGraph) []byte {
+	var sb strings.Builder
+	sb.WriteString("graph [\n")
+	sb.WriteString("  directed 1\n")
+
+	for _, node := range graph.Nodes {
+		sb.WriteString(fmt.Sprintf("  node [\n"))
+		sb.WriteString(fmt.Sprintf("    id %d\n", node.ID))
+		sb.WriteString(fmt.Sprintf("    label \"%s\"\n", node.Label))
+		if node.Type != "" {
+			sb.WriteString(fmt.Sprintf("    type \"%s\"\n", node.Type))
+		}
+		if node.Value != "" {
+			sb.WriteString(fmt.Sprintf("    value \"%s\"\n", node.Value))
+		}
+		// Write custom properties
+		for key, val := range node.Properties {
+			sb.WriteString(fmt.Sprintf("    %s \"%s\"\n", key, val))
+		}
+		sb.WriteString(fmt.Sprintf("  ]\n"))
+	}
+
+	for _, edge := range graph.Edges {
+		sb.WriteString(fmt.Sprintf("  edge [\n"))
+		sb.WriteString(fmt.Sprintf("    source %d\n", edge.Source))
+		sb.WriteString(fmt.Sprintf("    target %d\n", edge.Target))
+		sb.WriteString(fmt.Sprintf("    label \"%s\"\n", edge.Label))
+		sb.WriteString(fmt.Sprintf("  ]\n"))
+	}
+
+	sb.WriteString("]\n")
+	return []byte(sb.String())
+}

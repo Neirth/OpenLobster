@@ -1,0 +1,15 @@
+# Skills: importar y eliminar
+# Requiere: al menos un skill en el sistema o mock de importación
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/skills
+- runFlow:
+    when:
+      visible:
+        text: "Import Skill"
+    file: ../07-skills/01-skills-empty-state.yaml
+- runFlow:
+    when:
+      visible:
+        text: "Delete skill"
+    file: ../07-skills/03-skills-delete-confirm.yaml

@@ -1,0 +1,30 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# Maestro flow: Tasks - Crear tarea one-shot
+# Flujo completo de creación de tarea one-shot con schedule ISO.
+
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tasks"
+- tapOn:
+    text: "New Task"
+- inputText:
+    text: "Test one-shot task"
+    id: "task-name-input"
+- tapOn:
+    text: "One-shot"
+- inputText:
+    text: "2026-12-31T23:59:00Z"
+    id: "schedule-input"
+- inputText:
+    text: "Run a test prompt"
+    id: "prompt-input"
+- tapOn:
+    text: "Create Task"
+- assertVisible:
+    text: "Test one-shot task"
+- assertVisible:
+    text: "One-shot"

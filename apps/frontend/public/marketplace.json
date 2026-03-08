@@ -1,0 +1,124 @@
+[
+  {
+    "id": "zapier",
+    "name": "Zapier",
+    "company": "Zapier",
+    "description": "Connect to 7,000+ apps and automate workflows. Use Zapier's AI Actions to trigger any Zap directly from the agent.",
+    "url": "https://mcpserver.zapier.com/mcp",
+    "homepage": "https://zapier.com",
+    "transport": "http",
+    "category": "Automation"
+  },
+  {
+    "id": "github",
+    "name": "GitHub",
+    "company": "GitHub",
+    "description": "Interact with repositories, pull requests, issues, and code search on GitHub. Requires a GitHub OAuth App — register one at github.com/settings/apps and configure its client ID, or use a Personal Access Token as the server token.",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "homepage": "https://github.com",
+    "transport": "http",
+    "category": "Development",
+    "oauth": true
+  },
+  {
+    "id": "atlassian",
+    "name": "Atlassian",
+    "company": "Atlassian",
+    "description": "Manage Jira issues, Confluence pages, and Bitbucket repositories. Full integration with the Atlassian suite.",
+    "url": "https://mcp.atlassian.com/v1/mcp",
+    "homepage": "https://atlassian.com",
+    "transport": "http",
+    "category": "Productivity"
+  },
+  {
+    "id": "linear",
+    "name": "Linear",
+    "company": "Linear",
+    "description": "Create and manage Linear issues, projects, and cycles. Streamline engineering project management from the agent.",
+    "url": "https://mcp.linear.app/mcp",
+    "homepage": "https://linear.app",
+    "transport": "http",
+    "category": "Development"
+  },
+  {
+    "id": "notion",
+    "name": "Notion",
+    "company": "Notion",
+    "description": "Read and write Notion pages, databases, and blocks. Integrate your knowledge base directly with the agent.",
+    "url": "https://mcp.notion.com/mcp",
+    "homepage": "https://notion.com",
+    "transport": "http",
+    "category": "Productivity",
+    "oauth": true
+  },
+  {
+    "id": "stripe",
+    "name": "Stripe",
+    "company": "Stripe",
+    "description": "Access Stripe payments, customers, invoices, and subscriptions. Build financial automations and reporting workflows.",
+    "url": "https://mcp.stripe.com",
+    "homepage": "https://stripe.com",
+    "transport": "http",
+    "category": "Finance"
+  },
+  {
+    "id": "cloudflare",
+    "name": "Cloudflare",
+    "company": "Cloudflare",
+    "description": "Manage Cloudflare Workers, DNS records, KV storage, and Pages deployments through natural language commands.",
+    "url": "https://mcp.cloudflare.com/mcp",
+    "homepage": "https://cloudflare.com",
+    "transport": "http",
+    "category": "Infrastructure"
+  },
+  {
+    "id": "sentry",
+    "name": "Sentry",
+    "company": "Sentry",
+    "description": "Query Sentry errors, performance traces, and releases. Diagnose issues and navigate your monitoring data conversationally.",
+    "url": "https://mcp.sentry.dev/mcp",
+    "homepage": "https://sentry.io",
+    "transport": "http",
+    "category": "Monitoring"
+  },
+  {
+    "id": "exa",
+    "name": "Exa",
+    "company": "Exa",
+    "description": "Neural web search engine optimized for AI agents. Search the web with semantic understanding and get clean, structured results.",
+    "url": "https://mcp.exa.ai/mcp",
+    "homepage": "https://exa.ai",
+    "transport": "http",
+    "category": "Search"
+  },
+  {
+    "id": "hubspot",
+    "name": "HubSpot",
+    "company": "HubSpot",
+    "description": "Manage CRM contacts, deals, and pipelines. Query marketing analytics and automate sales workflows.",
+    "url": "https://mcp.hubspot.com/",
+    "homepage": "https://hubspot.com",
+    "transport": "http",
+    "category": "CRM"
+  },
+  {
+    "id": "supabase",
+    "name": "Supabase",
+    "company": "Supabase",
+    "description": "Query Supabase databases, manage authentication, and interact with edge functions directly from the agent.",
+    "url": "https://mcp.supabase.com/mcp",
+    "homepage": "https://supabase.com",
+    "transport": "http",
+    "category": "Database"
+  },
+  {
+    "id": "figma",
+    "name": "Figma",
+    "company": "Figma",
+    "description": "Access Figma files, components, styles, and variables. Read and inspect designs, extract design tokens, and navigate your Figma workspace from the agent.",
+    "url": "https://mcp.figma.com/mcp",
+    "homepage": "https://figma.com",
+    "transport": "http",
+    "category": "Design"
+  }
+]

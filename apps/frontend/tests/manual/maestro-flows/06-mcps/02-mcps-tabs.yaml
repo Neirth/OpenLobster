@@ -1,0 +1,24 @@
+# MCPs: Navegación entre tabs Servers, Built-in, Permissions
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Servers"
+- assertVisible:
+    text: "MCP Servers"
+- tapOn:
+    text: "Built-in"
+- assertVisible:
+    text: "Built-in Capabilities"
+- assertVisible:
+    text: "Browser"
+- tapOn:
+    text: "Permissions"
+- assertVisible:
+    text: "Select a user to manage their tool permissions"
+- takeScreenshot: mcps-tabs

@@ -1,0 +1,25 @@
+# Dashboard: verificación de la vista principal
+# Prueba que el Dashboard carga y muestra las secciones esperadas
+---
+appId: openlobster-web
+env:
+  MAESTRO_BASE_URL: ${MAESTRO_BASE_URL:-http://localhost:5173}
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/
+- assertVisible:
+    text: "OPENLOBSTER"
+- assertVisible:
+    text: "Dashboard"
+- assertVisible:
+    text: "Health"
+- assertVisible:
+    text: "Channels"
+- assertVisible:
+    text: "System Status"
+- assertVisible:
+    text: "Recent Conversations"
+- assertVisible:
+    text: "MCP Servers"
+- assertVisible:
+    text: "Recent Logs"

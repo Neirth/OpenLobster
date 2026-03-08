@@ -1,0 +1,31 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "cmd/openlobster/public/**"]
+    },
+    "@openlobster/backend#build": {
+      "dependsOn": ["^build", "@openlobster/frontend#build"],
+      "outputs": ["../../dist/**"]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false
+    }
+  },
+  "globalPassThroughEnv": ["OPENLOBSTER_TOKEN", "OPENLOBSTER_CONFIG"],
+  "ui": "tui"
+}

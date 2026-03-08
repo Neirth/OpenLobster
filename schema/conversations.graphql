@@ -1,0 +1,53 @@
+# ─── Conversations / Messages ─────────────────────────────────────────────────
+
+type Conversation {
+  id:              String!
+  channelId:       String!
+  channelName:     String
+  groupName:       String
+  isGroup:         Boolean!
+  participantId:   String
+  participantName: String
+  lastMessageAt:   String
+  unreadCount:     Int
+}
+
+type MessageAttachment {
+  type:     String!
+  url:      String
+  filename: String
+  mimeType: String
+}
+
+type Message {
+  id:             String!
+  conversationId: String!
+  role:           String!
+  content:        String!
+  createdAt:      String!
+  attachments:    [MessageAttachment!]
+}
+
+type MessageSentResult {
+  id:             String
+  conversationId: String
+  role:           String
+  content:        String
+  createdAt:     String
+  success:        Boolean
+  error:          String
+}
+
+extend type Query {
+  conversations: [Conversation!]!
+  messages(conversationId: String!, before: String, limit: Int): [Message!]!
+}
+
+extend type Mutation {
+  deleteUser(conversationId: String!): MutationResult!
+  sendMessage(
+    conversationId: String
+    channelId:      String
+    content:        String!
+  ): MessageSentResult!
+}

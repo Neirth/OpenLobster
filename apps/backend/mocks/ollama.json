@@ -1,0 +1,25 @@
+[
+  {
+    "uuid": "ollama-api",
+    "name": "Ollama API",
+    "port": 3004,
+    "hostname": "0.0.0.0",
+    "routes": [
+      {
+        "uuid": "chat",
+        "method": "POST",
+        "path": "",
+        "responses": [
+          {
+            "uuid": "success",
+            "statusCode": 200,
+            "body": "{\"model\": \"llama2\", \"message\": {\"role\": \"assistant\", \"content\": \"Hello!\"}, \"done\": true}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,15 @@
+# Skills: estado vacío
+# Verifica que se muestra el empty state cuando no hay skills
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/skills
+- assertVisible:
+    text:
+      - "No skills found"
+      - "No skills available"
+      - "Import Skill"
+- tapOn:
+    text: "Import Skill"
+- assertVisible:
+    text: "Import Skill"
+- takeScreenshot: skills-empty-state

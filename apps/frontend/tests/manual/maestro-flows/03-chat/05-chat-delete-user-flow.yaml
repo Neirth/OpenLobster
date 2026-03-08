@@ -1,0 +1,20 @@
+# Chat: flujo de eliminar usuario (abrir modal, cancelar)
+# No ejecuta la eliminación real
+---
+appId: openlobster-web
+env:
+  MAESTRO_BASE_URL: ${MAESTRO_BASE_URL:-http://localhost:5173}
+---
+- launchApp:
+    url: ${MAESTRO_BASE_URL}/chat
+- assertVisible:
+    text: "Chat"
+# Requiere conversación seleccionada con mensajes
+- tapOn:
+    text: "Delete user"
+    optional: true
+- runFlow:
+    when:
+      visible:
+        text: "Delete user and all their data"
+    file: ../_helpers/chat-delete-cancel.yaml

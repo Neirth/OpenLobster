@@ -1,0 +1,19 @@
+# Maestro configuration for OpenLobster Frontend
+# https://maestro.dev/docs/advanced/config-file
+
+env:
+  # Base URL - override for CI or different environments
+  MAESTRO_BASE_URL: ${MAESTRO_BASE_URL:-http://localhost:5173}
+
+# Flows to run (when using maestro test with config)
+# flows:
+#   - flows/01-navigation
+#   - flows/02-dashboard
+#   - flows/03-chat
+#   - flows/04-tasks
+#   - flows/05-memory
+#   - flows/06-mcps
+#   - flows/07-skills
+#   - flows/08-settings
+#   - flows/09-auth
+#   - flows/10-edge-cases

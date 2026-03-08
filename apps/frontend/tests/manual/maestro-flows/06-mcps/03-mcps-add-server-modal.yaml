@@ -1,0 +1,20 @@
+# MCPs: Abrir modal Add Server y verificar campos
+---
+appId:
+  web:
+    url: ${MAESTRO_BASE_URL}
+---
+- launchApp
+- tapOn:
+    text: "Tools"
+- tapOn:
+    text: "Add MCP Server"
+- assertVisible:
+    text: "Server Name"
+- assertVisible:
+    text: "Server URL"
+- assertVisible:
+    text: "Add Server"
+- tapOn:
+    text: "Close"
+- takeScreenshot: mcps-add-server-modal

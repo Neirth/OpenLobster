@@ -1,0 +1,89 @@
+# ─── Memory graph ─────────────────────────────────────────────────────────────
+
+type MemoryNode {
+  id:         String!
+  label:      String
+  type:       String
+  value:      String
+  createdAt:  String
+  properties: JSON
+}
+
+type MemoryEdge {
+  id:       String!
+  sourceId: String!
+  targetId: String!
+  relation: String
+}
+
+type MemoryGraph {
+  nodes: [MemoryNode!]!
+  edges: [MemoryEdge!]!
+}
+
+type GraphNode {
+  id:         String!
+  label:      String
+  type:       String
+  value:      String
+  properties: JSON
+}
+
+type GraphEdge {
+  source: String!
+  target: String!
+  label:  String
+}
+
+type UserGraphResult {
+  success: Boolean!
+  nodes:   [GraphNode!]
+  edges:   [GraphEdge!]
+  error:   String
+}
+
+type SearchMemoryResult {
+  success: Boolean!
+  result:  String
+  error:   String
+}
+
+type AddRelationResult {
+  success: Boolean!
+  error:   String
+}
+
+type CypherResult {
+  success: Boolean!
+  data:    JSON
+  error:   String
+}
+
+extend type Query {
+  searchMemory(query: String!): SearchMemoryResult
+  userGraph(userId: String): UserGraphResult
+  memory: MemoryGraph
+}
+
+extend type Mutation {
+  addMemory(content: String!): MutationResult!
+  addMemoryNode(
+    label: String!
+    type:  String!
+    value: String!
+  ): MemoryNode!
+  updateMemoryNode(
+    id:         String!
+    label:      String
+    type:       String
+    value:      String
+    properties: String
+  ): MemoryNode!
+  deleteMemoryNode(id: String!): Boolean!
+  addRelation(
+    from:         String!
+    to:           String!
+    relationType: String!
+  ): AddRelationResult!
+  executeCypher(cypher: String!): CypherResult!
+}

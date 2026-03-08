@@ -1,0 +1,53 @@
+{
+  "name": "@openlobster/frontend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "lint": "eslint src tests --fix",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@openlobster/ui": "workspace:*",
+    "@openlobster/ui-tests": "workspace:*",
+    "@solid-primitives/i18n": "^2.2.1",
+    "@solidjs/router": "^0.15.4",
+    "@tanstack/solid-query": "^5.90.23",
+    "@tanstack/solid-virtual": "^3.13.21",
+    "cytoscape": "^3.33.1",
+    "graphql": "^16.8.1",
+    "graphql-request": "^7.1.0",
+    "graphql-ws": "^6.0.7",
+    "markdown-it": "^14.1.0",
+    "solid-js": "^1.8.17"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.40.0",
+    "@solidjs/testing-library": "^0.8.5",
+    "@tanstack/solid-query": "^5.90.23",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "@vitest/ui": "^1.0.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^8.55.0",
+    "eslint-plugin-solid": "^0.13.0",
+    "happy-dom": "^12.10.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.12",
+    "vite-plugin-solid": "^2.10.2",
+    "vitest": "^1.0.0"
+  }
+}
