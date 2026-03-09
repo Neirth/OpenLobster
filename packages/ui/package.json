@@ -26,7 +26,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "graphql": "^16.8.1",
+    "graphql": "^16.13.1",
     "graphql-request": "^7.1.0",
     "parse-prometheus-text-format": "^1.1.1",
     "solid-js": "^1.8.17"
