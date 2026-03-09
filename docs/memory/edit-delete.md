@@ -7,6 +7,16 @@ icon: pen-to-square
 
 The edit and delete actions are available from the [Node Detail](node-detail.md) panel. Both actions are accessed through modals that require explicit confirmation before changes are applied.
 
+## Why editing nodes matters
+
+When you edit a node, you're directly influencing what the agent knows. During step 4 of the [message processing pipeline](../architecture/processing-messages.md), when context is built, the agent pulls your edited node information. Fixing inaccurate nodes = smarter agent responses.
+
+**Examples of useful edits:**
+- **Label**: Change "Acme Inc." to "Acme Corp" (fix company name typo)
+- **Type**: Change "Person" to "Organization" (discovered it's actually a team, not a person)
+- **Properties**: Add `email: alice@company.com` to a Person node (gives agent more specific contact info to reference)
+- **Remove property**: Delete outdated `phone: 555-1234` (replace with updated number)
+
 ## Editing a node
 
 {% stepper %}
@@ -22,9 +32,14 @@ In the node detail panel, click the **Edit** button (pencil icon). The modal ope
 
 ## Update the fields
 
-* **Label** — Change the human-readable name of the node.
-* **Type** — Change the category the node belongs to.
-* **Properties** — Edit existing key-value pairs inline, remove a property by clicking its remove button, or add a new property by clicking **Add property** and entering a key and value.
+* **Label** — The name the agent uses to reference this entity. Keep it clear and unambiguous (e.g., "Alice Smith" instead of just "Alice").
+* **Type** — The category. Change if the entity was miscategorized (discovered a "Person" is actually a "Team").
+* **Properties** — Key-value metadata. Add helpful info like `email`, `department`, `location`, `role`. These are searchable and pulled into context during step 4 of the pipeline.
+
+**Property examples:**
+- Person: `email`, `phone`, `title`, `department`, `location`
+- Organization: `industry`, `size`, `location`, `website`, `headquarters`
+- Topic: `status`, `owner`, `deadline`, `priority`
 
 {% endstep %}
 
@@ -32,7 +47,7 @@ In the node detail panel, click the **Edit** button (pencil icon). The modal ope
 
 ## Save
 
-Click **Save**. A saving indicator confirms the update is being applied. Wait for the success message before closing the modal.
+Click **Save**. The update is applied immediately. The next time the agent builds context (step 4), it will see your updated information.
 
 {% endstep %}
 {% endstepper %}

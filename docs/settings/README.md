@@ -13,18 +13,38 @@ Configuration changes apply to the running server and take effect on save. For m
 
 ## Configuration sections
 
-The settings page is organized into groups:
+The settings page is organized into groups. Each affects different aspects of the system:
 
-* **General Configuration** — Agent name, AI provider, and default model.
-* **Agent Capabilities** — Enable or disable browser, terminal, memory, MCP, subagents, filesystem, sessions, and audio.
-* **Database Configuration** — Driver (SQLite, Postgres, MySQL) and connection string.
-* **Memory Configuration** — File-based or Neo4j memory backend.
-* **Subagents Configuration** — Maximum concurrent subagents and default timeout.
-* **GraphQL Configuration** — Host, port, and public base URL for the API.
-* **Logging Configuration** — Log level and log file path.
-* **Secrets Configuration** — File or OpenBao secrets backend.
-* **Scheduler Configuration** — Enable/disable the scheduler and memory consolidation.
-* **Channel Configuration** — Enable and configure Telegram, Discord, WhatsApp, Slack, and Twilio SMS.
+| Section | What it controls | Takes effect | Why it matters |
+|---------|------------------|-------------|----------------|
+| **General** | Agent name, AI provider (OpenAI/Anthropic/Ollama/etc.), default model | Immediately on save | Determines step 7-8 of pipeline (which AI generates responses) |
+| **Capabilities** | Which built-in tools are available (browser, terminal, memory, MCP, etc.) | Immediately on save | Affects step 5 of pipeline (which tools agent can see) |
+| **Database** | Where conversations, users, and tasks are stored (SQLite/Postgres/MySQL) | **Requires restart** | Persistence layer for entire system; wrong choice = data loss or poor performance |
+| **Memory** | Knowledge graph backend (File/GML or Neo4j) | **Requires restart** | Affects step 4 of pipeline (context loading) and memory search speed |
+| **Subagents** | Max concurrent subagents, timeout limits | Immediately on save | Resource management; affects scalability |
+| **GraphQL** | API host, port, public URL | **Requires restart** | Affects how dashboard and external clients connect to the agent |
+| **Logging** | Log verbosity, output location | Immediately on save | Affects what you see in Recent Logs for debugging |
+| **Secrets** | Where to store API keys and tokens (File encrypted or OpenBao vault) | **Requires restart** | Security-critical; affects which credentials the agent can access |
+| **Scheduler** | Enable/disable task scheduling, memory consolidation frequency | Immediately on save | Affects whether scheduled tasks run at all |
+| **Channels** | Enable and configure Telegram, Discord, Slack, WhatsApp, SMS | Immediately on save | Affects step 1 (which adapters listen for messages) |
+
+### Quick reference: Which settings need restart?
+
+These require a server restart to take effect:
+- Database driver or connection string
+- Memory backend selection or connection details
+- Secrets backend selection or connection details
+- GraphQL host, port, or base URL
+
+These take effect immediately:
+- Agent name, AI provider, model
+- Capabilities (on/off toggles)
+- Scheduler enable/disable
+- Channel configuration
+- Logging level
+- Subagent limits
+
+If you change a setting and nothing happens, check if it's in the "requires restart" list.
 
 ## System Files
 

@@ -15,6 +15,36 @@ The Recent Logs panel shows a live feed of messages from the OpenLobster backend
 | **WARN** | Something unexpected happened, but the system is still running. Worth investigating if it repeats. |
 | **ERROR** | A failure occurred. Action is likely required. |
 
+## Which component generates which logs
+
+Understanding which part of the system is logging helps you diagnose faster:
+
+| Component | Typical Log | Level | What It Means |
+|-----------|------------|-------|--------------|
+| **Adapter** (Telegram, Discord, etc.) | `Telegram adapter connected` | INFO | Channel is online and listening |
+| **Adapter** | `Discord adapter: auth failed, token invalid` | ERROR | Bot token expired or wrong — fix in Settings |
+| **MessageHandler** | `User pairing validated: user_123` | INFO | User went through pairing flow (first message) |
+| **MessageHandler** | `Session not found: user_456` | WARN | User sent message but pairing incomplete |
+| **ToolRegistry** | `Tool 'fetch_page' executed in 1.2s` | INFO | A built-in tool ran successfully |
+| **ToolRegistry** | `MCP server 'database' request failed: connection timeout` | ERROR | External MCP server is unreachable |
+| **AIProvider** | `OpenAI request took 2.3s (200 tokens)` | INFO | API call to model provider completed |
+| **AIProvider** | `Rate limit approaching on OpenAI` | WARN | API quotas running low — monitor usage |
+| **Scheduler** | `Task 'daily_summary' executed successfully` | INFO | Scheduled task ran and completed |
+| **Scheduler** | `Task 'daily_summary' failed: prompt execution timeout` | ERROR | Scheduled task exceeded time limit or errored |
+| **Memory** | `Graph updated: 3 nodes added, 2 edges created` | INFO | Knowledge graph being built from conversation |
+| **Memory** | `Neo4j connection failed: host unreachable` | ERROR | Memory backend is offline |
+
+## Quick troubleshooting by symptom
+
+| Symptom | What to look for in logs |
+|---------|-------------------------|
+| "Agent not responding on Telegram" | ERROR from `telegram` adapter component |
+| "Tool not executing" | ERROR or WARN from `ToolRegistry` or the specific tool name |
+| "Scheduled task didn't run" | ERROR or WARN from `Scheduler` component |
+| "Memory not updating" | ERROR from `Memory` or `Neo4j` components |
+| "Responses are very slow" | Long response times from `AIProvider` component |
+| "MCP server not connecting" | ERROR from the MCP server name in `ToolRegistry` |
+
 ## Diagnosing problems
 
 When something is not working — a channel is offline, a task failed, a tool call returned an error — this panel is the fastest place to find the reason.

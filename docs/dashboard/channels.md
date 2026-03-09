@@ -9,11 +9,34 @@ The Channels panel lists every messaging platform you have connected — Telegra
 
 ## Status indicators
 
-| Status | Color | Meaning |
-| ------ | ----- | ------- |
-| **Online** | Green | The channel is connected and working normally. |
-| **Degraded** | Amber | The channel is reachable but experiencing intermittent failures or delays. |
-| **Offline** | Red | The channel is disconnected. The agent cannot send or receive messages through it. |
+| Status | Color | Meaning | What it means for users |
+| ------ | ----- | ------- | ---------------------- |
+| **Online** | Green | The channel adapter is connected and working normally. Messages flow freely in both directions. | Messages are received and replied to normally |
+| **Degraded** | Amber | The channel is reachable but experiencing intermittent failures, rate limiting, or delays. Some messages may fail or take longer. | Users may see delayed responses or occasional errors; reconnections happening |
+| **Offline** | Red | The channel adapter is disconnected. Unable to send or receive messages. | Users send messages but agent never responds; looks like the agent is broken/missing |
+
+### What happens when a channel is Offline
+
+When a channel goes **Offline**, the message processing pipeline is broken at step 1 (Channel Adapter reception):
+
+1. User sends message on Telegram/Discord/etc.
+2. Channel Adapter cannot receive it (not connected)
+3. Step 1 fails → entire pipeline stops
+4. User message never reaches OpenLobster
+5. Agent never generates a response
+6. User waits indefinitely with no reply
+
+**Result:** Users think the agent is down, even if the rest of the system is healthy.
+
+### What's the difference between Degraded and Offline?
+
+| Degraded | Offline |
+|----------|---------|
+| Adapter can reach the platform but is experiencing issues | Adapter cannot reach the platform at all |
+| Some messages get through, some don't | No messages get through |
+| Temporary network hiccup, rate limiting, or auth expiring | Bot token revoked, network down, or platform unavailable |
+| Usually resolves itself within minutes | Requires manual intervention (token update, network fix, etc.) |
+| User might see occasional "Message not sent" | User sees nothing (silence) |
 
 ## What each row shows
 

@@ -9,14 +9,40 @@ When you select a node from the sidebar, its complete information loads in the r
 
 ## What is displayed
 
-| Field | Description |
-| ----- | ----------- |
-| **ID** | The unique internal identifier of the node. |
-| **Label** | The human-readable name of the node (e.g., a person's name or a topic title). |
-| **Type** | The category of the node (e.g., `Person`, `Event`, `Organisation`). |
-| **Created** | When the node was added to the graph. |
-| **Properties** | A list of key-value pairs containing structured data about the node (e.g., `email: user@example.com`, `phone: +1 555-123`). |
-| **Connections** | Outgoing and incoming edges linking this node to others in the graph. Each connection shows the relation name and the linked node's label. |
+| Field | Description | Why it matters |
+| ----- | ----------- | --------------- |
+| **ID** | Unique internal identifier (usually a UUID). Used internally for referencing. | You rarely need this unless troubleshooting. |
+| **Label** | Human-readable name (e.g., "Alice", "Q4 Planning", "Acme Corp"). | This is the name the agent uses when remembering the entity. Clear, accurate labels = better agent understanding. |
+| **Type** | Category: Person, Organization, Topic, Event, Location, Document, etc. | Helps organize and search memory. The agent uses type to understand context. |
+| **Created** | Timestamp when the node was first extracted from a conversation. | Helps you understand knowledge age. Very old timestamps might be outdated. |
+| **Properties** | Key-value pairs with structured data (e.g., `email: alice@company.com`, `title: VP Sales`, `department: Revenue`). | These are searched during step 4 of the pipeline when building context. More properties = better agent understanding. |
+| **Connections** | Edges (relationships) linking this node to others: "Alice **works_at** Acme Corp", "Acme Corp **located_in** New York". | Shows how this entity relates to the rest of the graph. Broken or incorrect connections degrade agent reasoning. |
+
+### Real example
+
+Selecting the node "Alice" might show:
+
+```
+Label: Alice
+Type: Person
+Created: 2024-01-15 10:30 UTC
+Properties:
+  - title: Vice President of Sales
+  - email: alice@acme.com
+  - department: Revenue
+  - location: New York
+
+Connections (outgoing):
+  → works_at: Acme Corp
+  → leads: Sales Team
+  → manages: 5 people
+
+Connections (incoming):
+  ← reports_to: CEO Bob
+  ← knows: Jane (colleague)
+```
+
+This tells the agent: "Alice is a VP, works at Acme, is in NYC, and knows Jane." Next time someone asks about Alice, the agent pulls this entire context.
 
 ## Navigating connections
 
