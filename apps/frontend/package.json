@@ -40,7 +40,7 @@
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^6.13.0",
     "@vitest/coverage-v8": "^1.0.0",
-    "@vitest/ui": "^1.0.0",
+    "@vitest/ui": "^4.0.18",
     "esbuild": "^0.24.0",
     "eslint": "^8.55.0",
     "eslint-plugin-solid": "^0.13.0",
