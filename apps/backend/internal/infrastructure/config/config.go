@@ -320,7 +320,7 @@ type GraphQLConfig struct {
 	// AuthEnabled gates the dashboard/API behind a token. Enabled by default.
 	AuthEnabled bool `mapstructure:"auth_enabled"`
 	// AuthToken is the bearer token required to access the GraphQL API when
-	// AuthEnabled is true. The environment variable OPENLOBSTER_TOKEN takes
+	// AuthEnabled is true. The environment variable OPENLOBSTER_GRAPHQL_AUTH_TOKEN takes
 	// precedence over this value at runtime.
 	AuthToken string `mapstructure:"auth_token"`
 }

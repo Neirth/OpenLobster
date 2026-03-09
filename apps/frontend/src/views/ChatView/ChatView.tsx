@@ -278,8 +278,11 @@ const ChatView: Component = () => {
   const conversations = useConversations(client);
   const queryClient = useQueryClient();
 
-  const graphqlUrl = import.meta.env.VITE_GRAPHQL_ENDPOINT ?? 'http://127.0.0.1:8080/graphql';
-  const wsUrl = graphqlUrl.replace(/\/graphql\/?$/, '/ws').replace(/^http/, 'ws');
+  const graphqlUrl = import.meta.env.VITE_GRAPHQL_ENDPOINT ?? '/graphql';
+  // Convert relative /graphql to relative /ws, and http(s) to ws(s) for absolute URLs
+  const wsUrl = graphqlUrl.startsWith('/')
+    ? graphqlUrl.replace(/\/graphql\/?$/, '/ws')
+    : graphqlUrl.replace(/\/graphql\/?$/, '/ws').replace(/^http/, 'ws');
 
   useSubscriptions({
     url: wsUrl,

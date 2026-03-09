@@ -26,6 +26,6 @@
       "cache": false
     }
   },
-  "globalPassThroughEnv": ["OPENLOBSTER_TOKEN", "OPENLOBSTER_CONFIG"],
+  "globalPassThroughEnv": ["OPENLOBSTER_GRAPHQL_AUTH_TOKEN", "OPENLOBSTER_CONFIG"],
   "ui": "tui"
 }

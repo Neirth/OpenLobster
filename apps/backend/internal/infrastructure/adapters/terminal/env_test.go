@@ -11,12 +11,12 @@ import (
 func TestFilterOpenLobsterFromEnv_SystemEnv(t *testing.T) {
 	// Set some OPENLOBSTER_ vars and a normal var
 	os.Setenv("OPENLOBSTER_SECRET_KEY", "test-key")
-	os.Setenv("OPENLOBSTER_TOKEN", "token123")
+	os.Setenv("OPENLOBSTER_GRAPHQL_AUTH_TOKEN", "token123")
 	os.Setenv("PATH", "/usr/bin")
 	os.Setenv("HOME", "/home/user")
 	defer func() {
 		os.Unsetenv("OPENLOBSTER_SECRET_KEY")
-		os.Unsetenv("OPENLOBSTER_TOKEN")
+		os.Unsetenv("OPENLOBSTER_GRAPHQL_AUTH_TOKEN")
 	}()
 
 	env := FilterOpenLobsterFromEnv(os.Environ())
@@ -35,7 +35,7 @@ func TestFilterOpenLobsterFromEnv_SystemEnv(t *testing.T) {
 		if len(e) >= 20 && e[:20] == "OPENLOBSTER_SECRET_K" {
 			hasSecretKey = true
 		}
-		if len(e) >= 17 && e[:17] == "OPENLOBSTER_TOKEN" {
+		if len(e) >= 27 && e[:27] == "OPENLOBSTER_GRAPHQL_AUTH_TO" {
 			hasToken = true
 		}
 	}
@@ -43,7 +43,7 @@ func TestFilterOpenLobsterFromEnv_SystemEnv(t *testing.T) {
 	assert.True(t, hasPath, "PATH should be present")
 	assert.True(t, hasHome, "HOME should be present")
 	assert.False(t, hasSecretKey, "OPENLOBSTER_SECRET_KEY must not leak")
-	assert.False(t, hasToken, "OPENLOBSTER_TOKEN must not leak")
+	assert.False(t, hasToken, "OPENLOBSTER_GRAPHQL_AUTH_TOKEN must not leak")
 }
 
 func TestFilterOpenLobsterFromEnv(t *testing.T) {
@@ -51,7 +51,7 @@ func TestFilterOpenLobsterFromEnv(t *testing.T) {
 		"PATH=/usr/bin",
 		"OPENLOBSTER_SECRET_KEY=secret123",
 		"HOME=/home/user",
-		"openlobster_token=leak",
+		"openlobster_graphql_auth_token=leak",
 		"OPENLOBSTER_CONFIG_PATH=/etc/config",
 	}
 	filtered := FilterOpenLobsterFromEnv(env)
