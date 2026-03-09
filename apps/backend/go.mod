@@ -11,7 +11,7 @@ require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/mark3labs/mcp-go v0.44.0
+	github.com/mark3labs/mcp-go v0.45.0
 	github.com/neo4j/neo4j-go-driver/v5 v5.15.0
 	github.com/ollama/ollama v0.17.5
 	github.com/openai/openai-go/v3 v3.24.0
