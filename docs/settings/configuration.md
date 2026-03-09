@@ -98,6 +98,23 @@ user:password@tcp(db-host:3306)/openlobster
 
 </details>
 
+### Why database choice matters
+
+The database driver you choose affects scalability, availability, and data consistency:
+
+| Choice | Single Instance | Multi-Instance | Backups | When to Use |
+|--------|-----------------|----------------|---------|------------|
+| **SQLite** | Fast, zero config | Can corrupt | File-based | Development, testing, solo deployment |
+| **PostgreSQL** | Robust | High availability with replication | Enterprise tools | Production, multiple instances, scale |
+| **MySQL** | Robust | High availability with replication | Enterprise tools | Production, legacy infrastructure |
+
+**Real-world example:**
+- Solo user with 1-10 conversations/day → SQLite is fine
+- Team of 5+ users with 100+ conversations/day → PostgreSQL recommended
+- Multiple OpenLobster instances for failover → PostgreSQL required
+
+See [Database Configuration](#database-configuration) in the [README](../README.md) for environment variable setup.
+
 ## Memory Configuration
 
 | Field | Description |
@@ -107,12 +124,44 @@ user:password@tcp(db-host:3306)/openlobster
 | **Neo4j URI** | Bolt URI, e.g. `bolt://neo4j-host:7687`. |
 | **Neo4j User / Password** | Credentials for the Neo4j instance. |
 
+### Why memory backend choice matters
+
+The memory backend stores the agent's knowledge graph (facts, entities, relationships). Your choice affects performance, consistency, and deployability:
+
+| Choice | Single Instance | Multi-Instance | Query Speed | Consistency | When to Use |
+|--------|-----------------|----------------|-------------|-------------|------------|
+| **File/GML** | Works | Corruption risk | Fair (< 100k nodes) | Eventual (async snapshots) | Local development, testing, small deployments |
+| **Neo4j** | Works | Safe with ACID | Excellent (any size) | Strong (ACID transactions) | Production, scale, high availability |
+
+**Real-world example:**
+- Solo agent, testing new prompts → File/GML is fine
+- Team of 10+ users with years of conversations → Neo4j recommended
+- Multiple OpenLobster instances sharing memory → Neo4j required
+
+**Performance note:** If you're using File/GML and see slowdowns with > 100,000 nodes, switching to Neo4j will make memory operations (search, extraction, updates) 10-100x faster.
+
+See [Memory Graph System](../architecture/memory-graph.md) for deeper explanation of how memory works and backend trade-offs.
+
 ## Subagents Configuration
 
 | Field | Description |
 | ----- | ----------- |
 | **Max Concurrent Subagents** | Maximum number of subagents running in parallel. Default: `3`. Reduce on resource-constrained systems. |
 | **Default Timeout** | Maximum time a subagent may run. Format: `<number><unit>` — e.g., `5m`, `300s`, `1h`. |
+
+### Why these limits matter
+
+When your agent needs to do multiple things in parallel (e.g., analyze 3 different datasets simultaneously), it spawns **subagents** — child agent instances with isolated contexts.
+
+**Concurrency limit:** If you have `Max Concurrent Subagents = 3`, the main agent can spawn at most 3 subagents at once. If a 4th is requested, it waits. This prevents resource exhaustion.
+
+**Timeout:** Each subagent has a time limit. If a subagent's task is taking too long (e.g., waiting for an external API that's hanging), it will be killed after the timeout expires.
+
+**Resource planning:**
+- Each subagent uses memory and CPU
+- Increase `Max Concurrent Subagents` if you frequently hit "subagent queue full" errors
+- Increase timeout if tasks legitimately need longer (e.g., long-running data exports)
+- Decrease both on resource-constrained systems (Raspberry Pi, small VPS)
 
 ## GraphQL Configuration
 

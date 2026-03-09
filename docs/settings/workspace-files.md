@@ -9,11 +9,46 @@ The **System Files** tab within Settings provides an in-browser editor for the a
 
 ## Available files
 
-| File | Purpose |
-| ---- | ------- |
-| `AGENTS.md` | Human-facing documentation describing the configured agents and their roles. |
-| `SOUL.md` | The agent's personality, values, and behavioral style. Read by the runtime as part of the system prompt. |
-| `IDENTITY.md` | Core identity data for the agent — name, role, and self-description used during conversations. |
+| File | Purpose | What it affects | When it's used |
+| ---- | ------- | --------------- | -------------- |
+| `AGENTS.md` | Human-facing documentation describing available agents and their roles. For operator reference. | Operator understanding, not agent behavior. | When you check Settings; not sent to AI model |
+| `SOUL.md` | The agent's personality, values, behavioral guidelines, and response style. Examples: "Be concise and direct", "Prioritize user privacy", "Explain technical concepts simply". | **Every response the agent generates.** Changes here immediately change how the agent talks and behaves. | **Step 6 of pipeline**: Injected into AI provider context as part of system prompt |
+| `IDENTITY.md` | Core identity data: agent name, role, self-description, core mission. How the agent describes itself to users. | Agent's self-identification and how it presents itself in conversations. | **Step 6 of pipeline**: Included in system prompt so model knows "who" it is |
+
+## How files feed into message processing
+
+During **step 6** of the [message processing pipeline](../architecture/processing-messages.md), when the agent prepares to send a message to the AI provider:
+
+1. System loads `IDENTITY.md` — "I am Claude, a helpful assistant"
+2. System loads `SOUL.md` — "Be thoughtful, accurate, concise"
+3. System includes conversation history, tools, and memory
+4. All of this gets sent to OpenAI/Anthropic/Ollama as the system prompt
+5. AI provider generates response using this context
+
+**Result:** Your `IDENTITY.md` and `SOUL.md` files shape every single message the agent produces.
+
+### Practical examples
+
+**IDENTITY.md** (3-4 lines)
+```markdown
+# Identity
+
+I am OpenLobster, a personal AI assistant.
+I help with tasks across multiple channels (Telegram, Discord, etc.).
+I maintain context across conversations and remember what users tell me.
+```
+
+**SOUL.md** (key behavioral instructions)
+```markdown
+# Behavioral Guidelines
+
+- Be concise: answer briefly unless depth is requested
+- Admit uncertainty: "I don't know" is better than guessing
+- Respect privacy: never store or repeat sensitive data
+- Ask before using tools: "Should I search the web for this?" (if in ask mode)
+```
+
+These directly influence every response. Different content = different agent personality.
 
 ## How to edit a file
 
