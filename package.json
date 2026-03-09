@@ -11,10 +11,10 @@
     "docker:image": "docker build -f .docker/Dockerfile.static -t ghcr.io/neirth/openlobster:latest-distroless --platform linux/arm64 ."
   },
   "devDependencies": {
-    "@graphql-codegen/cli": "^6.1.2",
-    "@graphql-codegen/typescript": "^5.0.8",
+    "@graphql-codegen/cli": "^6.1.3",
+    "@graphql-codegen/typescript": "^5.0.9",
     "@graphql-codegen/typescript-graphql-request": "^6.4.0",
-    "@graphql-codegen/typescript-operations": "^5.0.8",
+    "@graphql-codegen/typescript-operations": "^5.0.9",
     "prettier": "^3.2.5",
     "turbo": "^2.0.4"
   },
