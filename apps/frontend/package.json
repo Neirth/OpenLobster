@@ -36,7 +36,7 @@
     "@tanstack/solid-query": "^5.90.23",
     "@testing-library/user-event": "^14.5.1",
     "@types/markdown-it": "^14.1.2",
-    "@types/node": "^20.10.0",
+    "@types/node": "^25.3.5",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^6.13.0",
     "@vitest/coverage-v8": "^4.0.18",
