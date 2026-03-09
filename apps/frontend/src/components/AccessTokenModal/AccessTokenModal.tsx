@@ -47,7 +47,7 @@ const AccessTokenModal: Component = () => {
           {t("accessToken.description1")}
           <code>graphql.auth_token</code>
           {t("accessToken.description2")}
-          <code>OPENLOBSTER_TOKEN</code>
+          <code>OPENLOBSTER_GRAPHQL_AUTH_TOKEN</code>
           {t("accessToken.description3")}
         </p>
 

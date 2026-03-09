@@ -67,6 +67,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// version is set at build time via ldflags (-X main.version=...)
+var version = "dev"
+
 // public is the single embedded FS containing:
 //
 //	public/assets/     — compiled SolidJS frontend (Vite outDir)
@@ -1322,9 +1325,9 @@ You are openlobster, an autonomous messaging agent designed to assist users with
 		"IDENTITY.md": `# IDENTITY.md - Agent Metadata
 
 ## Core
-- Name: 
-- Version: 0.1.0
-- Created: 
+- Name:
+- Version: ` + version + `
+- Created:
 
 ## Presentation
 - Title: Autonomous Assistant
@@ -1764,7 +1767,7 @@ This signals that initialization is done and you should no longer treat bootstra
 	agentSnapshot := &dto.AgentSnapshot{
 		ID:            "openlobster",
 		Name:          agentName,
-		Version:       "0.1.0",
+		Version:       version,
 		Status:        "running",
 		Provider:      provider,
 		Channels:      channels,
@@ -2236,13 +2239,9 @@ This signals that initialization is done and you should no longer treat bootstra
 	// Serve root path with SPA handler
 	mux.HandleFunc("/", spaHandler)
 
-	// Resolve the effective access token: env var takes precedence over config.
-	// The OPENLOBSTER_TOKEN env var always wins so tokens can be injected at
-	// deploy time without touching the config file.
+	// cfg.GraphQL.AuthToken already includes OPENLOBSTER_GRAPHQL_AUTH_TOKEN
+	// via viper.AutomaticEnv() in config.Load()
 	effectiveToken := cfg.GraphQL.AuthToken
-	if envToken := os.Getenv("OPENLOBSTER_TOKEN"); envToken != "" {
-		effectiveToken = envToken
-	}
 
 	// authMiddleware enforces bearer-token authentication on the GraphQL and
 	// logs endpoints when cfg.GraphQL.AuthEnabled is true.

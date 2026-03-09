@@ -36,7 +36,7 @@ This fork started as a personal fix for all of that and grew from there.
 
 * **MCP** — OpenClaw's MCP integration was essentially a demo. OpenLobster connects to any Streamable HTTP MCP server, handles the full OAuth 2.1 flow, lets you browse tools per server, and gives you a per-user permission matrix so you control exactly what each user can do. There's also a marketplace for one-click integrations.
 
-* **Security** — This is the big one. OpenClaw shipped with authentication disabled by default, which is how you end up with 40,000 exposed instances on Censys. Here, dashboard auth is on by default behind a bearer token (`OPENLOBSTER_TOKEN`). Config and secrets are encrypted on disk. API keys and channel tokens are stored in a secrets backend (encrypted file or OpenBao), not sitting in plain YAML. `OPENLOBSTER_*` env vars are never leaked to terminal tools. The CVE that let unauthenticated callers hit the agent API directly? Not a thing here.
+* **Security** — This is the big one. OpenClaw shipped with authentication disabled by default, which is how you end up with 40,000 exposed instances on Censys. Here, dashboard auth is on by default behind a bearer token (`OPENLOBSTER_GRAPHQL_AUTH_TOKEN`). Config and secrets are encrypted on disk. API keys and channel tokens are stored in a secrets backend (encrypted file or OpenBao), not sitting in plain YAML. `OPENLOBSTER_*` env vars are never leaked to terminal tools. The CVE that let unauthenticated callers hit the agent API directly? Not a thing here.
 
 * **Backend** — OpenClaw was Node.js/TypeScript. The entire backend has been rewritten in Go. That means a single static binary with no runtime dependency, faster startup, lower memory footprint, and a proper GraphQL API via gqlgen. It also makes deployment significantly simpler — no npm, no Node version pinning, no `node_modules` to worry about.
 
@@ -137,7 +137,6 @@ OPENLOBSTER_PROVIDERS_OLLAMA_DEFAULT_MODEL=llama3.2:latest
 | `OPENLOBSTER_GRAPHQL_BASE_URL` | `graphql.base_url` | Public URL for OAuth callbacks |
 | `OPENLOBSTER_GRAPHQL_AUTH_ENABLED` | `graphql.auth_enabled` | Require token for dashboard |
 | `OPENLOBSTER_GRAPHQL_AUTH_TOKEN` | `graphql.auth_token` | Bearer token |
-| `OPENLOBSTER_TOKEN` | — | Bearer token (takes precedence over `auth_token`) |
 | `OPENLOBSTER_LOGGING_LEVEL` | `logging.level` | `debug`, `info`, `warn`, `error` |
 | `OPENLOBSTER_LOGGING_PATH` | `logging.path` | Log directory |
 | `OPENLOBSTER_WORKSPACE_PATH` | `workspace.path` | Workspace directory |
@@ -175,7 +174,7 @@ OpenAI, Anthropic, Ollama, OpenRouter, Docker Model Runner, and any OpenAI-compa
 
 **Is the GraphQL API public?**
 
-By default, yes — the API is open. To protect it, set `OPENLOBSTER_TOKEN` to a strong secret. Once set, every request to the API and dashboard must include it as a bearer token. If you're exposing the instance on a public IP, do this before you do anything else. The API is intended for the web UI and is not versioned as a public API — it may change between releases.
+By default, yes — the API is open. To protect it, set `OPENLOBSTER_GRAPHQL_AUTH_TOKEN` to a strong secret. Once set, every request to the API and dashboard must include it as a bearer token. If you're exposing the instance on a public IP, do this before you do anything else. The API is intended for the web UI and is not versioned as a public API — it may change between releases.
 
 **I am a company, How do I add an MCP server to the marketplace?**
 

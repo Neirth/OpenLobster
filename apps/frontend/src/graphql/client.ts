@@ -16,11 +16,10 @@
 import { createGraphqlClient } from '@openlobster/ui/graphql';
 import { getStoredToken, setNeedsAuth } from '../stores/authStore';
 
-// En dev, usar /graphql para que Vite proxy envíe al backend (evita CORS y problemas de conexión).
-// En prod, usar la URL configurada o el backend por defecto.
+// Use /graphql which works in both dev (Vite proxy) and prod (reverse proxy).
+// Can be overridden with VITE_GRAPHQL_ENDPOINT for custom deployments.
 export const GRAPHQL_ENDPOINT =
-	import.meta.env.VITE_GRAPHQL_ENDPOINT ??
-	(import.meta.env.DEV ? '/graphql' : 'http://127.0.0.1:8080/graphql');
+	import.meta.env.VITE_GRAPHQL_ENDPOINT ?? '/graphql';
 
 const _client = createGraphqlClient(GRAPHQL_ENDPOINT, getStoredToken);
 
