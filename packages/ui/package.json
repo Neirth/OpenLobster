@@ -41,7 +41,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^8.57.0",
     "typescript": "^5.4.5",
-    "vite": "^5.2.12",
+    "vite": "^7.3.1",
     "vitest": "^4.0.18"
   }
 }

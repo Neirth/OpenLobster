@@ -46,7 +46,7 @@
     "eslint-plugin-solid": "^0.13.0",
     "happy-dom": "^12.10.3",
     "typescript": "^5.4.5",
-    "vite": "^5.2.12",
+    "vite": "^7.3.1",
     "vite-plugin-solid": "^2.10.2",
     "vitest": "^1.0.0"
   }

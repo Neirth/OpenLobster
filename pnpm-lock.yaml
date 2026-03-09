@@ -131,11 +131,11 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
       vite:
-        specifier: ^5.2.12
-        version: 5.4.21(@types/node@20.19.35)
+        specifier: ^7.3.1
+        version: 7.3.1(@types/node@20.19.35)(jiti@2.6.1)(yaml@2.8.2)
       vite-plugin-solid:
         specifier: ^2.10.2
-        version: 2.11.10(solid-js@1.9.11)(vite@5.4.21(@types/node@20.19.35))
+        version: 2.11.10(solid-js@1.9.11)(vite@7.3.1(@types/node@20.19.35)(jiti@2.6.1)(yaml@2.8.2))
       vitest:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@20.19.35)(@vitest/ui@1.6.1)(happy-dom@20.8.3)
@@ -177,8 +177,8 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
       vite:
-        specifier: ^5.2.12
-        version: 5.4.21(@types/node@20.19.35)
+        specifier: ^7.3.1
+        version: 7.3.1(@types/node@20.19.35)(jiti@2.6.1)(yaml@2.8.2)
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@20.19.35)(happy-dom@20.8.3)(jiti@2.6.1)(yaml@2.8.2)
@@ -2892,8 +2892,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  postcss@8.5.6:
-    resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
+  postcss@8.5.8:
+    resolution: {integrity: sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==}
     engines: {node: ^10 || ^12 || >=14}
 
   prelude-ls@1.2.1:
@@ -6705,7 +6705,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
-  postcss@8.5.6:
+  postcss@8.5.8:
     dependencies:
       nanoid: 3.3.11
       picocolors: 1.1.1
@@ -7153,7 +7153,7 @@ snapshots:
       - supports-color
       - terser
 
-  vite-plugin-solid@2.11.10(solid-js@1.9.11)(vite@5.4.21(@types/node@20.19.35)):
+  vite-plugin-solid@2.11.10(solid-js@1.9.11)(vite@7.3.1(@types/node@20.19.35)(jiti@2.6.1)(yaml@2.8.2)):
     dependencies:
       '@babel/core': 7.29.0
       '@types/babel__core': 7.20.5
@@ -7161,15 +7161,15 @@ snapshots:
       merge-anything: 5.1.7
       solid-js: 1.9.11
       solid-refresh: 0.6.3(solid-js@1.9.11)
-      vite: 5.4.21(@types/node@20.19.35)
-      vitefu: 1.1.2(vite@5.4.21(@types/node@20.19.35))
+      vite: 7.3.1(@types/node@20.19.35)(jiti@2.6.1)(yaml@2.8.2)
+      vitefu: 1.1.2(vite@7.3.1(@types/node@20.19.35)(jiti@2.6.1)(yaml@2.8.2))
     transitivePeerDependencies:
       - supports-color
 
   vite@5.4.21(@types/node@20.19.35):
     dependencies:
       esbuild: 0.27.3
-      postcss: 8.5.6
+      postcss: 8.5.8
       rollup: 4.59.0
     optionalDependencies:
       '@types/node': 20.19.35
@@ -7180,7 +7180,7 @@ snapshots:
       esbuild: 0.27.3
       fdir: 6.5.0(picomatch@4.0.3)
       picomatch: 4.0.3
-      postcss: 8.5.6
+      postcss: 8.5.8
       rollup: 4.59.0
       tinyglobby: 0.2.15
     optionalDependencies:
@@ -7189,9 +7189,9 @@ snapshots:
       jiti: 2.6.1
       yaml: 2.8.2
 
-  vitefu@1.1.2(vite@5.4.21(@types/node@20.19.35)):
+  vitefu@1.1.2(vite@7.3.1(@types/node@20.19.35)(jiti@2.6.1)(yaml@2.8.2)):
     optionalDependencies:
-      vite: 5.4.21(@types/node@20.19.35)
+      vite: 7.3.1(@types/node@20.19.35)(jiti@2.6.1)(yaml@2.8.2)
 
   vitest@1.6.1(@types/node@20.19.35)(@vitest/ui@1.6.1)(happy-dom@20.8.3):
     dependencies:
