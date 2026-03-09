@@ -12,7 +12,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/mark3labs/mcp-go v0.44.0
-	github.com/neo4j/neo4j-go-driver/v5 v5.15.0
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/ollama/ollama v0.17.5
 	github.com/openai/openai-go/v3 v3.24.0
 	github.com/pion/opus v0.0.0-20260219180131-abe26becac00
