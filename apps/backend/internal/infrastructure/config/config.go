@@ -12,6 +12,39 @@ import (
 	"github.com/spf13/viper"
 )
 
+// bindEnvForAllKeys binds Viper keys to environment variable names using the
+// OPENLOBSTER_ prefix and converting dots to underscores. This ensures that
+// nested keys (e.g. memory.neo4j.uri) are bound to env vars like
+// OPENLOBSTER_MEMORY_NEO4J_URI so that viper.Unmarshal picks them up.
+func bindEnvForAllKeys() {
+	const prefix = "OPENLOBSTER_"
+	// Bind any keys already present in viper (from config file or defaults).
+	for _, k := range viper.AllKeys() {
+		envKey := prefix + strings.ToUpper(strings.ReplaceAll(k, ".", "_"))
+		_ = viper.BindEnv(k, envKey)
+	}
+	// Do not bind hard-coded keys here; bindEnvFromOS handles env-only cases
+	// and viper.AllKeys covers keys present in config files or defaults.
+}
+
+// bindEnvFromOS scans the process environment for OPENLOBSTER_* variables
+// and binds corresponding viper keys (reverse mapping: OPENLOBSTER_FOO_BAR -> foo.bar).
+func bindEnvFromOS() {
+	const prefix = "OPENLOBSTER_"
+	for _, e := range os.Environ() {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		name := parts[0]
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		key := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(name, prefix), "_", "."))
+		_ = viper.BindEnv(key, name)
+	}
+}
+
 // placeholders are values that indicate a field has not been configured.
 var placeholders = []string{
 	"YOUR_API_KEY_HERE",
@@ -475,6 +508,12 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
+	// Bind environment variables dynamically: first bind keys present in the
+	// config (and defaults), then bind any OPENLOBSTER_* env vars found in
+	// the process environment. This covers both file+env and env-only cases.
+	bindEnvForAllKeys()
+	bindEnvFromOS()
+
 	var cfg Config
 	err = viper.Unmarshal(&cfg)
 	if err != nil {
@@ -486,6 +525,10 @@ func Load(path string) (*Config, error) {
 
 func LoadFromEnv() (*Config, error) {
 	viper.AutomaticEnv()
+
+	// Bind any OPENLOBSTER_* env vars present so Unmarshal can populate nested
+	// keys from the environment when no config file is used.
+	bindEnvFromOS()
 
 	var cfg Config
 	err := viper.Unmarshal(&cfg)

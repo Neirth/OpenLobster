@@ -178,6 +178,25 @@ func TestLoadFromEnv(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestLoadFromEnv_Neo4j(t *testing.T) {
+	// Set env vars as Kubernetes would provide them via EnvPrefix + replacer
+	os.Setenv("OPENLOBSTER_MEMORY_NEO4J_URI", "bolt://env-host:7687")
+	os.Setenv("OPENLOBSTER_MEMORY_NEO4J_USER", "envuser")
+	os.Setenv("OPENLOBSTER_MEMORY_NEO4J_PASSWORD", "envpass")
+	defer func() {
+		os.Unsetenv("OPENLOBSTER_MEMORY_NEO4J_URI")
+		os.Unsetenv("OPENLOBSTER_MEMORY_NEO4J_USER")
+		os.Unsetenv("OPENLOBSTER_MEMORY_NEO4J_PASSWORD")
+	}()
+
+	cfg, err := LoadFromEnv()
+	assert.NoError(t, err)
+	// Unmarshal should populate the nested Neo4j fields from env via BindEnv
+	assert.Equal(t, "bolt://env-host:7687", cfg.Memory.Neo4j.URI)
+	assert.Equal(t, "envuser", cfg.Memory.Neo4j.User)
+	assert.Equal(t, "envpass", cfg.Memory.Neo4j.Password)
+}
+
 // ─── Validate ────────────────────────────────────────────────────────────────
 
 func TestValidate_Valid(t *testing.T) {

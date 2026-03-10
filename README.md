@@ -76,7 +76,7 @@ docker run -p 8080:8080 \
   -e OPENLOBSTER_GRAPHQL_AUTH_TOKEN=your-secret-token \
   -v ~/.openlobster/data:/app/data \
   -v ~/.openlobster/workspace:/app/workspace \
-  -d ghcr.io/neirth/openlobster:latest
+  -d ghcr.io/neirth/openlobster/openlobster:latest
 ```
 
 Check `.docker/` for the available Dockerfiles (`Dockerfile.basic` for a minimal build, `Dockerfile.static` for a fully static binary).
