@@ -1,4 +1,7 @@
-// Test to verify POST requests are being sent to GraphQL endpoint
+// Test to verify POST requests are being sent to GraphQL endpoint.
+// Call from browser console; uses stored token when available so requests are authenticated.
+
+import { getStoredToken } from "../stores/authStore";
 
 async function testGraphQLMutation() {
   const query = `
@@ -24,12 +27,14 @@ async function testGraphQLMutation() {
     },
   };
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getStoredToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   try {
     const response = await fetch("/graphql", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
         query,
         variables,
