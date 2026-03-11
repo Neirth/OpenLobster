@@ -29,6 +29,7 @@ func bindEnvForAllKeys() {
 
 // bindEnvFromOS scans the process environment for OPENLOBSTER_* variables
 // and binds corresponding viper keys (reverse mapping: OPENLOBSTER_FOO_BAR -> foo.bar).
+// OPENLOBSTER_WIZARD_COMPLETE is accepted as an alias for OPENLOBSTER_WIZARD_COMPLETED (wizard.completed).
 func bindEnvFromOS() {
 	const prefix = "OPENLOBSTER_"
 	for _, e := range os.Environ() {
@@ -41,6 +42,7 @@ func bindEnvFromOS() {
 			continue
 		}
 		key := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(name, prefix), "_", "."))
+
 		_ = viper.BindEnv(key, name)
 	}
 }
@@ -525,6 +527,11 @@ func Load(path string) (*Config, error) {
 
 func LoadFromEnv() (*Config, error) {
 	viper.AutomaticEnv()
+	viper.SetEnvPrefix("OPENLOBSTER")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	// Apply same defaults as Load() so env vars override them and nested keys exist.
+	setDefaults()
 
 	// Bind any OPENLOBSTER_* env vars present so Unmarshal can populate nested
 	// keys from the environment when no config file is used.

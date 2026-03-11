@@ -2043,17 +2043,40 @@ This signals that initialization is done and you should no longer treat bootstra
 	// -----------------------------------------------------------------------
 	// Secrets provider + MCP client + OAuth 2.1 manager
 	// -----------------------------------------------------------------------
-	secretsPath := cfg.Secrets.File.Path
-	if secretsPath == "" {
-		secretsPath = "data/secrets.json"
+	// OPENLOBSTER_SECRETS_BACKEND: "file" (default) or "openbao".
+	secretsBackend := strings.ToLower(strings.TrimSpace(cfg.Secrets.Backend))
+	var secretsProvider secrets.SecretsProvider
+	switch secretsBackend {
+	case "openbao":
+		if cfg.Secrets.Openbao == nil || cfg.Secrets.Openbao.URL == "" {
+			log.Fatalf("secrets backend is openbao but secrets.openbao.url is not set (set OPENLOBSTER_SECRETS_OPENBAO_URL)")
+		}
+		if cfg.Secrets.Openbao.Token == "" {
+			log.Fatalf("secrets backend is openbao but secrets.openbao.token is not set (set OPENLOBSTER_SECRETS_OPENBAO_TOKEN)")
+		}
+		var err error
+		secretsProvider, err = secrets.NewOpenBAOProvider(cfg.Secrets.Openbao.URL, cfg.Secrets.Openbao.Token, "secret")
+		if err != nil {
+			log.Fatalf("failed to initialize OpenBao secrets provider: %v", err)
+		}
+		log.Printf("secrets: openbao backend at %s", cfg.Secrets.Openbao.URL)
+	default:
+		// "file" or any other value
+		secretsPath := cfg.Secrets.File.Path
+		if secretsPath == "" {
+			secretsPath = "data/secrets.json"
+		}
+		// OPENLOBSTER_SECRET_KEY: 32-byte key for secrets + config encryption.
+		if secretsBackend != "" && secretsBackend != "file" {
+			log.Printf("secrets: unknown backend %q, using file backend", cfg.Secrets.Backend)
+		}
+		var err error
+		secretsProvider, err = secrets.NewFileSecretsProvider(secretsPath, config.SecretKey())
+		if err != nil {
+			log.Fatalf("failed to initialize secrets provider: %v", err)
+		}
+		log.Printf("secrets: file backend at %s", secretsPath)
 	}
-	// OPENLOBSTER_SECRET_KEY: 32-byte key for secrets + config encryption.
-	// If unset, uses a deterministic default (see config.SecretKey).
-	secretsProvider, err := secrets.NewFileSecretsProvider(secretsPath, config.SecretKey())
-	if err != nil {
-		log.Fatalf("failed to initialize secrets provider: %v", err)
-	}
-	log.Printf("secrets: file backend at %s", secretsPath)
 
 	mcpClientSDK := mcp.NewMCPClientSDK(secretsProvider)
 	oauthCallbackURL := cfg.GraphQL.BaseURL
