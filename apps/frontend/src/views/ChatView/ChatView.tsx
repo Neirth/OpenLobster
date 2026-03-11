@@ -18,7 +18,7 @@ import { MESSAGES_QUERY } from '@openlobster/ui/graphql/queries';
 import type { Message } from '@openlobster/ui/types';
 import { renderMarkdown } from '../../lib/markdown';
 import { t } from '../../App';
-import { client } from '../../graphql/client';
+import { client, GRAPHQL_ENDPOINT } from '../../graphql/client';
 import AppShell from '../../components/AppShell/AppShell';
 import './ChatView.css';
 
@@ -278,11 +278,10 @@ const ChatView: Component = () => {
   const conversations = useConversations(client);
   const queryClient = useQueryClient();
 
-  const graphqlUrl = import.meta.env.VITE_GRAPHQL_ENDPOINT ?? '/graphql';
-  // Convert relative /graphql to relative /ws, and http(s) to ws(s) for absolute URLs
-  const wsUrl = graphqlUrl.startsWith('/')
-    ? graphqlUrl.replace(/\/graphql\/?$/, '/ws')
-    : graphqlUrl.replace(/\/graphql\/?$/, '/ws').replace(/^http/, 'ws');
+  // Same base as GraphQL client: current origin + path, so subscriptions work on any domain
+  const wsUrl = GRAPHQL_ENDPOINT.startsWith('/')
+    ? GRAPHQL_ENDPOINT.replace(/\/graphql\/?$/, '/ws')
+    : GRAPHQL_ENDPOINT.replace(/\/graphql\/?$/, '/ws').replace(/^https/, 'wss').replace(/^http/, 'ws');
 
   useSubscriptions({
     url: wsUrl,

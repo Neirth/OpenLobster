@@ -3,8 +3,9 @@
 /**
  * Singleton GraphQL client for the web frontend.
  *
- * Requests to '/graphql' are proxied by Vite dev server (and by the
- * production reverse proxy) to the backend at :8080.
+ * Requests go to the same host as the app (base domain). In dev, Vite proxies
+ * /graphql to the backend; in production, the reverse proxy does the same.
+ * Override with VITE_GRAPHQL_ENDPOINT when needed.
  *
  * The client reads the access token from sessionStorage on every request
  * so that token changes are picked up immediately. When the backend returns
@@ -16,10 +17,18 @@
 import { createGraphqlClient } from '@openlobster/ui/graphql';
 import { getStoredToken, setNeedsAuth } from '../stores/authStore';
 
-// Use /graphql which works in both dev (Vite proxy) and prod (reverse proxy).
-// Can be overridden with VITE_GRAPHQL_ENDPOINT for custom deployments.
-export const GRAPHQL_ENDPOINT =
-	import.meta.env.VITE_GRAPHQL_ENDPOINT ?? '/graphql';
+/** GraphQL endpoint: same-origin /graphql so it works on any domain (e.g. https://agent.hoki-ghoul.ts.net). */
+function getGraphqlEndpoint(): string {
+	if (import.meta.env.VITE_GRAPHQL_ENDPOINT) {
+		return import.meta.env.VITE_GRAPHQL_ENDPOINT;
+	}
+	if (typeof window !== 'undefined' && window.location?.origin) {
+		return `${window.location.origin}/graphql`;
+	}
+	return '/graphql';
+}
+
+export const GRAPHQL_ENDPOINT = getGraphqlEndpoint();
 
 const _client = createGraphqlClient(GRAPHQL_ENDPOINT, getStoredToken);
 
