@@ -2,6 +2,9 @@ package secrets
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,34 +23,58 @@ func TestNewOpenBAOProvider_DefaultMount(t *testing.T) {
 	require.NotNil(t, p)
 }
 
-func TestOpenBAOProvider_Get(t *testing.T) {
-	p, _ := NewOpenBAOProvider("http://localhost", "t", "m")
+func TestOpenBAOProvider_GetSet_Integration(t *testing.T) {
+	// Mock OpenBao KV v1 API
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Query().Get("list") == "true" {
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"data": map[string]interface{}{"keys": []string{"a", "b"}},
+				})
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{"value": "stored-token"},
+			})
+		case http.MethodPost, http.MethodPut:
+			w.WriteHeader(http.StatusNoContent)
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+	defer server.Close()
+
+	p, err := NewOpenBAOProvider(server.URL, "test-token", "secret")
+	require.NoError(t, err)
 	ctx := context.Background()
-	_, err := p.Get(ctx, "key")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not initialized")
+
+	err = p.Set(ctx, "mcp/remote/Linear/token", "my-oauth-token")
+	require.NoError(t, err)
+
+	val, err := p.Get(ctx, "mcp/remote/Linear/token")
+	require.NoError(t, err)
+	assert.Equal(t, "stored-token", val)
+
+	keys, err := p.List(ctx, "mcp/remote")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, keys)
+
+	err = p.Delete(ctx, "mcp/remote/Linear/token")
+	require.NoError(t, err)
 }
 
-func TestOpenBAOProvider_Set(t *testing.T) {
-	p, _ := NewOpenBAOProvider("http://localhost", "t", "m")
-	ctx := context.Background()
-	err := p.Set(ctx, "key", "value")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not initialized")
-}
+func TestOpenBAOProvider_Get_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
 
-func TestOpenBAOProvider_Delete(t *testing.T) {
-	p, _ := NewOpenBAOProvider("http://localhost", "t", "m")
-	ctx := context.Background()
-	err := p.Delete(ctx, "key")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not initialized")
-}
-
-func TestOpenBAOProvider_List(t *testing.T) {
-	p, _ := NewOpenBAOProvider("http://localhost", "t", "m")
-	ctx := context.Background()
-	_, err := p.List(ctx, "prefix")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not initialized")
+	p, err := NewOpenBAOProvider(server.URL, "t", "secret")
+	require.NoError(t, err)
+	val, err := p.Get(context.Background(), "missing")
+	require.NoError(t, err)
+	assert.Empty(t, val)
 }
