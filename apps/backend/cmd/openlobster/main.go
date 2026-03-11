@@ -762,7 +762,7 @@ func (a *pairingPortAdapter) Approve(ctx context.Context, code, userID, displayN
 
 	if resolveUserID != "" && a.userChannelRepo != nil {
 		if err := a.userChannelRepo.Create(ctx, resolveUserID, p.ChannelType, platformUserID, platformUsername); err != nil {
-			return &dto.PairingSnapshot{Code: p.Code, Status: p.Status}, nil
+			return nil, fmt.Errorf("create user_channel: %w", err)
 		}
 	}
 
@@ -2079,11 +2079,18 @@ This signals that initialization is done and you should no longer treat bootstra
 	}
 
 	mcpClientSDK := mcp.NewMCPClientSDK(secretsProvider)
+	// OAuth2 redirect_uri must be an absolute URL (e.g. https://agent.hoki-ghoul.ts.net/oauth/callback).
+	// graphql.base_url must be the full public base (e.g. https://agent.hoki-ghoul.ts.net), not a path like /graphql.
 	oauthCallbackURL := cfg.GraphQL.BaseURL
-	if oauthCallbackURL == "" {
-		oauthCallbackURL = fmt.Sprintf("http://%s:%d/oauth/callback", cfg.GraphQL.Host, cfg.GraphQL.Port)
-	} else {
+	if oauthCallbackURL != "" && (strings.HasPrefix(oauthCallbackURL, "http://") || strings.HasPrefix(oauthCallbackURL, "https://")) {
 		oauthCallbackURL = strings.TrimSuffix(oauthCallbackURL, "/") + "/oauth/callback"
+	} else {
+		oauthCallbackURL = fmt.Sprintf("http://%s:%d/oauth/callback", cfg.GraphQL.Host, cfg.GraphQL.Port)
+		if cfg.GraphQL.BaseURL != "" {
+			log.Printf("oauth: graphql.base_url %q is not a full URL; using %q for redirect_uri. Set OPENLOBSTER_GRAPHQL_BASE_URL to your public URL (e.g. https://agent.example.com) for OAuth to work.", cfg.GraphQL.BaseURL, oauthCallbackURL)
+		} else if cfg.GraphQL.Host == "0.0.0.0" || cfg.GraphQL.Host == "" {
+			log.Printf("oauth: redirect_uri is %q. For OAuth behind a reverse proxy, set OPENLOBSTER_GRAPHQL_BASE_URL to your public URL (e.g. https://agent.example.com).", oauthCallbackURL)
+		}
 	}
 	oauthMgr := mcp.NewOAuthManager(secretsProvider, oauthCallbackURL)
 
