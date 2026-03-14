@@ -6,13 +6,13 @@ import (
 	"github.com/neirth/openlobster/internal/domain/events"
 )
 
-// Resolver delega a Deps (AgentRegistry + servicios) y suscripciones de eventos.
+// Resolver delegates to Deps (AgentRegistry + services) and event subscriptions.
 type Resolver struct {
 	Deps *Deps
 	Sub  EventSubscriptionPort
 }
 
-// EventSubscriptionPort permite suscribirse a eventos del dominio.
+// EventSubscriptionPort allows subscribing to domain events.
 type EventSubscriptionPort interface {
 	Subscribe(ctx context.Context, eventType string) (<-chan events.Event, error)
 }
@@ -21,5 +21,5 @@ func NewResolver(deps *Deps) *Resolver {
 	return &Resolver{Deps: deps}
 }
 
-// SetEventSubscription inyecta el puerto de suscripción (por main).
+// SetEventSubscription injects the subscription port (wired from main).
 func (r *Resolver) SetEventSubscription(s EventSubscriptionPort) { r.Sub = s }

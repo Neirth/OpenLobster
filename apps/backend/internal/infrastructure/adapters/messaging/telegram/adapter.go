@@ -335,25 +335,48 @@ func (a *Adapter) SendMessage(ctx context.Context, msg *models.Message) error {
 
 func (a *Adapter) SendMedia(ctx context.Context, media *ports.Media) error {
 	chatID, _ := strconv.ParseInt(media.ChatID, 10, 64)
+	htmlCaption := markdownToHTML(media.Caption)
 
-	if media.URL != "" {
-		caption := media.Caption
-		if caption == "" {
-			caption = media.URL
-		} else {
-			caption = caption + "\n" + media.URL
-		}
-		htmlCaption := markdownToHTML(caption)
+	if media.URL == "" {
 		config := tgbotapi.NewMessage(chatID, htmlCaption)
 		config.ParseMode = tgbotapi.ModeHTML
 		_, err := a.bot.Send(config)
 		return err
 	}
 
-	htmlCaption := markdownToHTML(media.Caption)
-	config := tgbotapi.NewMessage(chatID, htmlCaption)
-	config.ParseMode = tgbotapi.ModeHTML
-	_, err := a.bot.Send(config)
+	file := tgbotapi.FilePath(media.URL)
+	contentType := media.ContentType
+
+	var chattable tgbotapi.Chattable
+	switch {
+	case strings.HasPrefix(contentType, "image/"):
+		msg := tgbotapi.NewPhoto(chatID, file)
+		msg.Caption = htmlCaption
+		msg.ParseMode = tgbotapi.ModeHTML
+		chattable = msg
+	case contentType == "audio/ogg":
+		msg := tgbotapi.NewVoice(chatID, file)
+		msg.Caption = htmlCaption
+		msg.ParseMode = tgbotapi.ModeHTML
+		chattable = msg
+	case strings.HasPrefix(contentType, "audio/"):
+		msg := tgbotapi.NewAudio(chatID, file)
+		msg.Caption = htmlCaption
+		msg.ParseMode = tgbotapi.ModeHTML
+		chattable = msg
+	case strings.HasPrefix(contentType, "video/"):
+		msg := tgbotapi.NewVideo(chatID, file)
+		msg.Caption = htmlCaption
+		msg.ParseMode = tgbotapi.ModeHTML
+		chattable = msg
+	default:
+		msg := tgbotapi.NewDocument(chatID, file)
+		msg.Caption = htmlCaption
+		msg.ParseMode = tgbotapi.ModeHTML
+		chattable = msg
+	}
+
+	_, err := a.bot.Send(chattable)
 	return err
 }
 

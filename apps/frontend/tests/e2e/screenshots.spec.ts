@@ -5,6 +5,24 @@ import * as path from 'path';
 
 const screenshotsDir = path.join(__dirname, '../../docs/playwright');
 
+/** Intercept GraphQL so the app skips FirstBootWizard and shows the main shell (header).
+ * Without this, the config fetch fails or returns wizardCompleted: false and the header never mounts. */
+async function stubConfigWizardCompleted(page: import('@playwright/test').Page) {
+  await page.route('**/graphql', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const body = route.request().postDataJSON();
+    const query = typeof body?.query === 'string' ? body.query : '';
+    if (query.includes('GetConfig') && query.includes('wizardCompleted')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: { config: { wizardCompleted: true } } }),
+      });
+    }
+    return route.continue();
+  });
+}
+
 test.describe('Screenshot Capture', () => {
   test.beforeAll(async () => {
     if (!fs.existsSync(screenshotsDir)) {
@@ -24,10 +42,12 @@ test.describe('Screenshot Capture', () => {
 
   for (const view of views) {
     test(`capture ${view.name} screenshot`, async ({ page }) => {
+      await stubConfigWizardCompleted(page);
       await page.goto(view.path);
-      // Wait for the app to mount and render content
-      await page.waitForSelector('#app', { state: 'attached' });
-      await page.waitForSelector(view.selector, { state: 'visible', timeout: 10000 });
+      // Wait for the app to mount and render content (header only exists after wizard is skipped)
+      await page.waitForLoadState('networkidle');
+      await page.waitForSelector('#app', { state: 'attached', timeout: 15000 });
+      await page.waitForSelector(view.selector, { state: 'visible', timeout: 15000 });
       // Extra wait for fonts/images to load
       await page.waitForTimeout(500);
 

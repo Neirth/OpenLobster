@@ -20,7 +20,7 @@ export function useMemory(client: GraphQLClient) {
     queryKey: ['memory'],
     queryFn: async () => {
       const data = await client.request<MemoryQueryResult>(MEMORY_QUERY);
-      // Backend puede devolver null si hay error o grafo vacío; normalizar a estructura vacía
+      // Backend may return null if there is an error or an empty graph; normalise to an empty structure.
       const graph = data.memory;
       return graph ?? { nodes: [], edges: [] };
     },

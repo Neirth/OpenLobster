@@ -1,7 +1,7 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 
 import type { Component, ParentComponent } from "solid-js";
-import { createSignal, createEffect, onMount, Show, lazy, Suspense } from "solid-js";
+import { createSignal, createEffect, onMount, onCleanup, Show, lazy, Suspense } from "solid-js";
 import { translator, resolveTemplate } from "@solid-primitives/i18n";
 import { useQueryClient } from "@tanstack/solid-query";
 import { Router, Route, useLocation } from "@solidjs/router";
@@ -16,13 +16,41 @@ const McpsView = lazy(() => import("./views/McpsView/McpsView"));
 const SkillsView = lazy(() => import("./views/SkillsView/SkillsView"));
 const SettingsView = lazy(() => import("./views/SettingsView/SettingsView"));
 const Error404 = lazy(() => import("./views/ErrorView/ErrorView").then((m) => ({ default: m.Error404 })));
-import AuthModals from "./components/AuthModals/AuthModals";
-import BrowserCheck from "./components/BrowserCheck/BrowserCheck";
-import MobileBlocker from "./components/MobileBlocker/MobileBlocker";
+import AuthModals from "./components/AuthModals";
+import BrowserCheck from "./components/BrowserCheck";
+import MobileBlocker from "./components/MobileBlocker";
 import OAuthCallbackError from "./components/OAuthCallbackError/OAuthCallbackError";
-import FirstBootWizard from "./components/FirstBootWizard/FirstBootWizard";
+import FirstBootWizard from "./components/FirstBootWizard";
 import { GRAPHQL_ENDPOINT } from "./graphql/client";
+import { getStoredToken } from "./stores/authStore";
+import { effectiveTheme, setSystemTheme } from "./stores/themeStore";
 import "./styles/global.css";
+
+// Exported so that AccessTokenModal can trigger a re-check after saving a token.
+export const [configLoaded, setConfigLoaded] = createSignal(false);
+export const [showWizard, setShowWizard] = createSignal(true);
+
+export async function recheckConfig(): Promise<void> {
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = getStoredToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await fetch(GRAPHQL_ENDPOINT, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query: `query GetConfig { config { wizardCompleted } }` }),
+    });
+    const data = await res.json();
+    const completed = data?.data?.config?.wizardCompleted === true;
+    setShowWizard(!completed);
+  } catch {
+    setShowWizard(true);
+  } finally {
+    setConfigLoaded(true);
+  }
+}
 
 type Locale = "en" | "es" | "zh";
 
@@ -58,8 +86,9 @@ const App: ParentComponent = (props) => {
 };
 
 const Root: Component = () => {
-  const [configLoaded, setConfigLoaded] = createSignal(false);
-  const [showWizard, setShowWizard] = createSignal(true);
+  createEffect(() => {
+    document.documentElement.setAttribute("data-theme", effectiveTheme());
+  });
 
   // When OAuth callback fails, backend redirects to /?oauth_callback=error&message=...
   // In that case (popup window), show a modal instead of the normal app
@@ -74,27 +103,19 @@ const Root: Component = () => {
     })(),
   );
 
+  onMount(() => {
+    const m = window.matchMedia("(prefers-color-scheme: light)");
+    setSystemTheme(m.matches ? "light" : "dark");
+    const handler = () => setSystemTheme(m.matches ? "light" : "dark");
+    m.addEventListener("change", handler);
+    onCleanup(() => m.removeEventListener("change", handler));
+  });
+
   onMount(async () => {
     if (oauthError()) {
       window.history.replaceState({}, "", window.location.pathname || "/");
     }
-    try {
-      const res = await fetch(GRAPHQL_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: `query GetConfig { config { wizardCompleted } }`,
-          }),
-        },
-      );
-      const data = await res.json();
-      const completed = data?.data?.config?.wizardCompleted === true;
-      setShowWizard(!completed);
-    } catch {
-      setShowWizard(true);
-    } finally {
-      setConfigLoaded(true);
-    }
+    await recheckConfig();
   });
 
   const handleWizardComplete = () => {

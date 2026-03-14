@@ -190,13 +190,64 @@ func convertMessages(msgs []ports.ChatMessage) ([]anthropic.TextBlockParam, []an
 
 		case "tool":
 			// Tool result: a user-turn message with OfToolResult content.
+			// When the tool returned multimodal Blocks (e.g. an image from read_file),
+			// include them in the tool_result content; otherwise use a text block.
+			var resultContent []anthropic.ToolResultBlockParamContentUnion
+			if len(m.Blocks) > 0 {
+				for _, b := range m.Blocks {
+					switch b.Type {
+					case ports.ContentBlockImage:
+						if b.URL != "" {
+							resultContent = append(resultContent, anthropic.ToolResultBlockParamContentUnion{
+								OfImage: &anthropic.ImageBlockParam{
+									Source: anthropic.ImageBlockParamSourceUnion{
+										OfURL: &anthropic.URLImageSourceParam{URL: b.URL},
+									},
+								},
+							})
+						} else if len(b.Data) > 0 {
+							resultContent = append(resultContent, anthropic.ToolResultBlockParamContentUnion{
+								OfImage: &anthropic.ImageBlockParam{
+									Source: anthropic.ImageBlockParamSourceUnion{
+										OfBase64: &anthropic.Base64ImageSourceParam{
+											MediaType: anthropic.Base64ImageSourceMediaType(b.MIMEType),
+											Data:      base64.StdEncoding.EncodeToString(b.Data),
+										},
+									},
+								},
+							})
+						}
+						if b.Text != "" {
+							resultContent = append(resultContent, anthropic.ToolResultBlockParamContentUnion{
+								OfText: &anthropic.TextBlockParam{Text: b.Text},
+							})
+						}
+					case ports.ContentBlockAudio:
+						// Anthropic does not support audio in tool results; fall back to text.
+						if b.Text != "" {
+							resultContent = append(resultContent, anthropic.ToolResultBlockParamContentUnion{
+								OfText: &anthropic.TextBlockParam{Text: b.Text},
+							})
+						}
+					case ports.ContentBlockText:
+						if b.Text != "" {
+							resultContent = append(resultContent, anthropic.ToolResultBlockParamContentUnion{
+								OfText: &anthropic.TextBlockParam{Text: b.Text},
+							})
+						}
+					}
+				}
+			}
+			if len(resultContent) == 0 {
+				resultContent = []anthropic.ToolResultBlockParamContentUnion{
+					{OfText: &anthropic.TextBlockParam{Text: m.Content}},
+				}
+			}
 			params = append(params, anthropic.NewUserMessage(
 				anthropic.ContentBlockParamUnion{
 					OfToolResult: &anthropic.ToolResultBlockParam{
 						ToolUseID: m.ToolCallID,
-						Content: []anthropic.ToolResultBlockParamContentUnion{
-							{OfText: &anthropic.TextBlockParam{Text: m.Content}},
-						},
+						Content:   resultContent,
 					},
 				},
 			))

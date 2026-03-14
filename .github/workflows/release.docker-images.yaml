@@ -2,7 +2,7 @@ name: Release Docker Images
 
 on:
   push:
-    branches: [ master, 'feature/**' ]
+    branches: [ master, 'feature/**', 'fix/**' ]
     tags: [ 'v*.*.*' ]
     paths:
       - ".docker/**"
@@ -29,6 +29,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: Common Docker setup and logins
         uses: ./.github/actions/docker-common

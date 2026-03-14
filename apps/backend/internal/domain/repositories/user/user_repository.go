@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	domainmodels "github.com/neirth/openlobster/internal/domain/models"
@@ -39,7 +40,11 @@ func (r *repository) GetByID(ctx context.Context, id string) (*domainmodels.User
 		}
 		return nil, err
 	}
-	return &domainmodels.User{ID: uuid.MustParse(m.ID), PrimaryID: m.PrimaryID, Name: m.Name, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}, nil
+	parsed, err := uuid.Parse(m.ID)
+	if err != nil {
+		return nil, fmt.Errorf("user repository: invalid UUID %q: %w", m.ID, err)
+	}
+	return &domainmodels.User{ID: parsed, PrimaryID: m.PrimaryID, Name: m.Name, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}, nil
 }
 
 func (r *repository) GetByPrimaryID(ctx context.Context, primaryID string) (*domainmodels.User, error) {
@@ -50,7 +55,11 @@ func (r *repository) GetByPrimaryID(ctx context.Context, primaryID string) (*dom
 		}
 		return nil, err
 	}
-	return &domainmodels.User{ID: uuid.MustParse(m.ID), PrimaryID: m.PrimaryID, Name: m.Name, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}, nil
+	parsed, err := uuid.Parse(m.ID)
+	if err != nil {
+		return nil, fmt.Errorf("user repository: invalid UUID %q: %w", m.ID, err)
+	}
+	return &domainmodels.User{ID: parsed, PrimaryID: m.PrimaryID, Name: m.Name, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}, nil
 }
 
 func (r *repository) Update(ctx context.Context, user *domainmodels.User) error {
@@ -61,18 +70,24 @@ func (r *repository) Update(ctx context.Context, user *domainmodels.User) error 
 
 func (r *repository) ListAll(ctx context.Context) ([]domainmodels.User, error) {
 	var userModels []domainmodels.UserModel
-	if err := r.db.WithContext(ctx).Order("created_at DESC").Find(&userModels).Error; err != nil {
+	// Exclude reserved system users (e.g. "loopback") that have non-UUID IDs.
+	if err := r.db.WithContext(ctx).Order("created_at DESC").
+		Where("length(id) = 36").Find(&userModels).Error; err != nil {
 		return nil, err
 	}
-	users := make([]domainmodels.User, len(userModels))
-	for i, m := range userModels {
-		users[i] = domainmodels.User{
-			ID:        uuid.MustParse(m.ID),
+	users := make([]domainmodels.User, 0, len(userModels))
+	for _, m := range userModels {
+		id, err := uuid.Parse(m.ID)
+		if err != nil {
+			continue // skip non-UUID system rows
+		}
+		users = append(users, domainmodels.User{
+			ID:        id,
 			PrimaryID: m.PrimaryID,
 			Name:      m.Name,
 			CreatedAt: m.CreatedAt,
 			UpdatedAt: m.UpdatedAt,
-		}
+		})
 	}
 	return users, nil
 }

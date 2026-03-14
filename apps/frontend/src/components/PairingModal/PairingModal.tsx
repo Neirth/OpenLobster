@@ -3,7 +3,7 @@
 import type { Component } from "solid-js";
 import { createSignal, createResource, createEffect, For, Show } from "solid-js";
 import { t } from "../../App";
-import Modal from "../../components/Modal/Modal";
+import Modal from "../../components/Modal";
 import { client } from "../../graphql/client";
 import "./PairingModal.css";
 

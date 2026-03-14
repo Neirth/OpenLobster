@@ -80,8 +80,8 @@ export const UPDATE_TASK_MUTATION = /* GraphQL */ `
 // ─── MCP Servers ───────────────────────────────────────────────────────────────
 
 export const CONNECT_MCP_MUTATION = /* GraphQL */ `
-  mutation ConnectMcp($name: String!, $transport: String!, $url: String) {
-    connectMcp(name: $name, transport: $transport, url: $url) {
+  mutation ConnectMcp($name: String!, $transport: String!, $url: String!, $clientId: String) {
+    connectMcp(name: $name, transport: $transport, url: $url, clientId: $clientId) {
       name
       transport
       status

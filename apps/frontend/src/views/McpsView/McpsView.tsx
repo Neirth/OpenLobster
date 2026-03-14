@@ -13,9 +13,9 @@ import {
   SET_ALL_TOOL_PERMISSIONS_MUTATION,
 } from '@openlobster/ui/graphql/mutations';
 import { client } from '../../graphql/client';
-import AppShell from '../../components/AppShell/AppShell';
-import Modal from '../../components/Modal/Modal';
-import MarketplaceModal from '../../components/MarketplaceModal/MarketplaceModal';
+import AppShell from '../../components/AppShell';
+import Modal from '../../components/Modal';
+import MarketplaceModal from '../../components/MarketplaceModal';
 import { t } from '../../App';
 import './McpsView.css';
 
@@ -121,6 +121,8 @@ const McpsView: Component = () => {
   const [addName, setAddName] = createSignal('');
   const [addUrl, setAddUrl] = createSignal('');
   const [addError, setAddError] = createSignal('');
+  const [showAdvancedOptions, setShowAdvancedOptions] = createSignal(false);
+  const [addClientId, setAddClientId] = createSignal('');
 
   // ── Manage / OAuth modal state ───────────────────────────────────────────
   const [manageServerId, setManageServerId] = createSignal<string | null>(null);
@@ -129,7 +131,7 @@ const McpsView: Component = () => {
 
   // ── Mutations ────────────────────────────────────────────────────────────
   const connectMcp = createMutation(() => ({
-    mutationFn: (vars: { name: string; transport: string; url: string }) =>
+    mutationFn: (vars: { name: string; transport: string; url: string; clientId?: string }) =>
       client.request<{ connectMcp: { name?: string; error?: string; requiresAuth?: boolean; url?: string } }>(
         CONNECT_MCP_MUTATION,
         vars,
@@ -145,6 +147,8 @@ const McpsView: Component = () => {
       setAddName('');
       setAddUrl('');
       setAddError('');
+      setShowAdvancedOptions(false);
+      setAddClientId('');
       queryClient.invalidateQueries({ queryKey: ['mcpServers'] });
       // Auto-launch the OAuth flow if the server requires authorization
       if (res?.requiresAuth) {
@@ -315,7 +319,8 @@ const McpsView: Component = () => {
   const handleAddServer = () => {
     if (!addName() || !addUrl()) return;
     setAddError('');
-    connectMcp.mutate({ name: addName(), transport: 'http', url: addUrl() });
+    const clientId = addClientId().trim() || undefined;
+    connectMcp.mutate({ name: addName(), transport: 'http', url: addUrl(), ...(clientId && { clientId }) });
   };
 
   const openManage = (name: string) => {
@@ -709,7 +714,7 @@ const McpsView: Component = () => {
         {/* Add Server Modal */}
         <Modal
           isOpen={showAddServerModal()}
-          onClose={() => { setShowAddServerModal(false); setAddError(''); }}
+          onClose={() => { setShowAddServerModal(false); setAddError(''); setShowAdvancedOptions(false); setAddClientId(''); }}
           title={t('mcps.addServer')}
         >
           <div class="modal-form">
@@ -731,6 +736,26 @@ const McpsView: Component = () => {
                 onInput={(e) => setAddUrl(e.currentTarget.value)}
               />
             </div>
+            <div class="checkbox-group">
+              <input
+                type="checkbox"
+                id="mcp-advanced-options"
+                checked={showAdvancedOptions()}
+                onInput={(e) => setShowAdvancedOptions(e.currentTarget.checked)}
+              />
+              <label for="mcp-advanced-options">{t('mcps.advancedOptions')}</label>
+            </div>
+            <Show when={showAdvancedOptions()}>
+              <div class="form-group">
+                <label>{t('mcps.clientId')}</label>
+                <input
+                  type="text"
+                  placeholder={t('mcps.clientIdPlaceholder')}
+                  value={addClientId()}
+                  onInput={(e) => setAddClientId(e.currentTarget.value)}
+                />
+              </div>
+            </Show>
             <p class="modal-transport-note">
               <span class="material-symbols-outlined">lock</span>
               {t('mcps.httpOnlyNote')}

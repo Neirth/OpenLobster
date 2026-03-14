@@ -2,7 +2,7 @@
 
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
-import { t } from "../../App";
+import { t, recheckConfig } from "../../App";
 import { saveToken } from "../../stores/authStore";
 import "./AccessTokenModal.css";
 
@@ -28,6 +28,7 @@ const AccessTokenModal: Component = () => {
     saveToken(value);
     setToken("");
     setError(false);
+    void recheckConfig();
   };
 
   const handleInput = (e: Event) => {

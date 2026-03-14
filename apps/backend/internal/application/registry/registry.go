@@ -7,7 +7,7 @@ import (
 	"github.com/neirth/openlobster/internal/application/graphql/dto"
 )
 
-// AgentRegistry mantiene el estado runtime del agente (hot-reload por main).
+// AgentRegistry keeps the agent runtime state (hot-reloaded from main).
 type AgentRegistry struct {
 	mu        sync.RWMutex
 	agent     *dto.AgentSnapshot
@@ -18,35 +18,35 @@ type AgentRegistry struct {
 	errorsCnt int64
 }
 
-// NewAgentRegistry crea un registro vacío.
+// NewAgentRegistry creates an empty registry.
 func NewAgentRegistry() *AgentRegistry {
 	return &AgentRegistry{
 		startTime: time.Now().Unix(),
 	}
 }
 
-// GetAgent devuelve el snapshot actual del agente.
+// GetAgent returns the current agent snapshot.
 func (r *AgentRegistry) GetAgent() *dto.AgentSnapshot {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.agent
 }
 
-// UpdateAgent reemplaza el snapshot del agente.
+// UpdateAgent replaces the agent snapshot.
 func (r *AgentRegistry) UpdateAgent(a *dto.AgentSnapshot) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.agent = a
 }
 
-// GetChannels devuelve los canales actuales.
+// GetChannels returns the current channels.
 func (r *AgentRegistry) GetChannels() []dto.ChannelStatus {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.channels
 }
 
-// UpdateAgentChannels actualiza el agente con nuevos canales.
+// UpdateAgentChannels updates the agent with new channels.
 func (r *AgentRegistry) UpdateAgentChannels(channels []dto.ChannelStatus) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -58,49 +58,49 @@ func (r *AgentRegistry) UpdateAgentChannels(channels []dto.ChannelStatus) {
 	}
 }
 
-// GetMCPTools devuelve las herramientas MCP actuales.
+// GetMCPTools returns the current MCP tools.
 func (r *AgentRegistry) GetMCPTools() []dto.ToolSnapshot {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.mcpTools
 }
 
-// UpdateMCPTools actualiza la lista de herramientas MCP.
+// UpdateMCPTools updates the list of MCP tools.
 func (r *AgentRegistry) UpdateMCPTools(tools []dto.ToolSnapshot) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.mcpTools = tools
 }
 
-// GetMCPs devuelve la lista de servidores MCP.
+// GetMCPs returns the list of MCP servers.
 func (r *AgentRegistry) GetMCPs() []dto.MCPSnapshot {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.mcps
 }
 
-// UpdateMCPs actualiza la lista de servidores MCP.
+// UpdateMCPs updates the list of MCP servers.
 func (r *AgentRegistry) UpdateMCPs(mcps []dto.MCPSnapshot) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.mcps = mcps
 }
 
-// StartTime devuelve el Unix timestamp de arranque.
+// StartTime returns the Unix startup timestamp.
 func (r *AgentRegistry) StartTime() int64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.startTime
 }
 
-// IncErrors incrementa el contador de errores.
+// IncErrors increments the error counter.
 func (r *AgentRegistry) IncErrors() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.errorsCnt++
 }
 
-// ErrorsCount devuelve el contador de errores.
+// ErrorsCount returns the error counter.
 func (r *AgentRegistry) ErrorsCount() int64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

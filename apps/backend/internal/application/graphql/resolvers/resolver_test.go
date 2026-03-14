@@ -86,7 +86,7 @@ func TestResolver_Mutation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.Success)
-	// Con msgRepo nil, SendMessage retorna (nil,nil) y el resolver devuelve Success: true
+	// With a nil msgRepo, SendMessage returns (nil, nil) and the resolver yields Success: true.
 	assert.True(t, *result.Success)
 }
 
@@ -609,7 +609,7 @@ func TestMutationResolver_ConnectMcp_DisconnectMcp(t *testing.T) {
 	r := NewResolver(deps)
 
 	tport, u := "stdio", "cmd://echo"
-	res, err := r.Mutation().ConnectMcp(context.Background(), "mcp1", &tport, &u)
+	res, err := r.Mutation().ConnectMcp(context.Background(), "mcp1", tport, u, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Success)
@@ -642,13 +642,13 @@ func TestDeps_Agent_PrefersConfigSnapshot(t *testing.T) {
 		Status:     "running",
 	})
 	deps := &Deps{AgentRegistry: reg}
-	// Sin ConfigSnapshot: devuelve valores del registry
+	// Without ConfigSnapshot: returns values from the registry.
 	agent := deps.Agent(context.Background())
 	require.NotNil(t, agent)
 	assert.Equal(t, "OpenLobster", agent.Name)
 	assert.Equal(t, "", agent.Provider)
 
-	// Con ConfigSnapshot: name y provider vienen de la config (post-wizard)
+	// With ConfigSnapshot: name and provider come from config (post-wizard).
 	deps.ConfigSnapshot = &dto.AppConfigSnapshot{
 		Agent: &dto.AgentConfigSnapshot{
 			Name:     "MiBot",
@@ -1375,7 +1375,7 @@ func (m *mockMcpConnectPort) GetServerToolCount(name string) int {
 			return c
 		}
 	}
-	// Si está online en connectionStatus, asumir al menos 1 herramienta para tests
+	// If connectionStatus reports online, assume at least 1 tool for tests.
 	if m.connectionStatus != nil && m.connectionStatus[name] == "online" {
 		return 1
 	}
@@ -1392,6 +1392,9 @@ func (m *mockMcpOAuthPort) InitiateOAuth(ctx context.Context, serverName, mcpURL
 }
 func (m *mockMcpOAuthPort) Status(serverName string) (string, string) {
 	return "unknown", ""
+}
+func (m *mockMcpOAuthPort) SetClientID(ctx context.Context, serverName, clientID string) error {
+	return nil
 }
 
 type mockSkillsPort struct {
@@ -1449,7 +1452,7 @@ func (m *mockPairingPort) Deny(ctx context.Context, code, reason string) error {
 	return m.denyErr
 }
 
-// Verifica que los tipos implementen las interfaces generadas
+	// Verify that concrete types implement the generated interfaces.
 var (
 	_ generated.QueryResolver        = (*queryResolver)(nil)
 	_ generated.MutationResolver     = (*mutationResolver)(nil)

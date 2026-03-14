@@ -3,6 +3,21 @@
 
 import { test, expect } from '@playwright/test';
 
+function isCriticalConsoleError(text: string): boolean {
+  const criticalMarkers = [
+    'Uncaught',
+    'Unhandled',
+    'TypeError',
+    'ReferenceError',
+    'SyntaxError',
+    'NetworkError',
+    'Failed to fetch',
+    'Cannot read properties of',
+    'Cannot read property',
+  ];
+  return criticalMarkers.some((marker) => text.includes(marker));
+}
+
 test.describe('Frontend Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -24,17 +39,20 @@ test.describe('Frontend Navigation', () => {
     expect(viewportSize?.height).toBeGreaterThan(0);
   });
 
-  test('app handles navigation without errors', async ({ page }) => {
+  test('app loads with no critical console errors', async ({ page }) => {
     const errors: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
-        errors.push(msg.text());
+        const text = msg.text();
+        if (isCriticalConsoleError(text)) {
+          errors.push(text);
+        }
       }
     });
     await page.goto('/');
     await page.waitForTimeout(1000);
-    // Allow some errors since dev server may have warnings
-    expect(errors.length).toBeLessThan(5);
+    // Only consider truly critical errors (exceptions, network failures, etc.).
+    expect(errors.length).toBeLessThan(3);
   });
 });
 
@@ -43,14 +61,17 @@ test.describe('Page Load Performance', () => {
     const errors: string[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
-        errors.push(msg.text());
+        const text = msg.text();
+        if (isCriticalConsoleError(text)) {
+          errors.push(text);
+        }
       }
     });
 
     await page.goto('/');
     await page.waitForLoadState('networkidle');
-    // Should have minimal critical errors
-    expect(errors.length).toBeLessThan(10);
+    // Should have (almost) no critical console errors
+    expect(errors.length).toBeLessThan(3);
   });
 
   test('page title is set correctly', async ({ page }) => {

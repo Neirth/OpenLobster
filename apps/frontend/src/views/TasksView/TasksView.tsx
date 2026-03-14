@@ -8,8 +8,8 @@ import { useTasks } from '@openlobster/ui/hooks';
 import type { Task } from '@openlobster/ui/types';
 import { ADD_TASK_MUTATION, REMOVE_TASK_MUTATION, TOGGLE_TASK_MUTATION, UPDATE_TASK_MUTATION } from '@openlobster/ui/graphql/mutations';
 import { client } from '../../graphql/client';
-import AppShell from '../../components/AppShell/AppShell';
-import Modal from '../../components/Modal/Modal';
+import AppShell from '../../components/AppShell';
+import Modal from '../../components/Modal';
 import { t } from '../../App';
 import './TasksView.css';
 

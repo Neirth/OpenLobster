@@ -349,7 +349,7 @@ type ComplexityRoot struct {
 		AddTask               func(childComplexity int, prompt string, schedule *string) int
 		ApprovePairing        func(childComplexity int, code string, userID *string, displayName *string) int
 		CompleteTask          func(childComplexity int, taskID string) int
-		ConnectMcp            func(childComplexity int, name string, transport *string, url *string) int
+		ConnectMcp            func(childComplexity int, name string, transport string, url string, clientID *string) int
 		DeleteMemoryNode      func(childComplexity int, id string) int
 		DeleteSkill           func(childComplexity int, name string) int
 		DeleteToolPermission  func(childComplexity int, userID string, toolName string) int
@@ -584,7 +584,7 @@ type MutationResolver interface {
 	DeleteMemoryNode(ctx context.Context, id string) (bool, error)
 	AddRelation(ctx context.Context, from string, to string, relationType string) (*AddRelationResult, error)
 	ExecuteCypher(ctx context.Context, cypher string) (*CypherResult, error)
-	ConnectMcp(ctx context.Context, name string, transport *string, url *string) (*MCPConnectResult, error)
+	ConnectMcp(ctx context.Context, name string, transport string, url string, clientID *string) (*MCPConnectResult, error)
 	DisconnectMcp(ctx context.Context, name string) (bool, error)
 	InitiateOAuth(ctx context.Context, name string, url string) (*OAuthInitiateResult, error)
 	AddTask(ctx context.Context, prompt string, schedule *string) (*Task, error)
@@ -1937,7 +1937,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ConnectMcp(childComplexity, args["name"].(string), args["transport"].(*string), args["url"].(*string)), true
+		return e.ComplexityRoot.Mutation.ConnectMcp(childComplexity, args["name"].(string), args["transport"].(string), args["url"].(string), args["clientId"].(*string)), true
 	case "Mutation.deleteMemoryNode":
 		if e.ComplexityRoot.Mutation.DeleteMemoryNode == nil {
 			break
@@ -3629,8 +3629,9 @@ extend type Query {
 extend type Mutation {
   connectMcp(
     name:      String!
-    transport: String
-    url:       String
+    transport: String!
+    url:       String!
+    clientId:  String   # optional; custom OAuth client_id from "advanced options"
   ): MCPConnectResult!
   disconnectMcp(name: String!): Boolean!
   initiateOAuth(name: String!, url: String!): OAuthInitiateResult!
@@ -3935,16 +3936,21 @@ func (ec *executionContext) field_Mutation_connectMcp_args(ctx context.Context, 
 		return nil, err
 	}
 	args["name"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "transport", ec.unmarshalOString2ᚖstring)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "transport", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
 	args["transport"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "url", ec.unmarshalOString2ᚖstring)
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "url", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
 	args["url"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "clientId", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["clientId"] = arg3
 	return args, nil
 }
 
@@ -10799,7 +10805,7 @@ func (ec *executionContext) _Mutation_connectMcp(ctx context.Context, field grap
 		ec.fieldContext_Mutation_connectMcp,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ConnectMcp(ctx, fc.Args["name"].(string), fc.Args["transport"].(*string), fc.Args["url"].(*string))
+			return ec.Resolvers.Mutation().ConnectMcp(ctx, fc.Args["name"].(string), fc.Args["transport"].(string), fc.Args["url"].(string), fc.Args["clientId"].(*string))
 		},
 		nil,
 		ec.marshalNMCPConnectResult2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐMCPConnectResult,

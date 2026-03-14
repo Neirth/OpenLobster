@@ -2,7 +2,10 @@
 
 import { render } from "solid-js/web";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
+import { initTheme } from "./stores/themeStore";
 import Root from "./App";
+
+initTheme();
 
 const root = document.getElementById("app");
 

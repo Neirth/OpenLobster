@@ -1,8 +1,11 @@
 package terminal
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -78,16 +81,26 @@ func (a *HostAdapter) Spawn(ctx context.Context, cmd string) (ports.PtySession, 
 
 	proc := &BackgroundProcessInfo{
 		id:        uuid.New().String(),
-		output:    make(chan string, 100),
+		command:   cmd,
+		output:    make(chan string, 256),
 		done:      make(chan struct{}),
 		startedAt: time.Now(),
+		status:    ports.ProcessStatusRunning,
 	}
 
 	proc.cmd = exec.CommandContext(ctx, parts[0], parts[1:]...)
 	proc.cmd.Env = FilterOpenLobsterFromEnv(os.Environ())
 
-	err := proc.cmd.Start()
+	stdoutPipe, err := proc.cmd.StdoutPipe()
 	if err != nil {
+		return nil, fmt.Errorf("stdout pipe: %w", err)
+	}
+	stderrPipe, err := proc.cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stderr pipe: %w", err)
+	}
+
+	if err := proc.cmd.Start(); err != nil {
 		return nil, err
 	}
 
@@ -95,13 +108,43 @@ func (a *HostAdapter) Spawn(ctx context.Context, cmd string) (ports.PtySession, 
 	a.backgroundProcs[proc.id] = proc
 	a.mu.Unlock()
 
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go streamToProc(stdoutPipe, proc, &wg)
+	go streamToProc(stderrPipe, proc, &wg)
+
 	go func() {
-		proc.cmd.Wait()
-		proc.status = ports.ProcessStatusDone
+		wg.Wait()
+		waitErr := proc.cmd.Wait()
+		proc.mu.Lock()
+		if waitErr != nil {
+			if exitErr, ok := waitErr.(*exec.ExitError); ok {
+				proc.exitCode = exitErr.ExitCode()
+				proc.status = ports.ProcessStatusFailed
+			} else {
+				proc.status = ports.ProcessStatusFailed
+			}
+		} else {
+			proc.status = ports.ProcessStatusDone
+		}
+		proc.mu.Unlock()
 		close(proc.done)
 	}()
 
 	return &PtySessionWrapper{proc: proc}, nil
+}
+
+// streamToProc reads lines from r and appends them to proc's output buffer.
+func streamToProc(r io.Reader, proc *BackgroundProcessInfo, wg *sync.WaitGroup) {
+	defer wg.Done()
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		proc.appendOutput(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Printf("terminal: streamToProc scanner error (cmd=%q): %v", proc.command, err)
+		proc.appendOutput("[stream error: " + err.Error() + "]")
+	}
 }
 
 func (a *HostAdapter) RunBackground(ctx context.Context, cmd string, opts ...ports.TerminalOption) (ports.BackgroundProcess, error) {
@@ -117,7 +160,8 @@ func (a *HostAdapter) RunBackground(ctx context.Context, cmd string, opts ...por
 
 	proc := &BackgroundProcessInfo{
 		id:        uuid.New().String(),
-		output:    make(chan string, 100),
+		command:   cmd,
+		output:    make(chan string, 256),
 		done:      make(chan struct{}),
 		startedAt: time.Now(),
 		status:    ports.ProcessStatusRunning,
@@ -129,8 +173,16 @@ func (a *HostAdapter) RunBackground(ctx context.Context, cmd string, opts ...por
 		proc.cmd.Dir = options.WorkingDir
 	}
 
-	err := proc.cmd.Start()
+	stdoutPipe, err := proc.cmd.StdoutPipe()
 	if err != nil {
+		return nil, fmt.Errorf("stdout pipe: %w", err)
+	}
+	stderrPipe, err := proc.cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stderr pipe: %w", err)
+	}
+
+	if err := proc.cmd.Start(); err != nil {
 		return nil, err
 	}
 
@@ -138,9 +190,26 @@ func (a *HostAdapter) RunBackground(ctx context.Context, cmd string, opts ...por
 	a.backgroundProcs[proc.id] = proc
 	a.mu.Unlock()
 
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go streamToProc(stdoutPipe, proc, &wg)
+	go streamToProc(stderrPipe, proc, &wg)
+
 	go func() {
-		proc.cmd.Wait()
-		proc.status = ports.ProcessStatusDone
+		wg.Wait()
+		waitErr := proc.cmd.Wait()
+		proc.mu.Lock()
+		if waitErr != nil {
+			if exitErr, ok := waitErr.(*exec.ExitError); ok {
+				proc.exitCode = exitErr.ExitCode()
+				proc.status = ports.ProcessStatusFailed
+			} else {
+				proc.status = ports.ProcessStatusFailed
+			}
+		} else {
+			proc.status = ports.ProcessStatusDone
+		}
+		proc.mu.Unlock()
 		close(proc.done)
 	}()
 
@@ -156,6 +225,16 @@ func (a *HostAdapter) ListProcesses(ctx context.Context) ([]ports.BackgroundProc
 		result = append(result, &BackgroundProcessWrapper{info: proc})
 	}
 	return result, nil
+}
+
+func (a *HostAdapter) GetProcess(ctx context.Context, id string) (ports.BackgroundProcess, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	proc, ok := a.backgroundProcs[id]
+	if !ok {
+		return nil, fmt.Errorf("process %q not found", id)
+	}
+	return &BackgroundProcessWrapper{info: proc}, nil
 }
 
 func (a *HostAdapter) KillProcess(ctx context.Context, pid int) error {

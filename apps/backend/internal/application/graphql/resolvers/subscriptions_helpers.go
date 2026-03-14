@@ -21,7 +21,7 @@ var allEventTypes = []string{
 	events.EventMemoryUpdated, events.EventCompactionTriggered, events.EventCompactionCompleted,
 }
 
-// subscribe suscribe a un tipo de evento y convierte a EventPayload.
+// subscribe subscribes to a single event type and converts it to EventPayload.
 func (r *Resolver) subscribe(ctx context.Context, eventType string) (<-chan *generated.EventPayload, error) {
 	if r.Sub == nil {
 		ch := make(chan *generated.EventPayload)
@@ -58,7 +58,7 @@ func (r *Resolver) subscribe(ctx context.Context, eventType string) (<-chan *gen
 	return out, nil
 }
 
-// subscribeAll suscribe a todos los tipos de evento y fusiona en un solo canal.
+// subscribeAll subscribes to all event types and merges them into a single channel.
 func (r *Resolver) subscribeAll(ctx context.Context) (<-chan *generated.EventPayload, error) {
 	if r.Sub == nil {
 		ch := make(chan *generated.EventPayload)
@@ -123,7 +123,7 @@ func payloadToMap(p interface{}) map[string]any {
 	if m, ok := p.(map[string]any); ok {
 		return m
 	}
-	// Convertir structs u otros tipos vía JSON
+	// Convert structs or other types via JSON.
 	b, err := json.Marshal(p)
 	if err != nil {
 		return nil

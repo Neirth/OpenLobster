@@ -101,14 +101,14 @@ func TestOAuthManager_HandleCallback_AuthorizationDenied(t *testing.T) {
 }
 
 func TestDiscoverAuthServer_InvalidURL(t *testing.T) {
-	_, err := discoverAuthServer("://invalid")
+	_, err := discoverAuthServer(context.Background(), "://invalid")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "parse")
+	assert.Contains(t, err.Error(), "oauth")
 }
 
 func TestDiscoverAuthServer_ValidURL(t *testing.T) {
 	// Uses fallback when metadata endpoints return non-200
-	meta, err := discoverAuthServer("https://example.com/mcp")
+	meta, err := discoverAuthServer(context.Background(), "https://example.com/mcp")
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	assert.Contains(t, meta.AuthorizationEndpoint, "example.com")
@@ -126,7 +126,7 @@ func TestDiscoverAuthServer_WithMetadataServer(t *testing.T) {
 
 	u, _ := url.Parse(srv.URL)
 	mcpURL := u.Scheme + "://" + u.Host + "/mcp"
-	meta, err := discoverAuthServer(mcpURL)
+	meta, err := discoverAuthServer(context.Background(), mcpURL)
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	assert.Equal(t, "https://auth.example.com/authorize", meta.AuthorizationEndpoint)
@@ -151,7 +151,7 @@ func TestDiscoverAuthServer_ProtectedResourceDoc(t *testing.T) {
 
 	u, _ := url.Parse(baseURL)
 	mcpURL := u.Scheme + "://" + u.Host + "/mcp"
-	meta, err := discoverAuthServer(mcpURL)
+	meta, err := discoverAuthServer(context.Background(), mcpURL)
 	require.NoError(t, err)
 	require.NotNil(t, meta)
 	assert.Contains(t, meta.AuthorizationEndpoint, "auth.test")

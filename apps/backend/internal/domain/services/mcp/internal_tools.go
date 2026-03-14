@@ -5,8 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"mime"
+	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
 )
@@ -26,6 +30,18 @@ const ContextKeyUserID = contextKeyUserID
 // user's human-readable display name through the request context into tool Execute
 // calls. Used by AddMemoryTool to label the user node in the memory graph.
 const ContextKeyUserDisplayName = contextKey("user_display_name")
+
+// ContextKeyChannelID is the exported context key used to pass the current
+// conversation's platform channel ID through the request context into tool Execute
+// calls. Used by SendFileTool to fall back to the conversation channel when no
+// explicit channel is provided.
+const ContextKeyChannelID = contextKey("channel_id")
+
+// ContextKeyChannelType is the exported context key used to pass the current
+// conversation's platform channel type (e.g. "telegram", "discord") through the
+// request context into tool Execute calls. Used by SendFileTool to fall back to
+// the conversation channel type when no explicit channel_type is provided.
+const ContextKeyChannelType = contextKey("channel_type")
 
 type InternalTools struct {
 	Messaging           MessagingService
@@ -93,7 +109,9 @@ type ConversationMessage struct {
 
 type FilesystemService interface {
 	ReadFile(ctx context.Context, path string) (string, error)
+	ReadFileBytes(ctx context.Context, path string) ([]byte, error)
 	WriteFile(ctx context.Context, path, content string) error
+	WriteBytes(ctx context.Context, path string, data []byte) error
 	EditFile(ctx context.Context, path, oldContent, newContent string) error
 	ListContent(ctx context.Context, path string) ([]FileEntry, error)
 }
@@ -110,9 +128,8 @@ type MessagingService interface {
 	// SendMessage sends content to channelID. channelType routes to the correct
 	// adapter (telegram, discord, etc.); if empty, uses the first available adapter.
 	SendMessage(ctx context.Context, channelType, channelID, content string) error
-	SendFile(ctx context.Context, channelID, filePath string) error
-	// SendMedia sends a media object (URL/file) to the given chat. Optional
-	// helper to allow media sending when channel type is known.
+	// SendMedia sends a media object (URL/file) to the given chat. The caller is
+	// responsible for populating ContentType and FileName before calling.
 	SendMedia(ctx context.Context, media *ports.Media) error
 }
 
@@ -143,6 +160,8 @@ type MemoryService interface {
 type TerminalService interface {
 	Execute(ctx context.Context, cmd string, opts ...ports.TerminalOption) (ports.TerminalOutput, error)
 	Spawn(ctx context.Context, cmd string) (ports.PtySession, error)
+	ListProcesses(ctx context.Context) ([]ports.BackgroundProcess, error)
+	GetProcess(ctx context.Context, id string) (ports.BackgroundProcess, error)
 	KillProcess(ctx context.Context, pid int) error
 }
 
@@ -291,26 +310,53 @@ type SendFileTool struct {
 	Tools InternalTools
 }
 
+// UserNameResolver is an optional interface that the LastChannelResolver may
+// implement to support looking up a user UUID by their display name.
+type UserNameResolver interface {
+	GetUserIDByName(ctx context.Context, name string) (string, error)
+}
+
 func (t *SendFileTool) Definition() ToolDefinition {
 	return ToolDefinition{
 		Name:        "send_file",
-		Description: "Send a file to a channel",
+		Description: "Send a file to a user. user_name and channel_type are optional and default to the current conversation context. The MIME type is auto-detected so the adapter can handle it correctly (voice note, image, video, document, etc.).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"user_id": {"type": "string", "description": "Internal user UUID — sends to the last channel they used"},
-				"channel": {"type": "string", "description": "Channel ID"},
-				"channel_type": {"type": "string", "description": "Platform (telegram, discord, whatsapp, twilio)"},
-				"file_path": {"type": "string", "description": "Path to file"}
+				"user_name": {"type": "string", "description": "Display name of the recipient user (from the users table). Optional — defaults to the current conversation user."},
+				"channel_type": {"type": "string", "description": "Platform: telegram, discord, whatsapp, twilio. Optional — defaults to the current conversation channel type."},
+				"file_path": {"type": "string", "description": "Absolute path to the file to send"}
 			},
 			"required": ["file_path"]
 		}`),
 	}
 }
 
+// detectMIMEType returns the MIME type for filePath by examining the file header
+// and falling back to the extension. Returns "application/octet-stream" on failure.
+func detectMIMEType(filePath string) string {
+	// Try extension first as it is cheap and reliable for common types.
+	if ext := filepath.Ext(filePath); ext != "" {
+		if t := mime.TypeByExtension(ext); t != "" {
+			return t
+		}
+	}
+	// Fall back to reading the first 512 bytes for sniffing.
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "application/octet-stream"
+	}
+	defer f.Close()
+	buf := make([]byte, 512)
+	n, _ := f.Read(buf)
+	if n == 0 {
+		return "application/octet-stream"
+	}
+	return http.DetectContentType(buf[:n])
+}
+
 func (t *SendFileTool) Execute(ctx context.Context, params map[string]interface{}) (json.RawMessage, error) {
-	userID, _ := params["user_id"].(string)
-	channel, _ := params["channel"].(string)
+	userName, _ := params["user_name"].(string)
 	channelType, _ := params["channel_type"].(string)
 	filePath, _ := params["file_path"].(string)
 
@@ -318,48 +364,73 @@ func (t *SendFileTool) Execute(ctx context.Context, params map[string]interface{
 		return nil, fmt.Errorf("file_path is required")
 	}
 
-	if userID != "" {
+	var channel string
+
+	// Resolve channel from user_name when provided.
+	if userName != "" {
 		if t.Tools.LastChannelResolver == nil {
-			return nil, fmt.Errorf("user_id not supported: no resolver configured")
+			return nil, fmt.Errorf("user_name routing not supported: no resolver configured")
 		}
+		// Resolve display name → internal user UUID.
+		userID := ""
+		if nr, ok := t.Tools.LastChannelResolver.(UserNameResolver); ok {
+			var err error
+			userID, err = nr.GetUserIDByName(ctx, userName)
+			if err != nil {
+				return nil, fmt.Errorf("look up user %q: %w", userName, err)
+			}
+		}
+		if userID == "" {
+			return nil, fmt.Errorf("no user found with name %q", userName)
+		}
+		// Resolve UUID → last used channel.
 		ct, cid, err := t.Tools.LastChannelResolver.GetLastChannelForUser(ctx, userID)
 		if err != nil {
-			return nil, fmt.Errorf("resolve last channel for user: %w", err)
+			return nil, fmt.Errorf("resolve last channel for user %q: %w", userName, err)
 		}
-		if ct == "" || cid == "" {
-			if u, ok := ctx.Value(ContextKeyUserID).(string); ok && u != "" {
-				channel = u
-			} else {
-				if repo, ok := t.Tools.LastChannelResolver.(ports.UserChannelRepositoryPort); ok {
-					if dn, derr := repo.GetDisplayNameByUserID(ctx, userID); derr == nil && dn != "" {
-						return nil, fmt.Errorf("no channel found for user %s (display_name=%s)", userID, dn)
-					}
-				}
-				return nil, fmt.Errorf("no channel found for user %s", userID)
-			}
-		} else {
-			channelType, channel = ct, cid
+		if cid == "" {
+			return nil, fmt.Errorf("no channel found for user %q — they have not interacted with the bot yet", userName)
+		}
+		channel = cid
+		if channelType == "" {
+			channelType = ct
+		}
+	}
+
+	// Fall back to the current conversation channel from context when no user_name was given.
+	if channel == "" {
+		if cid, ok := ctx.Value(ContextKeyChannelID).(string); ok && cid != "" {
+			channel = cid
+		}
+	}
+	if channelType == "" {
+		if ct, ok := ctx.Value(ContextKeyChannelType).(string); ok && ct != "" {
+			channelType = ct
 		}
 	}
 
 	if channel == "" {
-		return nil, fmt.Errorf("channel is required (or use user_id to send to their last channel)")
+		return nil, fmt.Errorf("recipient channel could not be determined — provide user_name or ensure the conversation context is available")
+	}
+	if channelType == "" {
+		return nil, fmt.Errorf("channel_type could not be determined — provide it explicitly or ensure the conversation context is available")
 	}
 
-	// Prefer SendMedia when available (MessagingPort). Build Media if channelType present.
-	var err error
-	if channelType != "" {
-		media := &ports.Media{ChatID: channel, URL: filePath, ChannelType: channelType}
-		if t.Tools.Messaging != nil {
-			err = t.Tools.Messaging.SendMedia(ctx, media)
-		} else {
-			err = fmt.Errorf("messaging adapter unavailable")
-		}
-	} else {
-		// Fallback: try legacy SendFile (may be unsupported by adapter)
-		err = t.Tools.Messaging.SendFile(ctx, channel, filePath)
+	// Auto-detect MIME type so the adapter can handle the file correctly
+	// (voice note, image, video, document, etc.).
+	mimeType := detectMIMEType(filePath)
+
+	media := &ports.Media{
+		ChatID:      channel,
+		URL:         filePath,
+		ChannelType: channelType,
+		ContentType: mimeType,
+		FileName:    filepath.Base(filePath),
 	}
-	if err != nil {
+	if t.Tools.Messaging == nil {
+		return nil, fmt.Errorf("messaging adapter unavailable")
+	}
+	if err := t.Tools.Messaging.SendMedia(ctx, media); err != nil {
 		return nil, err
 	}
 
@@ -447,11 +518,11 @@ type TerminalSpawnTool struct {
 func (t *TerminalSpawnTool) Definition() ToolDefinition {
 	return ToolDefinition{
 		Name:        "terminal_spawn",
-		Description: "Launch a process in background (non-blocking). Only available to master agent.",
+		Description: "Launch a process in background (non-blocking). Returns a process ID you can use with terminal_list_processes to check status and output. Only available to master agent.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"command": {"type": "string", "description": "Command to execute"}
+				"command": {"type": "string", "description": "Command to execute in the background"}
 			},
 			"required": ["command"]
 		}`),
@@ -467,13 +538,104 @@ func (t *TerminalSpawnTool) Execute(ctx context.Context, params map[string]inter
 		return nil, fmt.Errorf("access denied: commands that reference the application configuration file are not allowed")
 	}
 
-	_, err := t.Tools.Terminal.Spawn(ctx, cmd)
-	if err != nil {
+	if _, err := t.Tools.Terminal.Spawn(ctx, cmd); err != nil {
 		return nil, err
 	}
 
 	return json.Marshal(map[string]interface{}{
-		"status": "spawned",
+		"status":  "spawned",
+		"message": "Process launched in background. Use terminal_list_processes to check status and output.",
+	})
+}
+
+type TerminalListProcessesTool struct {
+	Tools InternalTools
+}
+
+func (t *TerminalListProcessesTool) Definition() ToolDefinition {
+	return ToolDefinition{
+		Name:        "terminal_list_processes",
+		Description: "List all background processes launched with terminal_spawn: id, pid, command and status. Use terminal_get_output to read a process's stdout/stderr.",
+		InputSchema: json.RawMessage(`{"type": "object", "properties": {}}`),
+	}
+}
+
+func (t *TerminalListProcessesTool) Execute(ctx context.Context, _ map[string]interface{}) (json.RawMessage, error) {
+	if t.Tools.Terminal == nil {
+		return nil, fmt.Errorf("terminal service unavailable")
+	}
+	procs, err := t.Tools.Terminal.ListProcesses(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list processes: %w", err)
+	}
+
+	type procEntry struct {
+		ID      string `json:"id"`
+		PID     int    `json:"pid"`
+		Command string `json:"command"`
+		Status  string `json:"status"`
+	}
+
+	entries := make([]procEntry, 0, len(procs))
+	for _, p := range procs {
+		entries = append(entries, procEntry{
+			ID:      p.ID(),
+			PID:     p.PID(),
+			Command: p.Command(),
+			Status:  string(p.Status()),
+		})
+	}
+	return json.Marshal(entries)
+}
+
+type TerminalGetOutputTool struct {
+	Tools InternalTools
+}
+
+func (t *TerminalGetOutputTool) Definition() ToolDefinition {
+	return ToolDefinition{
+		Name:        "terminal_get_output",
+		Description: "Get the captured stdout/stderr of a background process by its id. Use tail to limit the number of last lines returned.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"id":   {"type": "string", "description": "Process ID returned by terminal_spawn"},
+				"tail": {"type": "integer", "description": "Return only the last N lines. Omit to get all output."}
+			},
+			"required": ["id"]
+		}`),
+	}
+}
+
+func (t *TerminalGetOutputTool) Execute(ctx context.Context, params map[string]interface{}) (json.RawMessage, error) {
+	if t.Tools.Terminal == nil {
+		return nil, fmt.Errorf("terminal service unavailable")
+	}
+	id, _ := params["id"].(string)
+	if id == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+
+	proc, err := t.Tools.Terminal.GetProcess(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	output := proc.CollectedOutput()
+
+	if tail, ok := params["tail"].(float64); ok && tail > 0 {
+		lines := strings.Split(output, "\n")
+		n := int(tail)
+		if n < len(lines) {
+			lines = lines[len(lines)-n:]
+		}
+		output = strings.Join(lines, "\n")
+	}
+
+	return json.Marshal(map[string]interface{}{
+		"id":     proc.ID(),
+		"status": string(proc.Status()),
+		"output": output,
 	})
 }
 
@@ -484,18 +646,19 @@ type AddMemoryTool struct {
 func (t *AddMemoryTool) Definition() ToolDefinition {
 	return ToolDefinition{
 		Name: "add_memory",
-		Description: "Store a fact about the user in long-term memory. " +
-			"Use a concise label (e.g. 'Electronica', 'Developer', 'Madrid') and a semantic relation " +
-			"(e.g. 'LIKES', 'IS', 'LIVES_IN', 'WORKS_AT'). " +
-			"Examples: content='User loves electronic music', label='Electronica', relation='LIKES'. " +
-			"content='User works as a software engineer', label='Software Engineer', relation='IS'. " +
-			"Call this whenever the user shares a preference, personal detail, or relevant context.",
+		Description: "Store a fact about the user that links them to a thing or place (not the user's own profile fields). " +
+			"Use a short label for the fact and a semantic relation from user to that fact. " +
+			"Examples: User lives in Valencia → content='User lives in Valencia', label='Valencia', relation='LIVES_IN'. " +
+			"User likes electronic music → content='User loves electronic music', label='Electronica', relation='LIKES'. " +
+			"User works as X → label='Software Engineer', relation='IS'. " +
+			"For the user's own attributes (name, phone, birthday) use set_user_property instead. " +
+			"For a relation between two users (e.g. friends) use add_user_relation instead.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"content":  {"type": "string", "description": "Full sentence describing what to remember (e.g. 'User loves electronic music', 'User lives in Madrid')"},
-				"label":    {"type": "string", "description": "Short keyword identifying this fact (e.g. 'Electronica', 'Madrid', 'Developer'). Defaults to first words of content."},
-				"relation": {"type": "string", "description": "Edge type from user to this fact: LIKES, IS, LIVES_IN, WORKS_AT, KNOWS, PREFERS, HAS_FACT, etc. Defaults to HAS_FACT."}
+				"content":  {"type": "string", "description": "Full sentence describing what to remember (e.g. 'User lives in Valencia', 'User loves electronic music')"},
+				"label":    {"type": "string", "description": "Short keyword for the fact (e.g. 'Valencia', 'Electronica', 'Software Engineer'). Defaults to first words of content."},
+				"relation": {"type": "string", "description": "Edge from user to this fact: LIVES_IN, LIKES, IS, WORKS_AT, WORKS_AS, PREFERS, HAS_FACT, etc. Defaults to HAS_FACT."}
 			},
 			"required": ["content"]
 		}`),
@@ -542,15 +705,18 @@ type AddUserRelationTool struct {
 
 func (t *AddUserRelationTool) Definition() ToolDefinition {
 	return ToolDefinition{
-		Name:        "add_user_relation",
-		Description: "Create a semantic relation between two users and record its purpose/description.",
+		Name: "add_user_relation",
+		Description: "Create a relation between two users (e.g. this user is friends with that user). " +
+			"Use when the user says they know someone, are friends with someone, or any link between two people. " +
+			"Examples: relation='FRIEND_OF', relation='KNOWS', relation='COLLEAGUE_OF'. " +
+			"Optional purpose records a short description of the relation.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"from_user": {"type": "string", "description": "Display name or id of the source user"},
-				"to_user": {"type": "string", "description": "Display name or id of the target user"},
-				"relation": {"type": "string", "description": "Semantic relation label (e.g. KNOWS, FRIEND_OF)"},
-				"purpose": {"type": "string", "description": "Human-readable purpose/description for the relation"}
+				"from_user": {"type": "string", "description": "Display name or id of the first user (source)"},
+				"to_user": {"type": "string", "description": "Display name or id of the second user (target)"},
+				"relation": {"type": "string", "description": "Relation type: FRIEND_OF, KNOWS, COLLEAGUE_OF, FAMILY_OF, etc."},
+				"purpose": {"type": "string", "description": "Optional short description (e.g. 'met at work', 'childhood friends')"}
 			},
 			"required": ["from_user", "to_user", "relation"]
 		}`),
@@ -613,15 +779,15 @@ func (t *SetUserPropertyTool) Definition() ToolDefinition {
 	return ToolDefinition{
 		Name: "set_user_property",
 		Description: "Persist a structured key/value attribute on the current user's profile. " +
-			"Call this proactively and autonomously whenever you learn something concrete and stable about the user — " +
-			"without waiting to be asked. Keys are stored case-sensitively exactly as provided. " +
-			"Examples: key='preferred_language' value='Spanish'; key='timezone' value='Europe/Madrid'; " +
-			"key='occupation' value='software engineer'; key='username' value='Alice'. " +
-			"Use snake_case for keys. Prefer specific keys over generic ones.",
+			"Use this for the user's own attributes: real name, phone, birthday, language, timezone, etc. " +
+			"Call it proactively whenever you learn something concrete about the user. " +
+			"Examples: key='real_name' value='Alice'; key='phone' value='+34 600 000 000'; " +
+			"key='birthday' value='15 March'; key='preferred_language' value='Spanish'; key='timezone' value='Europe/Madrid'; " +
+			"key='occupation' value='software engineer'. Use snake_case for keys.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"key": {"type": "string", "description": "Attribute name, snake_case, case-sensitive (e.g. 'preferred_language', 'timezone', 'occupation')"},
+				"key": {"type": "string", "description": "Attribute name, snake_case (e.g. 'real_name', 'phone', 'birthday', 'preferred_language', 'timezone', 'occupation')"},
 				"value": {"type": "string", "description": "Attribute value as a string"}
 			},
 			"required": ["key", "value"]
@@ -802,12 +968,38 @@ func (t *BrowserScreenshotTool) Execute(ctx context.Context, params map[string]i
 		return nil, err
 	}
 
-	encoded := base64.StdEncoding.EncodeToString(data)
-	return json.Marshal(map[string]interface{}{
-		"screenshot": encoded,
-		"encoding":   "base64",
+	// Best-effort: persist the screenshot to disk so the agent can send it back
+	// to the user via send_file. We write under a deterministic workspace path
+	// that tools and dashboards can discover later.
+	var filePath string
+	if t.Tools.Filesystem != nil {
+		ts := time.Now().UTC().Format("20060102-150405")
+		safeSession := strings.ReplaceAll(sessionID, string(filepath.Separator), "_")
+		if safeSession == "" {
+			safeSession = "session"
+		}
+		path := filepath.Join("workspace", "screenshots", fmt.Sprintf("%s-%s.png", safeSession, ts))
+		if err := t.Tools.Filesystem.WriteBytes(ctx, path, data); err == nil {
+			filePath = path
+		}
+	}
+
+	// Return only metadata and file_path; do NOT include the raw base64 screenshot.
+	// Full-page PNGs can be several MB; including them in the tool result causes
+	// oversized requests to Ollama and 500 Internal Server Error. The agent can
+	// use send_file with file_path to share the image with the user.
+	result := map[string]interface{}{
 		"session_id": sessionID,
-	})
+		"bytes":      len(data),
+	}
+	if filePath != "" {
+		result["file_path"] = filePath
+		result["message"] = "Screenshot saved. Use send_file with file_path to share it with the user."
+	} else {
+		result["message"] = "Screenshot taken but could not be saved to workspace (no filesystem). Image data omitted to avoid oversized response."
+	}
+
+	return json.Marshal(result)
 }
 
 type BrowserClickTool struct {
@@ -1043,20 +1235,74 @@ func (t *ReadFileTool) Definition() ToolDefinition {
 	}
 }
 
+// openlobsterBlocks is the wire format used to pass multimodal content blocks
+// through the json.RawMessage tool result boundary. The handler layer detects
+// this key and converts it into ports.ContentBlock slices on the message.
+type openlobsterBlocks struct {
+	Blocks []openlobsterBlock `json:"_openlobster_blocks"`
+}
+
+type openlobsterBlock struct {
+	Type     string `json:"type"`
+	MIMEType string `json:"mime_type,omitempty"`
+	Data     string `json:"data,omitempty"` // base64-encoded
+	Text     string `json:"text,omitempty"`
+}
+
 func (t *ReadFileTool) Execute(ctx context.Context, params map[string]interface{}) (json.RawMessage, error) {
 	path, _ := params["path"].(string)
 	if path == "" {
 		return nil, fmt.Errorf("path is required")
 	}
 
-	content, err := t.Tools.Filesystem.ReadFile(ctx, path)
-	if err != nil {
-		return nil, err
-	}
+	mimeType := detectMIMEType(path)
 
-	result := map[string]string{"content": content}
-	data, _ := json.Marshal(result)
-	return data, nil
+	switch {
+	case strings.HasPrefix(mimeType, "image/"):
+		raw, err := t.Tools.Filesystem.ReadFileBytes(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		payload := openlobsterBlocks{
+			Blocks: []openlobsterBlock{
+				{
+					Type:     "image",
+					MIMEType: mimeType,
+					Data:     base64.StdEncoding.EncodeToString(raw),
+					Text:     fmt.Sprintf("Image file: %s (%s, %d bytes)", path, mimeType, len(raw)),
+				},
+			},
+		}
+		data, _ := json.Marshal(payload)
+		return data, nil
+
+	case strings.HasPrefix(mimeType, "audio/"):
+		raw, err := t.Tools.Filesystem.ReadFileBytes(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		payload := openlobsterBlocks{
+			Blocks: []openlobsterBlock{
+				{
+					Type:     "audio",
+					MIMEType: mimeType,
+					Data:     base64.StdEncoding.EncodeToString(raw),
+					Text:     fmt.Sprintf("Audio file: %s (%s, %d bytes)", path, mimeType, len(raw)),
+				},
+			},
+		}
+		data, _ := json.Marshal(payload)
+		return data, nil
+
+	default:
+		content, err := t.Tools.Filesystem.ReadFile(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		result := map[string]string{"content": content}
+		data, _ := json.Marshal(result)
+		return data, nil
+	}
 }
 
 type WriteFileTool struct {
@@ -1408,6 +1654,7 @@ func CapabilityForTool(name string) string {
 		"browser_fetch": "browser", "browser_screenshot": "browser",
 		"browser_click": "browser", "browser_fill_input": "browser",
 		"terminal_exec": "terminal", "terminal_spawn": "terminal",
+		"terminal_list_processes": "terminal", "terminal_get_output": "terminal",
 		"add_memory": "memory", "search_memory": "memory",
 		"set_user_property": "memory", "edit_memory_node": "memory",
 		"delete_memory_node": "memory",
@@ -1429,7 +1676,7 @@ func CapabilityForTool(name string) string {
 func BuiltinToolNames() []string {
 	return []string{
 		"send_message", "send_file",
-		"terminal_exec", "terminal_spawn",
+		"terminal_exec", "terminal_spawn", "terminal_list_processes", "terminal_get_output",
 		"add_memory", "search_memory", "set_user_property", "edit_memory_node", "delete_memory_node",
 		"add_relation", "delete_relation", "update_relation",
 		"add_user_relation",
@@ -1447,6 +1694,8 @@ func RegisterAllInternalTools(reg *ToolRegistry, tools InternalTools) {
 	reg.RegisterInternal("send_file", &SendFileTool{Tools: tools})
 	reg.RegisterInternal("terminal_exec", &TerminalExecTool{Tools: tools})
 	reg.RegisterInternal("terminal_spawn", &TerminalSpawnTool{Tools: tools})
+	reg.RegisterInternal("terminal_list_processes", &TerminalListProcessesTool{Tools: tools})
+	reg.RegisterInternal("terminal_get_output", &TerminalGetOutputTool{Tools: tools})
 	reg.RegisterInternal("add_memory", &AddMemoryTool{Tools: tools})
 	reg.RegisterInternal("add_user_relation", &AddUserRelationTool{Tools: tools})
 	reg.RegisterInternal("search_memory", &SearchMemoryTool{Tools: tools})

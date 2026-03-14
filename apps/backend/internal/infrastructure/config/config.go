@@ -12,6 +12,40 @@ import (
 	"github.com/spf13/viper"
 )
 
+// bindEnvForAllKeys binds Viper keys to environment variable names using the
+// OPENLOBSTER_ prefix and converting dots to underscores. This ensures that
+// nested keys (e.g. memory.neo4j.uri) are bound to env vars like
+// OPENLOBSTER_MEMORY_NEO4J_URI so that viper.Unmarshal picks them up.
+func bindEnvForAllKeys() {
+	const prefix = "OPENLOBSTER_"
+	// Bind any keys already present in viper (from config file or defaults).
+	for _, k := range viper.AllKeys() {
+		envKey := prefix + strings.ToUpper(strings.ReplaceAll(k, ".", "_"))
+		_ = viper.BindEnv(k, envKey)
+	}
+	// Do not bind hard-coded keys here; bindEnvFromOS handles env-only cases
+	// and viper.AllKeys covers keys present in config files or defaults.
+}
+
+// bindEnvFromOS scans the process environment for OPENLOBSTER_* variables
+// and binds corresponding viper keys (reverse mapping: OPENLOBSTER_FOO_BAR -> foo.bar).
+func bindEnvFromOS() {
+	const prefix = "OPENLOBSTER_"
+	for _, e := range os.Environ() {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		name := parts[0]
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		key := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(name, prefix), "_", "."))
+
+		_ = viper.BindEnv(key, name)
+	}
+}
+
 // placeholders are values that indicate a field has not been configured.
 var placeholders = []string{
 	"YOUR_API_KEY_HERE",
@@ -366,6 +400,10 @@ func setDefaults() {
 	viper.SetDefault("heartbeat.memory_enabled", true)
 	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.dsn", "./data/persistence.db")
+	// Pool settings default to 0 (use driver's defaults) but are present so
+	// they can be overridden cleanly via environment variables.
+	viper.SetDefault("database.max_open_conns", 0)
+	viper.SetDefault("database.max_idle_conns", 0)
 	viper.SetDefault("memory.backend", "file")
 	viper.SetDefault("memory.file.path", "./data/memory.gml")
 	viper.SetDefault("secrets.backend", "file")
@@ -392,6 +430,37 @@ func setDefaults() {
 	viper.SetDefault("permissions.tool_permissions.send_message.mode", "always")
 	// Default AI provider: Ollama (configurable from frontend)
 	viper.SetDefault("providers.ollama.endpoint", "http://localhost:11434")
+	viper.SetDefault("providers.ollama.default_model", "")
+	viper.SetDefault("providers.ollama.api_key", "")
+	viper.SetDefault("providers.openrouter.api_key", "")
+	viper.SetDefault("providers.openrouter.default_model", "")
+	viper.SetDefault("providers.opencode.api_key", "")
+	viper.SetDefault("providers.opencode.model", "")
+	viper.SetDefault("providers.openai.api_key", "")
+	viper.SetDefault("providers.openai.model", "")
+	viper.SetDefault("providers.openai.base_url", "")
+	viper.SetDefault("providers.openaicompat.api_key", "")
+	viper.SetDefault("providers.openaicompat.model", "")
+	viper.SetDefault("providers.openaicompat.base_url", "")
+	viper.SetDefault("providers.anthropic.api_key", "")
+	viper.SetDefault("providers.anthropic.model", "")
+	viper.SetDefault("providers.docker_model_runner.endpoint", "")
+	viper.SetDefault("providers.docker_model_runner.default_model", "")
+	viper.SetDefault("channels.telegram.enabled", false)
+	viper.SetDefault("channels.telegram.bot_token", "")
+	viper.SetDefault("channels.discord.enabled", false)
+	viper.SetDefault("channels.discord.bot_token", "")
+	viper.SetDefault("channels.whatsapp.enabled", false)
+	viper.SetDefault("channels.whatsapp.phone_id", "")
+	viper.SetDefault("channels.whatsapp.api_token", "")
+	viper.SetDefault("channels.twilio.enabled", false)
+	viper.SetDefault("channels.twilio.account_sid", "")
+	viper.SetDefault("channels.twilio.auth_token", "")
+	viper.SetDefault("channels.twilio.from_number", "")
+	viper.SetDefault("channels.twilio.webhook_path", "")
+	viper.SetDefault("channels.slack.enabled", false)
+	viper.SetDefault("channels.slack.bot_token", "")
+	viper.SetDefault("channels.slack.app_token", "")
 	// Default agent name (shown in navbar)
 	viper.SetDefault("agent.name", "OpenLobster")
 	// Default capabilities: subagents, memory, mcp, filesystem, sessions enabled
@@ -475,6 +544,12 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
+	// Bind environment variables dynamically: first bind keys present in the
+	// config (and defaults), then bind any OPENLOBSTER_* env vars found in
+	// the process environment. This covers both file+env and env-only cases.
+	bindEnvForAllKeys()
+	bindEnvFromOS()
+
 	var cfg Config
 	err = viper.Unmarshal(&cfg)
 	if err != nil {
@@ -486,6 +561,17 @@ func Load(path string) (*Config, error) {
 
 func LoadFromEnv() (*Config, error) {
 	viper.AutomaticEnv()
+	viper.SetEnvPrefix("OPENLOBSTER")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	// Apply same defaults as Load() so env vars override them and nested keys exist.
+	setDefaults()
+
+	// Bind existing keys (from defaults) to their corresponding env vars, then
+	// bind any OPENLOBSTER_* env vars present so Unmarshal can populate nested
+	// keys from the environment when no config file is used. This mirrors Load().
+	bindEnvForAllKeys()
+	bindEnvFromOS()
 
 	var cfg Config
 	err := viper.Unmarshal(&cfg)

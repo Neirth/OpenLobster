@@ -4,6 +4,7 @@ package persistence
 
 import (
 	"fmt"
+	"time"
 
 	domainmodels "github.com/neirth/openlobster/internal/domain/models"
 	"gorm.io/gorm"
@@ -38,6 +39,28 @@ func Migrate(db *gorm.DB, driver string) error {
 		&domainmodels.ToolPermissionModel{},
 	); err != nil {
 		return fmt.Errorf("AutoMigrate: %w", err)
+	}
+
+	// Ensure the reserved loopback user exists so foreign keys from tool_permissions
+	// can safely reference it when configuring scheduled-task agent permissions.
+	var loopbackCount int64
+	if err := db.Model(&domainmodels.UserModel{}).
+		Where("id = ?", "loopback").
+		Count(&loopbackCount).Error; err != nil {
+		return fmt.Errorf("check loopback user: %w", err)
+	}
+	if loopbackCount == 0 {
+		now := time.Now().UTC()
+		loopbackUser := &domainmodels.UserModel{
+			ID:        "loopback",
+			PrimaryID: "loopback",
+			Name:      "Loopback",
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if err := db.Create(loopbackUser).Error; err != nil {
+			return fmt.Errorf("seed loopback user: %w", err)
+		}
 	}
 
 	// ── 2. Views ─────────────────────────────────────────────────────────────

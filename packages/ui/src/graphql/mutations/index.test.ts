@@ -109,9 +109,8 @@ describe('CONNECT_MCP_MUTATION', () => {
     expect(CONNECT_MCP_MUTATION).toContain('$transport');
   });
 
-  it('$url is optional (no exclamation mark)', () => {
-    // Optional variable: $url: String  (no trailing !)
-    expect(CONNECT_MCP_MUTATION).toMatch(/\$url:\s*String[^!]/);
+  it('$url is required (has exclamation mark)', () => {
+    expect(CONNECT_MCP_MUTATION).toMatch(/\$url:\s*String!/);
   });
 
   it('returns McpServer fields', () => {

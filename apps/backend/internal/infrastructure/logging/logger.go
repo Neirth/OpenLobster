@@ -84,7 +84,7 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Escribir a archivo y stdout
+	// Write to file and stdout.
 	if m.file != nil {
 		m.file.Write(p)
 	}
@@ -92,7 +92,7 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 		m.stdout.Write(p)
 	}
 
-	// Añadir al buffer circular en memoria
+	// Append to the in-memory circular buffer.
 	if m.logger != nil {
 		line := strings.TrimRight(string(p), "\n")
 		if line != "" {
@@ -121,15 +121,15 @@ func (l *Logger) GetTailLines(n int) (string, error) {
 		return "", nil
 	}
 
-	// Limitar n al tamaño del buffer
+	// Clamp n to the buffer size.
 	if n > l.bufferSize {
 		n = l.bufferSize
 	}
 
-	// Recoger las últimas n líneas del ring buffer
+	// Collect the last n lines from the ring buffer.
 	var lines []string
 	for i := 0; i < n && i < l.bufferSize; i++ {
-		// Calcular índice: ir hacia atrás desde bufferIndex
+		// Compute index: walk backwards from bufferIndex.
 		idx := (l.bufferIndex - 1 - i + l.bufferSize) % l.bufferSize
 		line := l.logBuffer[idx]
 		if line != "" {

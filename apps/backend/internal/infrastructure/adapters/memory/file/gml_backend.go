@@ -247,7 +247,7 @@ func (b *GMLBackend) GetUserGraph(_ context.Context, userID string) (ports.Graph
 	var nodes []models.Node
 	var edges []models.Edge
 
-	// userID vacío o "*" = grafo completo (para el dashboard que muestra todas las memorias).
+	// Empty userID or "*" returns the full graph (for the dashboard that shows all memories).
 	if userID == "" || userID == "*" {
 		for _, n := range b.graph.Nodes {
 			nodes = append(nodes, models.Node{
@@ -367,8 +367,152 @@ func (b *GMLBackend) AddRelation(_ context.Context, from, to string, relType str
 	return nil
 }
 
-func (b *GMLBackend) QueryGraph(_ context.Context, cypher string) (ports.GraphResult, error) {
-	return ports.GraphResult{Data: []map[string]interface{}{}}, nil
+// Regexes for minimal Cypher parsing (Cypher-like syntax, in-memory exploration).
+var (
+	reMatchNode      = regexp.MustCompile(`(?i)MATCH\s*\(\s*(\w+)\s*(?::(\w+))?\s*\)\s*RETURN\s+(.+)`)
+	reMatchEdgeDir   = regexp.MustCompile(`(?i)MATCH\s*\(\s*(\w+)\s*\)\s*-\s*\[\s*(\w+)\s*\]\s*->\s*\(\s*(\w+)\s*\)\s*RETURN\s+(.+)`)
+	reMatchEdgeUndir = regexp.MustCompile(`(?i)MATCH\s*\(\s*(\w+)\s*\)\s*-\s*\[\s*(\w+)\s*\]\s*-\s*\(\s*(\w+)\s*\)\s*RETURN\s+(.+)`)
+)
+
+func nodeToRow(n *Node) map[string]interface{} {
+	props := make(map[string]interface{})
+	if n.Properties != nil {
+		for k, v := range n.Properties {
+			props[k] = v
+		}
+	}
+	return map[string]interface{}{
+		"id":         strconv.Itoa(n.ID),
+		"label":      n.Label,
+		"type":       n.Type,
+		"value":      n.Value,
+		"properties": props,
+	}
+}
+
+func edgeToRow(e *Edge) map[string]interface{} {
+	return map[string]interface{}{
+		"source": strconv.Itoa(e.Source),
+		"target": strconv.Itoa(e.Target),
+		"label":  e.Label,
+	}
+}
+
+func parseReturnList(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		out = append(out, strings.TrimSpace(part))
+	}
+	return out
+}
+
+// executeCypherInMemory runs a minimal Cypher subset against a copy of the graph.
+func executeCypherInMemory(graph *InMemoryGraph, cypher string) ([]map[string]interface{}, error) {
+	q := strings.TrimSpace(cypher)
+	if q == "" {
+		return nil, fmt.Errorf("empty query")
+	}
+
+	// MATCH (a)-[r]->(b) RETURN a, r, b
+	if m := reMatchEdgeDir.FindStringSubmatch(q); len(m) == 5 {
+		sourceVar, edgeVar, targetVar := m[1], m[2], m[3]
+		returnVars := parseReturnList(m[4])
+		var data []map[string]interface{}
+		for _, e := range graph.Edges {
+			src, okSrc := graph.Nodes[e.Source]
+			tgt, okTgt := graph.Nodes[e.Target]
+			if !okSrc || !okTgt {
+				continue
+			}
+			row := make(map[string]interface{})
+			for _, v := range returnVars {
+				switch v {
+				case sourceVar:
+					row[v] = nodeToRow(src)
+				case edgeVar:
+					row[v] = edgeToRow(e)
+				case targetVar:
+					row[v] = nodeToRow(tgt)
+				}
+			}
+			data = append(data, row)
+		}
+		return data, nil
+	}
+
+	// MATCH (a)-[r]-(b) RETURN a, r, b (undirected)
+	if m := reMatchEdgeUndir.FindStringSubmatch(q); len(m) == 5 {
+		sourceVar, edgeVar, targetVar := m[1], m[2], m[3]
+		returnVars := parseReturnList(m[4])
+		var data []map[string]interface{}
+		for _, e := range graph.Edges {
+			src, okSrc := graph.Nodes[e.Source]
+			tgt, okTgt := graph.Nodes[e.Target]
+			if !okSrc || !okTgt {
+				continue
+			}
+			row := make(map[string]interface{})
+			for _, v := range returnVars {
+				switch v {
+				case sourceVar:
+					row[v] = nodeToRow(src)
+				case edgeVar:
+					row[v] = edgeToRow(e)
+				case targetVar:
+					row[v] = nodeToRow(tgt)
+				}
+			}
+			data = append(data, row)
+		}
+		return data, nil
+	}
+
+	// MATCH (n) RETURN n  or  MATCH (n:User) RETURN n  or  MATCH (n:Fact) RETURN n
+	if m := reMatchNode.FindStringSubmatch(q); len(m) >= 3 {
+		nodeVar := m[1]
+		labelFilter := ""
+		if len(m) > 2 && m[2] != "" {
+			labelFilter = strings.ToLower(m[2])
+		}
+		returnVars := parseReturnList(m[3])
+		var data []map[string]interface{}
+		for _, n := range graph.Nodes {
+			if labelFilter != "" && strings.ToLower(n.Type) != labelFilter {
+				continue
+			}
+			row := make(map[string]interface{})
+			for _, v := range returnVars {
+				if v == nodeVar {
+					row[v] = nodeToRow(n)
+					break
+				}
+			}
+			if len(row) > 0 {
+				data = append(data, row)
+			}
+		}
+		return data, nil
+	}
+
+	return nil, fmt.Errorf("unsupported Cypher pattern (supported: MATCH (n) RETURN n, MATCH (n:User)/MATCH (n:Fact) RETURN n, MATCH (a)-[r]->(b) RETURN a,r,b)")
+}
+
+// QueryGraph runs a minimal Cypher-like query against the in-memory graph and returns
+// rows as []map[string]interface{} (kept in parity with Neo4j). It supports:
+//   - MATCH (n) RETURN n
+//   - MATCH (n:User) RETURN n  /  MATCH (n:Fact) RETURN n
+//   - MATCH (a)-[r]->(b) RETURN a, r, b  (directed)
+//   - MATCH (a)-[r]-(b) RETURN a, r, b  (undirected)
+func (b *GMLBackend) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
+	b.mu.RLock()
+	graph := b.graph.Copy()
+	b.mu.RUnlock()
+
+	result, err := executeCypherInMemory(graph, cypher)
+	if err != nil {
+		return ports.GraphResult{Errors: []error{err}}, nil
+	}
+	return ports.GraphResult{Data: result}, nil
 }
 
 func (b *GMLBackend) UpdateNode(_ context.Context, id, label, typ, value string, properties map[string]string) error {

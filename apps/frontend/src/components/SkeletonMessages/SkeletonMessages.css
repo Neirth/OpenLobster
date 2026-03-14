@@ -1,0 +1,114 @@
+/* Skeleton loading for chat messages — mirrors .msg structure exactly */
+
+.chat-thread__skeleton-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Base: mirrors .msg */
+.msg-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 480px;
+  margin-top: 12px;
+}
+
+/* mirrors .msg--agent */
+.msg-skeleton--agent {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+/* mirrors .msg--user */
+.msg-skeleton--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+/* mirrors consecutive same-sender tighter gap */
+.msg-skeleton--continuation {
+  margin-top: 6px;
+}
+
+/* mirrors .msg__meta */
+.msg-skeleton__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+/* Shimmer block base */
+.msg-skeleton__block {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.14) 40%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: chatSkeletonShimmer 1.4s ease-in-out infinite;
+  border-radius: 999px;
+}
+
+/* mirrors .msg__sender: ~11px text */
+.msg-skeleton__name {
+  width: 72px;
+  height: 10px;
+}
+
+/* mirrors .msg__time: ~11px text */
+.msg-skeleton__time {
+  width: 32px;
+  height: 10px;
+}
+
+/* mirrors .msg__body bubble */
+.msg-skeleton__body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  /* override the shimmer border-radius from __block */
+  border-radius: 8px;
+}
+
+/* mirrors .msg--user .msg__body tint */
+.msg-skeleton--user .msg-skeleton__body {
+  background: rgba(79, 142, 247, 0.08);
+}
+
+/* text lines inside body — no extra shimmer (inherited from parent) */
+.msg-skeleton__line {
+  height: 12px;
+  width: 55%;
+  /* lines need their own shimmer independent of body background */
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.18) 40%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: chatSkeletonShimmer 1.4s ease-in-out infinite;
+  border-radius: 999px;
+}
+
+.msg-skeleton__line--wide {
+  width: 88%;
+}
+
+.msg-skeleton__line--mid {
+  width: 68%;
+}
+
+@keyframes chatSkeletonShimmer {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}

@@ -2,18 +2,40 @@ package terminal
 
 import (
 	"os/exec"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
 )
 
 type BackgroundProcessInfo struct {
-	id        string
-	cmd       *exec.Cmd
-	startedAt time.Time
-	output    chan string
-	done      chan struct{}
-	status    ports.ProcessStatus
+	id          string
+	command     string // full original command string
+	cmd         *exec.Cmd
+	startedAt   time.Time
+	output      chan string
+	done        chan struct{}
+	status      ports.ProcessStatus
+	exitCode    int
+	mu          sync.Mutex
+	outputLines []string // accumulated stdout+stderr lines
+}
+
+func (p *BackgroundProcessInfo) appendOutput(line string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.outputLines = append(p.outputLines, line)
+	select {
+	case p.output <- line:
+	default:
+	}
+}
+
+func (p *BackgroundProcessInfo) getOutput() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return strings.Join(p.outputLines, "\n")
 }
 
 type BackgroundProcessWrapper struct {
@@ -32,8 +54,11 @@ func (p *BackgroundProcessWrapper) ID() string {
 }
 
 func (p *BackgroundProcessWrapper) Command() string {
+	if p.info.command != "" {
+		return p.info.command
+	}
 	if p.info.cmd != nil {
-		return p.info.cmd.Args[0]
+		return strings.Join(p.info.cmd.Args, " ")
 	}
 	return ""
 }
@@ -51,10 +76,15 @@ func (p *BackgroundProcessWrapper) Output() <-chan string {
 	return p.info.output
 }
 
+func (p *BackgroundProcessWrapper) CollectedOutput() string {
+	return p.info.getOutput()
+}
+
 func (p *BackgroundProcessWrapper) Wait() (ports.TerminalOutput, error) {
 	<-p.info.done
 	return ports.TerminalOutput{
-		ExitCode: 0,
+		Stdout:   p.info.getOutput(),
+		ExitCode: p.info.exitCode,
 	}, nil
 }
 

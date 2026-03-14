@@ -7,24 +7,24 @@ package resolvers
 
 import (
 	"context"
+	"log"
 
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
 	"github.com/neirth/openlobster/internal/application/graphql/resolvers/mappers"
 )
 
 // ConnectMcp is the resolver for the connectMcp field.
-func (r *mutationResolver) ConnectMcp(ctx context.Context, name string, transport *string, url *string) (*generated.MCPConnectResult, error) {
+func (r *mutationResolver) ConnectMcp(ctx context.Context, name string, transport string, url string, clientID *string) (*generated.MCPConnectResult, error) {
 	if r.Deps == nil {
 		return &generated.MCPConnectResult{}, nil
 	}
-	tr, u := "", ""
-	if transport != nil {
-		tr = *transport
+	// Persist custom client_id from "advanced options" so InitiateOAuth uses it
+	if clientID != nil && *clientID != "" && r.Deps.McpOAuthPort != nil {
+		if err := r.Deps.McpOAuthPort.SetClientID(ctx, name, *clientID); err != nil {
+			log.Printf("resolvers: SetClientID for server %q: %v", name, err)
+		}
 	}
-	if url != nil {
-		u = *url
-	}
-	reqAuth, err := r.Deps.ConnectMCP(ctx, name, tr, u)
+	reqAuth, err := r.Deps.ConnectMCP(ctx, name, transport, url)
 	if err != nil {
 		// When the server requires OAuth (401/unauthorized), return success with
 		// requiresAuth so the frontend can launch the OAuth flow instead of showing an error.

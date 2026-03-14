@@ -30,6 +30,7 @@ vi.mock("@openlobster/ui/graphql/mutations", () => ({
 }));
 
 vi.mock("../../graphql/client", () => ({
+  GRAPHQL_ENDPOINT: "/graphql",
   client: {
     request: vi.fn((_query: any, vars: any) => {
       if (vars && vars.conversationId) {

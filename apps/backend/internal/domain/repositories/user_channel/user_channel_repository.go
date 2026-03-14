@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	domainmodels "github.com/neirth/openlobster/internal/domain/models"
 	"github.com/neirth/openlobster/internal/domain/ports"
 	"gorm.io/gorm"
@@ -61,13 +62,14 @@ func (r *repository) GetDisplayNameByUserID(ctx context.Context, userID string) 
 
 func (r *repository) Create(ctx context.Context, userID, channelType, platformUserID, username string) error {
 	now := time.Now().UTC()
+	id := uuid.New().String()
 	return r.db.WithContext(ctx).Exec(
 		`INSERT INTO user_channels (id, user_id, channel_id, platform_user_id, username, paired_at, last_seen)
-		 VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(channel_id, platform_user_id) DO UPDATE SET
-		     username  = COALESCE(excluded.username, username),
+		     username  = COALESCE(excluded.username, user_channels.username),
 		     last_seen = excluded.last_seen`,
-		userID, channelType, platformUserID, username, now, now,
+		id, userID, channelType, platformUserID, username, now, now,
 	).Error
 }
 
@@ -83,6 +85,12 @@ func (r *repository) GetLastChannelForUser(ctx context.Context, userID string) (
 		return "", "", err
 	}
 	return m.ChannelID, m.PlatformUserID, nil
+}
+
+func (r *repository) GetUserIDByName(ctx context.Context, name string) (string, error) {
+	var id string
+	err := r.db.WithContext(ctx).Raw("SELECT id FROM users WHERE name = ? LIMIT 1", name).Scan(&id).Error
+	return id, err
 }
 
 func (r *repository) UpdateLastSeen(ctx context.Context, channelType, platformUserID string) error {

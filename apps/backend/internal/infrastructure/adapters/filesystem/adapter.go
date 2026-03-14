@@ -51,6 +51,17 @@ func (a *Adapter) ReadFile(ctx context.Context, path string) (string, error) {
 	return string(content), nil
 }
 
+func (a *Adapter) ReadFileBytes(ctx context.Context, path string) ([]byte, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	if a.isProtected(absPath) {
+		return nil, fmt.Errorf("access denied: the application configuration file is protected")
+	}
+	return os.ReadFile(absPath)
+}
+
 func (a *Adapter) WriteFile(ctx context.Context, path, content string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -66,6 +77,23 @@ func (a *Adapter) WriteFile(ctx context.Context, path, content string) error {
 	}
 
 	return os.WriteFile(absPath, []byte(content), 0644)
+}
+
+func (a *Adapter) WriteBytes(ctx context.Context, path string, data []byte) error {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	if a.isProtected(absPath) {
+		return fmt.Errorf("access denied: the application configuration file is protected")
+	}
+
+	dir := filepath.Dir(absPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(absPath, data, 0644)
 }
 
 func (a *Adapter) EditFile(ctx context.Context, path, oldContent, newContent string) error {

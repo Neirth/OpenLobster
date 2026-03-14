@@ -18,14 +18,16 @@ import { MESSAGES_QUERY } from '@openlobster/ui/graphql/queries';
 import type { Message } from '@openlobster/ui/types';
 import { renderMarkdown } from '../../lib/markdown';
 import { t } from '../../App';
-import { client } from '../../graphql/client';
-import AppShell from '../../components/AppShell/AppShell';
+import { client, GRAPHQL_ENDPOINT } from '../../graphql/client';
+import AppShell from '../../components/AppShell';
+import SkeletonMessages from '../../components/SkeletonMessages';
 import './ChatView.css';
 
 const PAGE_SIZE = 50;
 
 
 const QUICK_EMOJIS = ['😀', '😂', '🔥', '✅', '🙏', '👍', '🎉', '🤖'];
+const TOOL_OUTPUT_MAX_CHARS = 2000;
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -53,6 +55,7 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
   const [oldestCursor, setOldestCursor] = createSignal<string | undefined>(undefined);
   const [hasMore, setHasMore] = createSignal(true);
   const [loadingMore, setLoadingMore] = createSignal(false);
+  const [initialLoading, setInitialLoading] = createSignal(false);
 
   // Index into messages() of the first item currently rendered.
   const [windowStart, setWindowStart] = createSignal(0);
@@ -91,6 +94,8 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
     const cid = props.conversationId;
     if (!cid) return;
 
+    setInitialLoading(true);
+
     batch(() => {
       setMessages([]);
       setWindowStart(0);
@@ -99,22 +104,35 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
       userScrolledUp = false;
     });
 
-    fetchPage().then((page) => {
-      setMessages(page);
-      props.onNewMessageCount(page.length);
-      if (page.length < PAGE_SIZE) setHasMore(false);
-      if (page.length > 0) setOldestCursor(page[0].createdAt);
-      anchorToBottom();
-    });
+    (async () => {
+      try {
+        const page = await fetchPage();
+        // Si mientras cargábamos se cambió de conversación, ignoramos este resultado.
+        if (props.conversationId !== cid) return;
+        setMessages(page);
+        props.onNewMessageCount(page.length);
+        if (page.length < PAGE_SIZE) setHasMore(false);
+        if (page.length > 0) setOldestCursor(page[0].createdAt);
+        anchorToBottom();
+      } finally {
+        if (props.conversationId === cid) setInitialLoading(false);
+      }
+    })();
 
     queryClient.setQueryData(['messages-append', cid], null);
   });
 
   async function loadOlder() {
+    const cidAtStart = props.conversationId;
     if (loadingMore() || !hasMore() || !oldestCursor()) return;
     setLoadingMore(true);
     const prevScrollHeight = scrollEl?.scrollHeight ?? 0;
     const page = await fetchPage(oldestCursor());
+    // Si ha cambiado la conversación mientras se cargaba la página, no toques el estado.
+    if (props.conversationId !== cidAtStart) {
+      setLoadingMore(false);
+      return;
+    }
     if (page.length === 0) {
       setHasMore(false);
     } else {
@@ -182,6 +200,12 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
     const allMsgs = messages();
     const prevMsg = globalIndex > 0 ? allMsgs[globalIndex - 1] : undefined;
     const showMeta = !prevMsg || prevMsg.role !== msg.role;
+    const isToolMessage = msg.role === 'tool';
+    const rawContent = msg.content ?? '';
+    const displayContent =
+      isToolMessage && rawContent.length > TOOL_OUTPUT_MAX_CHARS
+        ? `${rawContent.slice(0, TOOL_OUTPUT_MAX_CHARS)}\n\n${t('chat.contentTruncated')}`
+        : rawContent;
     const senderLabel = () => {
       if (msg.role === 'tool') return t('chat.roleTool');
       if (msg.role === 'assistant' || msg.role === 'agent')
@@ -224,14 +248,14 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
               )}
             </For>
             <Show when={msg.content}>
-              <div class="msg__attachment-caption" innerHTML={renderMarkdown(msg.content)} />
+              <div class="msg__attachment-caption" innerHTML={renderMarkdown(displayContent)} />
             </Show>
           </div>
         </Show>
 
         {/* If no attachments, render body normally */}
         <Show when={(msg.attachments ?? []).length === 0}>
-          <div class="msg__body" innerHTML={renderMarkdown(msg.content)} />
+          <div class="msg__body" innerHTML={renderMarkdown(displayContent)} />
         </Show>
       </div>
     );
@@ -257,6 +281,10 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
         </div>
       </Show>
 
+      <Show when={initialLoading() && messages().length === 0}>
+        <SkeletonMessages />
+      </Show>
+
       <For each={visibleMessages()}>
         {(msg, localIndex) => renderMessage(msg, windowStart() + localIndex())}
       </For>
@@ -278,11 +306,10 @@ const ChatView: Component = () => {
   const conversations = useConversations(client);
   const queryClient = useQueryClient();
 
-  const graphqlUrl = import.meta.env.VITE_GRAPHQL_ENDPOINT ?? '/graphql';
-  // Convert relative /graphql to relative /ws, and http(s) to ws(s) for absolute URLs
-  const wsUrl = graphqlUrl.startsWith('/')
-    ? graphqlUrl.replace(/\/graphql\/?$/, '/ws')
-    : graphqlUrl.replace(/\/graphql\/?$/, '/ws').replace(/^http/, 'ws');
+  // Same base as GraphQL client: current origin + path, so subscriptions work on any domain
+  const wsUrl = GRAPHQL_ENDPOINT.startsWith('/')
+    ? GRAPHQL_ENDPOINT.replace(/\/graphql\/?$/, '/ws')
+    : GRAPHQL_ENDPOINT.replace(/\/graphql\/?$/, '/ws').replace(/^https/, 'wss').replace(/^http/, 'ws');
 
   useSubscriptions({
     url: wsUrl,

@@ -125,14 +125,14 @@ func (w *webhookAdapterRegistry) Get(channelType string) ports.MessagingPort {
 	return w.reg.get(channelType)
 }
 
-// configUpdateAdapter persiste UpdateConfigInput en viper y recarga canales.
-// Cuando cambian provider/agent keys, onApplied recibe providerTouched=true y debe
-// refrescar ConfigSnapshot y ejecutar soft reboot (recrear AI provider, etc.).
+// configUpdateAdapter persists UpdateConfigInput into viper and reloads channels.
+// When provider/agent keys change, onApplied receives providerTouched=true and must
+// refresh ConfigSnapshot and perform a soft reboot (recreate AI provider, etc.).
 type configUpdateAdapter struct {
 	configPath    string
 	reloadChannel func(channelType string)
 	viperKeys     map[string]string
-	onApplied     func(providerTouched bool) // tras guardar: refrescar snapshot + soft reboot si provider cambió
+	onApplied     func(providerTouched bool) // after saving: refresh snapshot + soft reboot if provider changed
 }
 
 func (a *configUpdateAdapter) Apply(ctx context.Context, input map[string]interface{}) ([]string, error) {
@@ -634,6 +634,10 @@ func (a *mcpOAuthAdapter) InitiateOAuth(ctx context.Context, serverName, mcpURL 
 	return a.oauth.InitiateOAuth(ctx, serverName, mcpURL)
 }
 
+func (a *mcpOAuthAdapter) SetClientID(ctx context.Context, serverName, clientID string) error {
+	return a.oauth.SetClientID(ctx, serverName, clientID)
+}
+
 func (a *mcpOAuthAdapter) Status(serverName string) (status, errMsg string) {
 	s, errStr := a.oauth.Status(serverName)
 	return string(s), errStr
@@ -762,7 +766,7 @@ func (a *pairingPortAdapter) Approve(ctx context.Context, code, userID, displayN
 
 	if resolveUserID != "" && a.userChannelRepo != nil {
 		if err := a.userChannelRepo.Create(ctx, resolveUserID, p.ChannelType, platformUserID, platformUsername); err != nil {
-			return &dto.PairingSnapshot{Code: p.Code, Status: p.Status}, nil
+			return nil, fmt.Errorf("create user_channel: %w", err)
 		}
 	}
 
@@ -869,9 +873,6 @@ func (m *mcpMessagingAdapter) SendMessage(ctx context.Context, channelType, chan
 	return m.port.SendMessage(ctx, msg)
 }
 
-func (m *mcpMessagingAdapter) SendFile(ctx context.Context, channelID, filePath string) error {
-	return fmt.Errorf("messaging: send_file not supported")
-}
 
 func (m *mcpMessagingAdapter) SendMedia(ctx context.Context, media *ports.Media) error {
 	if m.port == nil {
@@ -1570,13 +1571,13 @@ This signals that initialization is done and you should no longer treat bootstra
 	// Subscription manager for GraphQL subscriptions via WebSocket
 	subManager := subscriptions.NewSubscriptionManager(eventBus)
 
-	// Pairing service for user pairing requests
+	// Pairing service for user pairing requests.
 	pairingRepo := repositories.NewPairingRepository(gormDB)
 	pairingService := domainservices.NewPairingService(pairingRepo)
 	userChannelRepo := repositories.NewUserChannelRepository(gormDB)
 
 	// Connect subscription manager to event bus for real-time events.
-	// Todos los tipos de evento se reenvían a los clientes WebSocket (/ws).
+	// All event types are forwarded to WebSocket clients (/ws).
 	broadcastToSubs := func(ctx context.Context, e events.Event) error {
 		subManager.Broadcast(e)
 		return nil
@@ -2043,24 +2044,54 @@ This signals that initialization is done and you should no longer treat bootstra
 	// -----------------------------------------------------------------------
 	// Secrets provider + MCP client + OAuth 2.1 manager
 	// -----------------------------------------------------------------------
-	secretsPath := cfg.Secrets.File.Path
-	if secretsPath == "" {
-		secretsPath = "data/secrets.json"
+	// OPENLOBSTER_SECRETS_BACKEND: "file" (default) or "openbao".
+	secretsBackend := strings.ToLower(strings.TrimSpace(cfg.Secrets.Backend))
+	var secretsProvider secrets.SecretsProvider
+	switch secretsBackend {
+	case "openbao":
+		if cfg.Secrets.Openbao == nil || cfg.Secrets.Openbao.URL == "" {
+			log.Fatalf("secrets backend is openbao but secrets.openbao.url is not set (set OPENLOBSTER_SECRETS_OPENBAO_URL)")
+		}
+		if cfg.Secrets.Openbao.Token == "" {
+			log.Fatalf("secrets backend is openbao but secrets.openbao.token is not set (set OPENLOBSTER_SECRETS_OPENBAO_TOKEN)")
+		}
+		var err error
+		secretsProvider, err = secrets.NewOpenBAOProvider(cfg.Secrets.Openbao.URL, cfg.Secrets.Openbao.Token, "secret")
+		if err != nil {
+			log.Fatalf("failed to initialize OpenBao secrets provider: %v", err)
+		}
+		log.Printf("secrets: openbao backend at %s", cfg.Secrets.Openbao.URL)
+	default:
+		// "file" or any other value
+		secretsPath := cfg.Secrets.File.Path
+		if secretsPath == "" {
+			secretsPath = "data/secrets.json"
+		}
+		// OPENLOBSTER_SECRET_KEY: 32-byte key for secrets + config encryption.
+		if secretsBackend != "" && secretsBackend != "file" {
+			log.Printf("secrets: unknown backend %q, using file backend", cfg.Secrets.Backend)
+		}
+		var err error
+		secretsProvider, err = secrets.NewFileSecretsProvider(secretsPath, config.SecretKey())
+		if err != nil {
+			log.Fatalf("failed to initialize secrets provider: %v", err)
+		}
+		log.Printf("secrets: file backend at %s", secretsPath)
 	}
-	// OPENLOBSTER_SECRET_KEY: 32-byte key for secrets + config encryption.
-	// If unset, uses a deterministic default (see config.SecretKey).
-	secretsProvider, err := secrets.NewFileSecretsProvider(secretsPath, config.SecretKey())
-	if err != nil {
-		log.Fatalf("failed to initialize secrets provider: %v", err)
-	}
-	log.Printf("secrets: file backend at %s", secretsPath)
 
 	mcpClientSDK := mcp.NewMCPClientSDK(secretsProvider)
+	// OAuth2 redirect_uri must be an absolute URL (e.g. https://agent.hoki-ghoul.ts.net/oauth/callback).
+	// graphql.base_url must be the full public base (e.g. https://agent.hoki-ghoul.ts.net), not a path like /graphql.
 	oauthCallbackURL := cfg.GraphQL.BaseURL
-	if oauthCallbackURL == "" {
-		oauthCallbackURL = fmt.Sprintf("http://%s:%d/oauth/callback", cfg.GraphQL.Host, cfg.GraphQL.Port)
-	} else {
+	if oauthCallbackURL != "" && (strings.HasPrefix(oauthCallbackURL, "http://") || strings.HasPrefix(oauthCallbackURL, "https://")) {
 		oauthCallbackURL = strings.TrimSuffix(oauthCallbackURL, "/") + "/oauth/callback"
+	} else {
+		oauthCallbackURL = fmt.Sprintf("http://%s:%d/oauth/callback", cfg.GraphQL.Host, cfg.GraphQL.Port)
+		if cfg.GraphQL.BaseURL != "" {
+			log.Printf("oauth: graphql.base_url %q is not a full URL; using %q for redirect_uri. Set OPENLOBSTER_GRAPHQL_BASE_URL to your public URL (e.g. https://agent.example.com) for OAuth to work.", cfg.GraphQL.BaseURL, oauthCallbackURL)
+		} else if cfg.GraphQL.Host == "0.0.0.0" || cfg.GraphQL.Host == "" {
+			log.Printf("oauth: redirect_uri is %q. For OAuth behind a reverse proxy, set OPENLOBSTER_GRAPHQL_BASE_URL to your public URL (e.g. https://agent.example.com).", oauthCallbackURL)
+		}
 	}
 	oauthMgr := mcp.NewOAuthManager(secretsProvider, oauthCallbackURL)
 
@@ -2141,8 +2172,8 @@ This signals that initialization is done and you should no longer treat bootstra
 	// Messaging channel webhooks (WhatsApp, Twilio — receive POST from platforms)
 	webhooks.NewHandler(&webhookAdapterRegistry{reg: chanReg}, msgHandler).Register(mux)
 
-	// OAuth 2.1 callback endpoint — receives the authorization code from the
-	// browser after the user grants access to a Streamable HTTP MCP server.
+		// OAuth 2.1 callback endpoint — receives the authorization code from the
+		// browser after the user grants access to a Streamable HTTP MCP server.
 	mux.HandleFunc("/oauth/callback", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		code := q.Get("code")
@@ -2153,8 +2184,8 @@ This signals that initialization is done and you should no longer treat bootstra
 		serverName, herr := oauthMgr.HandleCallback(ctx, code, state, errParam)
 		if herr != nil {
 			log.Printf("oauth callback error: %v", herr)
-			// Devolver HTML que notifica al opener vía postMessage (igual que el éxito).
-			// Evita redirects que pueden llevar al usuario a otra URL/origen.
+			// Return HTML that notifies the opener via postMessage (same pattern as success).
+			// Avoid redirects that could send the user to a different URL/origin.
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			fmt.Fprintf(w, `<!doctype html><html><head><title>OAuth Error</title></head>`+
 				`<body><h2>Authorization failed</h2><p>%s</p><p>You may close this window.</p>`+
@@ -2164,7 +2195,8 @@ This signals that initialization is done and you should no longer treat bootstra
 		}
 
 		// If the server was registered as pending-auth, attempt to reconnect now
-		// that the token has been stored.
+		// that the token has been stored. On success, register its tools into the
+		// shared ToolRegistry so they are immediately available to the agent.
 		if serverName != "" {
 			if pendingURL, ok := oauthMgr.GetPendingServers()[serverName]; ok {
 				go func() {
@@ -2179,7 +2211,13 @@ This signals that initialization is done and you should no longer treat bootstra
 					} else {
 						oauthMgr.RemovePendingServer(serverName)
 						_ = mcpServerRepo.Save(reconnectCtx, serverName, pendingURL)
-						log.Printf("oauth: auto-reconnected %q successfully", serverName)
+						if tools := mcpClientSDK.GetServerTools(serverName); len(tools) > 0 {
+							_ = toolRegistry.RegisterMCP(serverName, mcpClientSDK, tools)
+							log.Printf("mcp: registered %d tools from %q into tool registry (oauth callback)", len(tools), serverName)
+							syncToolsToAgentRegistry(toolRegistry, agentRegistry)
+						} else {
+							log.Printf("oauth: auto-reconnected %q successfully but server reported 0 tools", serverName)
+						}
 					}
 				}()
 			}
@@ -2389,7 +2427,7 @@ This signals that initialization is done and you should no longer treat bootstra
 	}
 }
 
-// buildConfigSnapshotFromCfg construye AppConfigSnapshot desde Config (para refrescar tras guardar).
+// buildConfigSnapshotFromCfg builds AppConfigSnapshot from Config (for refresh after saving).
 func buildConfigSnapshotFromCfg(cfg *config.Config) *dto.AppConfigSnapshot {
 	provider := providerName(cfg)
 	var apiKey, baseURL, ollamaHost, ollamaApiKey, anthropicApiKey, model string
