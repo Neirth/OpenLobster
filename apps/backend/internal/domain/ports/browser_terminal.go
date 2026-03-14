@@ -24,6 +24,7 @@ type TerminalPort interface {
 	Spawn(ctx context.Context, cmd string) (PtySession, error)
 	RunBackground(ctx context.Context, cmd string, opts ...TerminalOption) (BackgroundProcess, error)
 	ListProcesses(ctx context.Context) ([]BackgroundProcess, error)
+	GetProcess(ctx context.Context, id string) (BackgroundProcess, error)
 	KillProcess(ctx context.Context, pid int) error
 }
 
@@ -54,6 +55,9 @@ type BackgroundProcess interface {
 	Command() string
 	Status() ProcessStatus
 	Output() <-chan string
+	// CollectedOutput returns all stdout+stderr lines captured so far as a
+	// single string. Non-destructive — safe to call multiple times.
+	CollectedOutput() string
 	Wait() (TerminalOutput, error)
 	Kill() error
 }

@@ -88,7 +88,7 @@ func (r *queryResolver) ToolPermissions(ctx context.Context, userID string) ([]*
 }
 
 // McpUsers is the resolver for the mcpUsers field.
-// Incluye el usuario loopback (agente/bot) al inicio para configurar permisos de tareas programadas.
+// It includes the loopback user (agent/bot) at the beginning to configure scheduled task permissions.
 func (r *queryResolver) McpUsers(ctx context.Context) ([]*generated.MCPUser, error) {
 	if r.Deps == nil {
 		return nil, nil

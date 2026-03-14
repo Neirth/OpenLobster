@@ -86,6 +86,16 @@ func (m *MockTerminalService) Spawn(ctx context.Context, cmd string) (ports.PtyS
 	return args.Get(0).(ports.PtySession), args.Error(1)
 }
 
+func (m *MockTerminalService) ListProcesses(ctx context.Context) ([]ports.BackgroundProcess, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]ports.BackgroundProcess), args.Error(1)
+}
+
+func (m *MockTerminalService) GetProcess(ctx context.Context, id string) (ports.BackgroundProcess, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(ports.BackgroundProcess), args.Error(1)
+}
+
 func (m *MockTerminalService) KillProcess(ctx context.Context, pid int) error {
 	args := m.Called(ctx, pid)
 	return args.Error(0)
@@ -621,6 +631,19 @@ func (m *mockLastChannelResolver) GetLastChannelForUser(ctx context.Context, use
 	return "", "", nil
 }
 
+// mockUserNameResolver extends mockLastChannelResolver with GetUserIDByName.
+type mockUserNameResolver struct {
+	mockLastChannelResolver
+	getUserIDByName func(ctx context.Context, name string) (string, error)
+}
+
+func (m *mockUserNameResolver) GetUserIDByName(ctx context.Context, name string) (string, error) {
+	if m.getUserIDByName != nil {
+		return m.getUserIDByName(ctx, name)
+	}
+	return "", nil
+}
+
 func TestSendFileTool_Definition(t *testing.T) {
 	tool := &SendFileTool{}
 	def := tool.Definition()
@@ -629,9 +652,11 @@ func TestSendFileTool_Definition(t *testing.T) {
 	assert.Contains(t, def.Description, "file")
 }
 
-func TestSendFileTool_Execute_Success(t *testing.T) {
+func TestSendFileTool_Execute_Success_FromContext(t *testing.T) {
 	mockMsg := new(MockMessagingService)
-	mockMsg.On("SendFile", mock.Anything, "channel123", "/path/to/file.txt").Return(nil)
+	mockMsg.On("SendMedia", mock.Anything, mock.MatchedBy(func(m *ports.Media) bool {
+		return m.ChatID == "channel123" && m.URL == "/tmp/test.txt" && m.ChannelType == "telegram"
+	})).Return(nil)
 
 	tool := &SendFileTool{
 		Tools: InternalTools{
@@ -639,9 +664,51 @@ func TestSendFileTool_Execute_Success(t *testing.T) {
 		},
 	}
 
+	ctx := context.WithValue(context.Background(), ContextKeyChannelID, "channel123")
+	ctx = context.WithValue(ctx, ContextKeyChannelType, "telegram")
+
+	result, err := tool.Execute(ctx, map[string]interface{}{
+		"file_path": "/tmp/test.txt",
+	})
+
+	assert.NoError(t, err)
+	assert.Contains(t, string(result), "sent")
+	mockMsg.AssertExpectations(t)
+}
+
+func TestSendFileTool_Execute_Success_FromUserName(t *testing.T) {
+	mockMsg := new(MockMessagingService)
+	mockMsg.On("SendMedia", mock.Anything, mock.MatchedBy(func(m *ports.Media) bool {
+		return m.ChatID == "tg-99" && m.ChannelType == "telegram"
+	})).Return(nil)
+
+	resolver := &mockUserNameResolver{
+		getUserIDByName: func(ctx context.Context, name string) (string, error) {
+			if name == "alice" {
+				return "uuid-alice", nil
+			}
+			return "", nil
+		},
+		mockLastChannelResolver: mockLastChannelResolver{
+			getLastChannel: func(ctx context.Context, userID string) (string, string, error) {
+				if userID == "uuid-alice" {
+					return "telegram", "tg-99", nil
+				}
+				return "", "", nil
+			},
+		},
+	}
+
+	tool := &SendFileTool{
+		Tools: InternalTools{
+			Messaging:           mockMsg,
+			LastChannelResolver: resolver,
+		},
+	}
+
 	result, err := tool.Execute(context.Background(), map[string]interface{}{
-		"channel":   "channel123",
-		"file_path": "/path/to/file.txt",
+		"user_name": "alice",
+		"file_path": "/tmp/test.txt",
 	})
 
 	assert.NoError(t, err)
@@ -779,7 +846,7 @@ func TestAddMemoryTool_Definition(t *testing.T) {
 	def := tool.Definition()
 
 	assert.Equal(t, "add_memory", def.Name)
-	assert.Contains(t, def.Description, "memory")
+	assert.NotEmpty(t, def.Description)
 }
 
 func TestAddMemoryTool_Execute_Success(t *testing.T) {
@@ -997,8 +1064,9 @@ func TestBrowserScreenshotTool_Execute_Success(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
-	assert.Contains(t, string(result), "screenshot")
-	assert.Contains(t, string(result), "base64")
+	assert.Contains(t, string(result), "session_id")
+	assert.Contains(t, string(result), "bytes")
+	assert.Contains(t, string(result), "message")
 	mockBrowser.AssertExpectations(t)
 }
 

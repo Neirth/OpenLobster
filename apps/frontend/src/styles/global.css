@@ -97,6 +97,31 @@
   --color-text:             var(--color-text-primary);
 }
 
+/* Light theme — overrides when data-theme="light" */
+[data-theme="light"] {
+  --color-bg-sunken:   #e8e8e8;
+  --color-bg-surface:  #eeeeee;
+  --color-bg-base:     #f5f5f5;
+  --color-bg-elevated:  #ffffff;
+  --color-bg-selected:  #e0e0e0;
+
+  --color-text-primary:   #1a1a1a;
+  --color-text-secondary: #505050;
+  --color-text-muted:     #909090;
+}
+
+[data-theme="light"] * {
+  scrollbar-color: #cccccc transparent;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #cccccc;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #aaaaaa;
+}
+
 * {
   margin: 0;
   padding: 0;

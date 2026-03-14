@@ -16,12 +16,14 @@ const McpsView = lazy(() => import("./views/McpsView/McpsView"));
 const SkillsView = lazy(() => import("./views/SkillsView/SkillsView"));
 const SettingsView = lazy(() => import("./views/SettingsView/SettingsView"));
 const Error404 = lazy(() => import("./views/ErrorView/ErrorView").then((m) => ({ default: m.Error404 })));
-import AuthModals from "./components/AuthModals/AuthModals";
-import BrowserCheck from "./components/BrowserCheck/BrowserCheck";
-import MobileBlocker from "./components/MobileBlocker/MobileBlocker";
+import AuthModals from "./components/AuthModals";
+import BrowserCheck from "./components/BrowserCheck";
+import MobileBlocker from "./components/MobileBlocker";
 import OAuthCallbackError from "./components/OAuthCallbackError/OAuthCallbackError";
-import FirstBootWizard from "./components/FirstBootWizard/FirstBootWizard";
+import FirstBootWizard from "./components/FirstBootWizard";
 import { GRAPHQL_ENDPOINT } from "./graphql/client";
+import { getStoredToken } from "./stores/authStore";
+import { effectiveTheme, setSystemTheme } from "./stores/themeStore";
 import "./styles/global.css";
 
 type Locale = "en" | "es" | "zh";
@@ -61,6 +63,10 @@ const Root: Component = () => {
   const [configLoaded, setConfigLoaded] = createSignal(false);
   const [showWizard, setShowWizard] = createSignal(true);
 
+  createEffect(() => {
+    document.documentElement.setAttribute("data-theme", effectiveTheme());
+  });
+
   // When OAuth callback fails, backend redirects to /?oauth_callback=error&message=...
   // In that case (popup window), show a modal instead of the normal app
   const [oauthError, _setOauthError] = createSignal<{ message: string } | null>(
@@ -74,19 +80,31 @@ const Root: Component = () => {
     })(),
   );
 
+  onMount(() => {
+    const m = window.matchMedia("(prefers-color-scheme: light)");
+    setSystemTheme(m.matches ? "light" : "dark");
+    const handler = () => setSystemTheme(m.matches ? "light" : "dark");
+    m.addEventListener("change", handler);
+    return () => m.removeEventListener("change", handler);
+  });
+
   onMount(async () => {
     if (oauthError()) {
       window.history.replaceState({}, "", window.location.pathname || "/");
     }
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const token = getStoredToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const res = await fetch(GRAPHQL_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: `query GetConfig { config { wizardCompleted } }`,
-          }),
-        },
-      );
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          query: `query GetConfig { config { wizardCompleted } }`,
+        }),
+      });
       const data = await res.json();
       const completed = data?.data?.config?.wizardCompleted === true;
       setShowWizard(!completed);

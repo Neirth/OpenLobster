@@ -21,7 +21,7 @@ type MessageDispatcherPort interface {
 	Handle(ctx context.Context, input handlers.HandleMessageInput) error
 }
 
-// Deps agrupa las dependencias de los resolvers GraphQL (sin orquestador dashboard).
+// Deps groups the dependencies of the GraphQL resolvers (without the dashboard orchestrator).
 type Deps struct {
 	AgentRegistry     *registry.AgentRegistry
 	QuerySvc          *domainservices.DashboardQueryService
@@ -50,7 +50,7 @@ type Deps struct {
 	ConfigWriter      dto.ConfigUpdatePort
 }
 
-// Agent implementa agent.Provider.
+// Agent implements agent.Provider.
 // Name and Provider come from ConfigSnapshot when available so the agent query
 // always returns the latest config (e.g. after wizard completion) without relying
 // on AgentRegistry being updated.
@@ -95,7 +95,7 @@ func (d *Deps) Agent(ctx context.Context) *dto.AgentSnapshot {
 	}
 }
 
-// Channels implementa agent.Provider.
+// Channels implements agent.Provider.
 func (d *Deps) Channels(ctx context.Context) []dto.ChannelStatus {
 	a := d.AgentRegistry.GetAgent()
 	if a == nil || len(a.Channels) == 0 {
@@ -104,7 +104,7 @@ func (d *Deps) Channels(ctx context.Context) []dto.ChannelStatus {
 	return a.Channels
 }
 
-// Heartbeat implementa agent.Provider.
+// Heartbeat implements agent.Provider.
 func (d *Deps) Heartbeat(ctx context.Context) *dto.HeartbeatSnapshot {
 	return &dto.HeartbeatSnapshot{
 		Status:    "ok",
@@ -112,12 +112,12 @@ func (d *Deps) Heartbeat(ctx context.Context) *dto.HeartbeatSnapshot {
 	}
 }
 
-// MCPTools implementa agent.Provider.
+// MCPTools implements agent.Provider.
 func (d *Deps) MCPTools(ctx context.Context) []dto.ToolSnapshot {
 	return d.AgentRegistry.GetMCPTools()
 }
 
-// SubAgents implementa agent.Provider.
+// SubAgents implements agent.Provider.
 func (d *Deps) SubAgents(ctx context.Context) []dto.SubAgentSnapshot {
 	if d.SubAgentSvc == nil {
 		return nil
@@ -129,7 +129,7 @@ func (d *Deps) SubAgents(ctx context.Context) []dto.SubAgentSnapshot {
 	return list
 }
 
-// Status implementa agent.Provider.
+// Status implements agent.Provider.
 func (d *Deps) Status(ctx context.Context) *dto.StatusSnapshot {
 	return &dto.StatusSnapshot{
 		Agent:     d.Agent(ctx),
@@ -142,7 +142,7 @@ func (d *Deps) Status(ctx context.Context) *dto.StatusSnapshot {
 	}
 }
 
-// Metrics implementa agent.Provider.
+// Metrics implements agent.Provider.
 func (d *Deps) Metrics(ctx context.Context) *dto.MetricsSnapshot {
 	tools := len(d.AgentRegistry.GetMCPTools())
 	errorsTotal := d.AgentRegistry.ErrorsCount()
@@ -239,11 +239,11 @@ func tasksToSnapshots(tasks []models.Task) []dto.TaskSnapshot {
 			CreatedAt: createdAt,
 			IsCyclic:  t.TaskType == "cyclic",
 		}
-		// LastRunAt: use FinishedAt when present (one-shot tasks)
+		// LastRunAt: use FinishedAt when present (one-shot tasks).
 		if t.FinishedAt != nil {
 			snap.LastRunAt = t.FinishedAt.Format(time.RFC3339)
 		}
-		// NextRunAt: compute for cyclic tasks or datetime schedules
+		// NextRunAt: compute for cyclic tasks or datetime schedules.
 		if t.TaskType == "cyclic" || isDatetimeSchedule(t.Schedule) {
 			next := computeNextAtLocal(t)
 			if !next.IsZero() {
@@ -350,7 +350,7 @@ func (d *Deps) KillSubAgent(ctx context.Context, id string) error {
 
 // ─── Conversations provider ──────────────────────────────────────────────────
 
-// Conversations implementa conversations.Provider.
+// Conversations implements conversations.Provider.
 func (d *Deps) Conversations(ctx context.Context) ([]dto.ConversationSnapshot, error) {
 	if d.ConvPort == nil {
 		return nil, nil
@@ -358,9 +358,9 @@ func (d *Deps) Conversations(ctx context.Context) ([]dto.ConversationSnapshot, e
 	return d.ConvPort.ListConversations()
 }
 
-// Messages implementa conversations.Provider.
-// Soporta paginación keyset: before es el createdAt del mensaje más antiguo ya cargado,
-// limit controla el tamaño de página (defecto 50, máximo 200).
+// Messages implements conversations.Provider.
+// Supports keyset pagination: before is the createdAt of the oldest already loaded message,
+// limit controls the page size (default 50, maximum 200).
 func (d *Deps) Messages(ctx context.Context, conversationID string, before *string, limit *int) ([]dto.MessageSnapshot, error) {
 	if d.MsgRepo == nil || conversationID == "" {
 		return nil, nil
@@ -504,12 +504,12 @@ func (d *Deps) DeleteUser(ctx context.Context, conversationID string) error {
 
 // ─── Config provider ─────────────────────────────────────────────────────────
 
-// Config implementa config.Provider.
+// Config implements config.Provider.
 func (d *Deps) Config(ctx context.Context) *dto.AppConfigSnapshot {
 	return d.ConfigSnapshot
 }
 
-// UpdateConfig implementa config.Provider.
+// UpdateConfig implements config.Provider.
 func (d *Deps) UpdateConfig(ctx context.Context, input map[string]interface{}) error {
 	if d.ConfigWriter == nil {
 		return nil
@@ -524,12 +524,12 @@ func (d *Deps) UpdateConfig(ctx context.Context, input map[string]interface{}) e
 
 // ─── Tasks provider ──────────────────────────────────────────────────────────
 
-// Tasks implementa tasks.Provider.
+// Tasks implements tasks.Provider.
 func (d *Deps) Tasks(ctx context.Context) ([]dto.TaskSnapshot, error) {
 	return d.taskList(ctx), nil
 }
 
-// AddTask implementa tasks.Provider.
+// AddTask implements tasks.Provider.
 func (d *Deps) AddTask(ctx context.Context, prompt, schedule string) (string, error) {
 	if d.CommandSvc == nil {
 		return "", nil
@@ -537,7 +537,7 @@ func (d *Deps) AddTask(ctx context.Context, prompt, schedule string) (string, er
 	return d.CommandSvc.AddTask(ctx, prompt, schedule)
 }
 
-// CompleteTask implementa tasks.Provider.
+// CompleteTask implements tasks.Provider.
 func (d *Deps) CompleteTask(ctx context.Context, taskID string) error {
 	if d.CommandSvc == nil {
 		return nil
@@ -545,7 +545,7 @@ func (d *Deps) CompleteTask(ctx context.Context, taskID string) error {
 	return d.CommandSvc.CompleteTask(ctx, taskID)
 }
 
-// RemoveTask implementa tasks.Provider.
+// RemoveTask implements tasks.Provider.
 func (d *Deps) RemoveTask(ctx context.Context, taskID string) error {
 	if d.CommandSvc == nil {
 		return nil
@@ -553,7 +553,7 @@ func (d *Deps) RemoveTask(ctx context.Context, taskID string) error {
 	return d.CommandSvc.DeleteTask(ctx, taskID)
 }
 
-// UpdateTask implementa tasks.Provider.
+// UpdateTask implements tasks.Provider.
 func (d *Deps) UpdateTask(ctx context.Context, id, prompt, schedule string) error {
 	if d.CommandSvc == nil {
 		return nil
@@ -561,7 +561,7 @@ func (d *Deps) UpdateTask(ctx context.Context, id, prompt, schedule string) erro
 	return d.CommandSvc.UpdateTask(ctx, id, prompt, schedule)
 }
 
-// ToggleTask implementa tasks.Provider.
+// ToggleTask implements tasks.Provider.
 func (d *Deps) ToggleTask(ctx context.Context, id string, enabled bool) error {
 	if d.CommandSvc == nil {
 		return nil
@@ -571,12 +571,12 @@ func (d *Deps) ToggleTask(ctx context.Context, id string, enabled bool) error {
 
 // ─── MCP provider ────────────────────────────────────────────────────────────
 
-// MCPs implementa mcp.Provider.
+// MCPs implements mcp.Provider.
 func (d *Deps) MCPs(ctx context.Context) []dto.MCPSnapshot {
 	return d.AgentRegistry.GetMCPs()
 }
 
-// MCPServers implementa mcp.Provider.
+// MCPServers implements mcp.Provider.
 func (d *Deps) MCPServers(ctx context.Context) ([]dto.MCPServerRecord, error) {
 	if d.MCPServerRepo == nil {
 		return nil, nil
@@ -585,9 +585,9 @@ func (d *Deps) MCPServers(ctx context.Context) ([]dto.MCPServerRecord, error) {
 	if err != nil {
 		return list, err
 	}
-	// Usar McpConnectPort para status y toolCount cuando esté disponible (misma fuente que el cliente MCP).
-	// Si toolCount es 0 pero hay herramientas en AgentRegistry (p. ej. por race en startup reconnect),
-	// usar el registro como fallback para mostrar el conteo correcto.
+	// Use McpConnectPort for status and toolCount when available (same source as the MCP client).
+	// If toolCount is 0 but there are tools in AgentRegistry (e.g. due to a startup reconnect race),
+	// use the registry as a fallback to show the correct count.
 	if d.McpConnectPort != nil {
 		toolCountByServer := make(map[string]int)
 		for _, t := range d.AgentRegistry.GetMCPTools() {
@@ -618,7 +618,7 @@ func (d *Deps) MCPServers(ctx context.Context) ([]dto.MCPServerRecord, error) {
 	return list, nil
 }
 
-// MCPOAuthStatus implementa mcp.Provider.
+// MCPOAuthStatus implements mcp.Provider.
 func (d *Deps) MCPOAuthStatus(ctx context.Context, serverName string) (string, error) {
 	if d.McpOAuthPort == nil {
 		return "unknown", nil
@@ -630,7 +630,7 @@ func (d *Deps) MCPOAuthStatus(ctx context.Context, serverName string) (string, e
 	return status, nil
 }
 
-// ConnectMCP implementa mcp.Provider.
+// ConnectMCP implements mcp.Provider.
 func (d *Deps) ConnectMCP(ctx context.Context, name, transport, url string) (requiresAuth bool, err error) {
 	if d.McpConnectPort == nil {
 		return false, nil // no-op if not wired
@@ -638,7 +638,7 @@ func (d *Deps) ConnectMCP(ctx context.Context, name, transport, url string) (req
 	return d.McpConnectPort.Connect(ctx, name, transport, url)
 }
 
-// DisconnectMCP implementa mcp.Provider.
+// DisconnectMCP implements mcp.Provider.
 func (d *Deps) DisconnectMCP(ctx context.Context, name string) error {
 	if d.McpConnectPort == nil {
 		return nil
@@ -646,7 +646,7 @@ func (d *Deps) DisconnectMCP(ctx context.Context, name string) error {
 	return d.McpConnectPort.Disconnect(ctx, name)
 }
 
-// InitiateOAuth implementa mcp.Provider.
+// InitiateOAuth implements mcp.Provider.
 func (d *Deps) InitiateOAuth(ctx context.Context, serverName, mcpURL string) (string, error) {
 	if d.McpOAuthPort == nil {
 		return "", fmt.Errorf("OAuth not configured")
@@ -656,7 +656,7 @@ func (d *Deps) InitiateOAuth(ctx context.Context, serverName, mcpURL string) (st
 
 // ─── Memory provider ─────────────────────────────────────────────────────────
 
-// SearchMemory implementa memory.Provider.
+// SearchMemory implements memory.Provider.
 func (d *Deps) SearchMemory(ctx context.Context, userID, query string) (string, error) {
 	if d.QuerySvc == nil {
 		return "", nil
@@ -664,8 +664,8 @@ func (d *Deps) SearchMemory(ctx context.Context, userID, query string) (string, 
 	return d.QuerySvc.SearchMemory(ctx, userID, query)
 }
 
-// UserGraph implementa memory.Provider.
-// userID vacío ("") devuelve el grafo completo; cualquier otro valor filtra por ese usuario.
+// UserGraph implements memory.Provider.
+// Empty userID ("") returns the full graph; any other value filters by that user.
 func (d *Deps) UserGraph(ctx context.Context, userID string) (*dto.GraphSnapshot, error) {
 	if d.QuerySvc == nil {
 		return &dto.GraphSnapshot{}, nil
@@ -677,14 +677,14 @@ func (d *Deps) UserGraph(ctx context.Context, userID string) (*dto.GraphSnapshot
 	return portsGraphToSnapshot(g), nil
 }
 
-// MemoryGraph implementa memory.Provider.
-// Usa userID vacío para devolver el grafo completo (todas las memorias de todos los usuarios),
-// para que el dashboard muestre las memorias generadas por el bot en cualquier canal.
+// MemoryGraph implements memory.Provider.
+// Uses an empty userID to return the full graph (all memories from all users),
+// so the dashboard can show bot-generated memories from any channel.
 func (d *Deps) MemoryGraph(ctx context.Context) (*dto.GraphSnapshot, error) {
 	return d.UserGraph(ctx, "")
 }
 
-// AddMemory implementa memory.Provider.
+// AddMemory implements memory.Provider.
 func (d *Deps) AddMemory(ctx context.Context, userID, content string) error {
 	if d.CommandSvc == nil {
 		return nil
@@ -692,7 +692,7 @@ func (d *Deps) AddMemory(ctx context.Context, userID, content string) error {
 	return d.CommandSvc.AddMemory(ctx, userID, content)
 }
 
-// AddRelation implementa memory.Provider.
+// AddRelation implements memory.Provider.
 func (d *Deps) AddRelation(ctx context.Context, from, to, relType string) error {
 	if d.CommandSvc == nil {
 		return nil
@@ -700,7 +700,7 @@ func (d *Deps) AddRelation(ctx context.Context, from, to, relType string) error 
 	return d.CommandSvc.AddRelation(ctx, from, to, relType)
 }
 
-// ExecuteCypher implementa memory.Provider.
+// ExecuteCypher implements memory.Provider.
 func (d *Deps) ExecuteCypher(ctx context.Context, cypher string) (*dto.GraphSnapshot, error) {
 	if d.QuerySvc == nil {
 		return &dto.GraphSnapshot{}, nil
@@ -712,7 +712,7 @@ func (d *Deps) ExecuteCypher(ctx context.Context, cypher string) (*dto.GraphSnap
 	return &dto.GraphSnapshot{}, nil
 }
 
-// AddMemoryNode implementa memory.Provider.
+// AddMemoryNode implements memory.Provider.
 func (d *Deps) AddMemoryNode(ctx context.Context, label, typ, value string) (string, error) {
 	if d.CommandSvc == nil || d.MemoryRepo == nil {
 		return "", nil
@@ -723,7 +723,7 @@ func (d *Deps) AddMemoryNode(ctx context.Context, label, typ, value string) (str
 	return "", nil
 }
 
-// UpdateMemoryNode implementa memory.Provider.
+// UpdateMemoryNode implements memory.Provider.
 func (d *Deps) UpdateMemoryNode(ctx context.Context, id, label, typ, value string, properties map[string]string) error {
 	if d.CommandSvc == nil {
 		return nil
@@ -731,7 +731,7 @@ func (d *Deps) UpdateMemoryNode(ctx context.Context, id, label, typ, value strin
 	return d.CommandSvc.UpdateNode(ctx, id, label, typ, value, properties)
 }
 
-// DeleteMemoryNode implementa memory.Provider.
+// DeleteMemoryNode implements memory.Provider.
 func (d *Deps) DeleteMemoryNode(ctx context.Context, id string) error {
 	if d.CommandSvc == nil {
 		return nil
@@ -762,7 +762,7 @@ func portsGraphToSnapshot(g domainservices.PortsGraph) *dto.GraphSnapshot {
 
 // ─── Skills provider ────────────────────────────────────────────────────────
 
-// Skills implementa skills.Provider.
+// Skills implements skills.Provider.
 func (d *Deps) Skills(ctx context.Context) ([]dto.SkillSnapshot, error) {
 	if d.SkillsPort == nil {
 		return nil, nil
@@ -770,7 +770,7 @@ func (d *Deps) Skills(ctx context.Context) ([]dto.SkillSnapshot, error) {
 	return d.SkillsPort.ListSkills()
 }
 
-// SystemFiles implementa skills.Provider.
+// SystemFiles implements skills.Provider.
 func (d *Deps) SystemFiles(ctx context.Context) ([]dto.SystemFileSnapshot, error) {
 	if d.SysFilesPort == nil {
 		return nil, nil
@@ -778,7 +778,7 @@ func (d *Deps) SystemFiles(ctx context.Context) ([]dto.SystemFileSnapshot, error
 	return d.SysFilesPort.ListFiles()
 }
 
-// EnableSkill implementa skills.Provider.
+// EnableSkill implements skills.Provider.
 func (d *Deps) EnableSkill(ctx context.Context, name string) error {
 	if d.SkillsPort == nil {
 		return nil
@@ -786,7 +786,7 @@ func (d *Deps) EnableSkill(ctx context.Context, name string) error {
 	return d.SkillsPort.EnableSkill(name)
 }
 
-// DisableSkill implementa skills.Provider.
+// DisableSkill implements skills.Provider.
 func (d *Deps) DisableSkill(ctx context.Context, name string) error {
 	if d.SkillsPort == nil {
 		return nil
@@ -794,7 +794,7 @@ func (d *Deps) DisableSkill(ctx context.Context, name string) error {
 	return d.SkillsPort.DisableSkill(name)
 }
 
-// DeleteSkill implementa skills.Provider.
+// DeleteSkill implements skills.Provider.
 func (d *Deps) DeleteSkill(ctx context.Context, name string) error {
 	if d.SkillsPort == nil {
 		return nil
@@ -802,7 +802,7 @@ func (d *Deps) DeleteSkill(ctx context.Context, name string) error {
 	return d.SkillsPort.DeleteSkill(name)
 }
 
-// ImportSkill implementa skills.Provider.
+// ImportSkill implements skills.Provider.
 func (d *Deps) ImportSkill(ctx context.Context, data []byte) error {
 	if d.SkillsPort == nil {
 		return nil
@@ -810,7 +810,7 @@ func (d *Deps) ImportSkill(ctx context.Context, data []byte) error {
 	return d.SkillsPort.ImportSkill(data)
 }
 
-// WriteSystemFile implementa skills.Provider.
+// WriteSystemFile implements skills.Provider.
 func (d *Deps) WriteSystemFile(ctx context.Context, name, content string) error {
 	if d.SysFilesPort == nil {
 		return nil
@@ -820,7 +820,7 @@ func (d *Deps) WriteSystemFile(ctx context.Context, name, content string) error 
 
 // ─── Tools provider ─────────────────────────────────────────────────────────
 
-// ToolPermissions implementa tools.Provider.
+// ToolPermissions implements tools.Provider.
 func (d *Deps) ToolPermissions(ctx context.Context, userID string) ([]dto.ToolPermissionRecord, error) {
 	if d.ToolPermRepo == nil {
 		return nil, nil
@@ -828,7 +828,7 @@ func (d *Deps) ToolPermissions(ctx context.Context, userID string) ([]dto.ToolPe
 	return d.ToolPermRepo.ListByUser(ctx, userID)
 }
 
-// PendingPairings implementa tools.Provider.
+// PendingPairings implements tools.Provider.
 func (d *Deps) PendingPairings(ctx context.Context) ([]dto.PairingSnapshot, error) {
 	if d.PairingPort == nil {
 		return nil, nil
@@ -836,7 +836,7 @@ func (d *Deps) PendingPairings(ctx context.Context) ([]dto.PairingSnapshot, erro
 	return d.PairingPort.ListActive(ctx)
 }
 
-// Users implementa tools.Provider.
+// Users implements tools.Provider.
 func (d *Deps) Users(ctx context.Context) ([]dto.UserSnapshot, error) {
 	if d.UserRepo == nil {
 		return nil, nil
@@ -861,7 +861,7 @@ func (d *Deps) Users(ctx context.Context) ([]dto.UserSnapshot, error) {
 	return out, nil
 }
 
-// AgentName implementa tools.Provider. Devuelve el nombre del agente desde ajustes.
+// AgentName implements tools.Provider. Returns the agent name from settings.
 func (d *Deps) AgentName(ctx context.Context) string {
 	if d.ConfigSnapshot != nil && d.ConfigSnapshot.Agent != nil {
 		return d.ConfigSnapshot.Agent.Name
@@ -869,7 +869,7 @@ func (d *Deps) AgentName(ctx context.Context) string {
 	return ""
 }
 
-// SetToolPermission implementa tools.Provider.
+// SetToolPermission implements tools.Provider.
 func (d *Deps) SetToolPermission(ctx context.Context, userID, toolName, mode string) error {
 	if d.ToolPermRepo == nil {
 		return nil
@@ -877,7 +877,7 @@ func (d *Deps) SetToolPermission(ctx context.Context, userID, toolName, mode str
 	return d.ToolPermRepo.Set(ctx, userID, toolName, mode)
 }
 
-// DeleteToolPermission implementa tools.Provider.
+// DeleteToolPermission implements tools.Provider.
 func (d *Deps) DeleteToolPermission(ctx context.Context, userID, toolName string) error {
 	if d.ToolPermRepo == nil {
 		return nil
@@ -885,7 +885,7 @@ func (d *Deps) DeleteToolPermission(ctx context.Context, userID, toolName string
 	return d.ToolPermRepo.Delete(ctx, userID, toolName)
 }
 
-// SetAllToolPermissions implementa tools.Provider. Aplica mode a TODAS las herramientas.
+// SetAllToolPermissions implements tools.Provider. Applies mode to ALL tools.
 func (d *Deps) SetAllToolPermissions(ctx context.Context, userID, mode string) error {
 	if d.ToolPermRepo == nil {
 		return nil
@@ -917,7 +917,7 @@ func (d *Deps) SetAllToolPermissions(ctx context.Context, userID, mode string) e
 	return nil
 }
 
-// ApprovePairing implementa tools.Provider.
+// ApprovePairing implements tools.Provider.
 func (d *Deps) ApprovePairing(ctx context.Context, code, userID, displayName string) (*dto.PairingSnapshot, error) {
 	if d.PairingPort == nil {
 		return nil, nil
@@ -925,7 +925,7 @@ func (d *Deps) ApprovePairing(ctx context.Context, code, userID, displayName str
 	return d.PairingPort.Approve(ctx, code, userID, displayName)
 }
 
-// DenyPairing implementa tools.Provider.
+// DenyPairing implements tools.Provider.
 func (d *Deps) DenyPairing(ctx context.Context, code, reason string) error {
 	if d.PairingPort == nil {
 		return nil

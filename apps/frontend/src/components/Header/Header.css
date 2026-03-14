@@ -115,6 +115,38 @@
   color: var(--color-text-muted);
 }
 
+.header__theme {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.header__theme-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  transition: color var(--duration-micro) var(--ease-out),
+              background var(--duration-micro) var(--ease-out);
+}
+
+.header__theme-btn:hover {
+  background: var(--color-bg-selected);
+  color: var(--color-text-secondary);
+}
+
+.header__theme-btn--active {
+  color: var(--color-text-primary);
+}
+
+.header__theme-btn .material-symbols-outlined {
+  font-size: 18px;
+  font-variation-settings: 'FILL' 0, 'wght' 400;
+}
+
 .header__avatar {
   width: 24px;
   height: 24px;

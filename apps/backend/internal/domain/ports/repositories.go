@@ -162,6 +162,9 @@ type UserChannelRepositoryPort interface {
 	// most recently used channel with the given user. Used to route send_message
 	// to the last channel through which the bot and user communicated.
 	GetLastChannelForUser(ctx context.Context, userID string) (channelType, platformChannelID string, err error)
+	// GetUserIDByName resolves the users.id UUID for a given display name
+	// (users.name). Returns an empty string when no user with that name exists.
+	GetUserIDByName(ctx context.Context, name string) (string, error)
 	// UpdateLastSeen updates last_seen for the given (channelType, platformUserID).
 	// Call when the user sends a message so GetLastChannelForUser returns the correct channel.
 	UpdateLastSeen(ctx context.Context, channelType, platformUserID string) error

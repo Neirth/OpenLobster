@@ -2,28 +2,47 @@ package secrets
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+	"time"
+
+	vault "github.com/hashicorp/vault/api"
 )
 
+const (
+	openbaoTimeout  = 5 * time.Second // short so OAuth/Telegram fail fast if OpenBao is unreachable (e.g. egress blocked)
+	openbaoValueKey = "value"
+)
+
+// OpenBAOProvider implements SecretsProvider using the HashiCorp Vault API client.
+// OpenBao is API-compatible with Vault, so the official SDK works against both.
+// It supports both KV v1 and KV v2 secrets engines: KV v2 is tried first (common default
+// in OpenBao); if the server returns 404, operations fall back to KV v1 paths.
 type OpenBAOProvider struct {
-	client *OpenBAOClient
+	client *vault.Client
 	mount  string
 }
 
-type OpenBAOClient struct {
-	address string
-	token   string
-}
-
+// NewOpenBAOProvider creates a secrets provider that talks to OpenBao (or Vault) at address
+// using the given token. Mount is the secrets engine path (e.g. "secret"). Both KV v1 and
+// KV v2 engines are supported; KV v2 is used when the path exists.
 func NewOpenBAOProvider(address, token, mount string) (*OpenBAOProvider, error) {
 	if mount == "" {
 		mount = "secret"
 	}
+	mount = strings.TrimSuffix(mount, "/")
+	address = strings.TrimSuffix(address, "/")
 
-	client := &OpenBAOClient{
-		address: address,
-		token:   token,
+	cfg := vault.DefaultConfig()
+	cfg.Address = address
+	cfg.HttpClient.Timeout = openbaoTimeout
+
+	client, err := vault.NewClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("vault client: %w", err)
 	}
+	client.SetToken(token)
 
 	return &OpenBAOProvider{
 		client: client,
@@ -31,36 +50,185 @@ func NewOpenBAOProvider(address, token, mount string) (*OpenBAOProvider, error) 
 	}, nil
 }
 
+// pathV1 returns the path for KV v1 (e.g. secret/mcp/remote/notion/token).
+func (p *OpenBAOProvider) pathV1(key string) string {
+	if key == "" {
+		return p.mount + "/"
+	}
+	return p.mount + "/" + key
+}
+
+// pathV2 returns the path for KV v2 read/write/delete (e.g. secret/data/mcp/remote/notion/token).
+func (p *OpenBAOProvider) pathV2(key string) string {
+	if key == "" {
+		return p.mount + "/data/"
+	}
+	return p.mount + "/data/" + key
+}
+
+// pathV2List returns the path for KV v2 list (e.g. secret/metadata/mcp/remote).
+func (p *OpenBAOProvider) pathV2List(prefix string) string {
+	if prefix == "" {
+		return p.mount + "/metadata/"
+	}
+	return p.mount + "/metadata/" + strings.TrimSuffix(prefix, "/")
+}
+
+// isNotFound returns true if the error is an HTTP 404 from Vault/OpenBao.
+func isNotFound(err error) bool {
+	var respErr *vault.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.StatusCode == 404
+	}
+	return false
+}
+
+// formatOpenbaoError normalizes errors returned by the Vault/OpenBao client
+// so log messages are more useful (HTTP status codes and common causes).
+func formatOpenbaoError(op, key string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// Context cancellations: indicate timeout or process shutdown.
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("openbao %s %q: operation canceled (context canceled: check connectivity/network or timeouts)", op, key)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("openbao %s %q: deadline exceeded (OpenBao did not respond in time)", op, key)
+	}
+
+	// HTTP errors from the Vault/OpenBao server.
+	var respErr *vault.ResponseError
+	if errors.As(err, &respErr) {
+		joined := strings.Join(respErr.Errors, "; ")
+		// Very common case: Vault/OpenBao sealed.
+		if respErr.StatusCode == 503 && strings.Contains(strings.ToLower(joined), "sealed") {
+			return fmt.Errorf("openbao %s %q: sealed backend (HTTP %d: %s)", op, key, respErr.StatusCode, joined)
+		}
+		return fmt.Errorf("openbao %s %q: HTTP error from backend (status=%d): %s", op, key, respErr.StatusCode, joined)
+	}
+
+	// Generic fallback preserving the original error.
+	return fmt.Errorf("openbao %s %q: %w", op, key, err)
+}
+
 func (p *OpenBAOProvider) Get(ctx context.Context, key string) (string, error) {
-	return p.client.Get(p.mount, key)
+	// Try KV v2 first (path secret/data/key; response has data.data.value).
+	pathV2 := p.pathV2(key)
+	secret, err := p.client.Logical().ReadWithContext(ctx, pathV2)
+	if err == nil && secret != nil && secret.Data != nil {
+		if data, ok := secret.Data["data"].(map[string]interface{}); ok {
+			if v, ok := data[openbaoValueKey].(string); ok {
+				return v, nil
+			}
+		}
+		return "", nil
+	}
+	if err != nil && !isNotFound(err) {
+		return "", formatOpenbaoError("read", key, err)
+	}
+	// Fallback: KV v1 (path secret/key; response has data.value).
+	pathV1 := p.pathV1(key)
+	secret, err = p.client.Logical().ReadWithContext(ctx, pathV1)
+	if err != nil {
+		return "", formatOpenbaoError("read", key, err)
+	}
+	if secret == nil || secret.Data == nil {
+		return "", nil
+	}
+	if v, ok := secret.Data[openbaoValueKey].(string); ok {
+		return v, nil
+	}
+	return "", nil
 }
 
 func (p *OpenBAOProvider) Set(ctx context.Context, key string, value string) error {
-	return p.client.Set(p.mount, key, value)
+	// Try KV v2 first: body is {"data": {"value": "..."}}.
+	pathV2 := p.pathV2(key)
+	_, err := p.client.Logical().WriteWithContext(ctx, pathV2, map[string]interface{}{
+		"data": map[string]interface{}{openbaoValueKey: value},
+	})
+	if err == nil {
+		return nil
+	}
+	if !isNotFound(err) {
+		// 405 Method Not Allowed or other error: backend might be KV v1.
+		var respErr *vault.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == 405 {
+			// Fall through to KV v1.
+		} else {
+			return formatOpenbaoError("write", key, err)
+		}
+	}
+	// Fallback: KV v1 (body {"value": "..."}).
+	pathV1 := p.pathV1(key)
+	_, err = p.client.Logical().WriteWithContext(ctx, pathV1, map[string]interface{}{
+		openbaoValueKey: value,
+	})
+	if err != nil {
+		return formatOpenbaoError("write", key, err)
+	}
+	return nil
 }
 
 func (p *OpenBAOProvider) Delete(ctx context.Context, key string) error {
-	return p.client.Delete(p.mount, key)
+	pathV2 := p.pathV2(key)
+	_, err := p.client.Logical().DeleteWithContext(ctx, pathV2)
+	if err == nil {
+		return nil
+	}
+	if !isNotFound(err) {
+		var respErr *vault.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == 405 {
+			// Fall through to KV v1.
+		} else {
+			return formatOpenbaoError("delete", key, err)
+		}
+	}
+	pathV1 := p.pathV1(key)
+	_, err = p.client.Logical().DeleteWithContext(ctx, pathV1)
+	if err != nil {
+		return formatOpenbaoError("delete", key, err)
+	}
+	return nil
 }
 
 func (p *OpenBAOProvider) List(ctx context.Context, prefix string) ([]string, error) {
-	return p.client.List(p.mount, prefix)
-}
-
-func (c *OpenBAOClient) Get(mount, key string) (string, error) {
-	return "", fmt.Errorf("OpenBAO client not initialized - requires openbao library")
-}
-
-func (c *OpenBAOClient) Set(mount, key, value string) error {
-	return fmt.Errorf("OpenBAO client not initialized")
-}
-
-func (c *OpenBAOClient) Delete(mount, key string) error {
-	return fmt.Errorf("OpenBAO client not initialized")
-}
-
-func (c *OpenBAOClient) List(mount, prefix string) ([]string, error) {
-	return nil, fmt.Errorf("OpenBAO client not initialized")
+	parseKeys := func(data map[string]interface{}) []string {
+		raw, ok := data["keys"].([]interface{})
+		if !ok || len(raw) == 0 {
+			return nil
+		}
+		keys := make([]string, 0, len(raw))
+		for _, k := range raw {
+			if s, ok := k.(string); ok {
+				keys = append(keys, strings.TrimSuffix(s, "/"))
+			}
+		}
+		return keys
+	}
+	// Try KV v2 list path: secret/metadata/prefix.
+	pathV2 := p.pathV2List(prefix)
+	secret, err := p.client.Logical().ListWithContext(ctx, pathV2)
+	if err == nil && secret != nil && secret.Data != nil {
+		if k := parseKeys(secret.Data); len(k) > 0 {
+			return k, nil
+		}
+	}
+	if err != nil && !isNotFound(err) {
+		return nil, formatOpenbaoError("list", prefix, err)
+	}
+	// Fallback: KV v1 list path (secret/prefix).
+	pathV1 := p.pathV1(prefix)
+	secret, err = p.client.Logical().ListWithContext(ctx, pathV1)
+	if err != nil {
+		return nil, formatOpenbaoError("list", prefix, err)
+	}
+	if secret == nil || secret.Data == nil {
+		return nil, nil
+	}
+	return parseKeys(secret.Data), nil
 }
 
 var _ SecretsProvider = (*OpenBAOProvider)(nil)

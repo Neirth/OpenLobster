@@ -1,6 +1,6 @@
 package dto
 
-// DTOs para el API GraphQL del dashboard. Capa de presentación.
+// DTOs for the dashboard GraphQL API. Presentation layer.
 
 type AgentSnapshot struct {
 	ID            string

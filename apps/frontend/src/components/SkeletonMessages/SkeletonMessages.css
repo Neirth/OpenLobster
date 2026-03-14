@@ -1,0 +1,64 @@
+/* Skeleton loading for chat messages */
+
+.chat-thread__skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.msg-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 420px;
+}
+
+.msg-skeleton__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.msg-skeleton__block {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.14) 40%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: chatSkeletonShimmer 1.2s ease-in-out infinite;
+}
+
+.msg-skeleton__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+}
+
+.msg-skeleton__name {
+  width: 80px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.msg-skeleton__line {
+  width: 60%;
+  height: 12px;
+  border-radius: 8px;
+}
+
+.msg-skeleton__line--wide {
+  width: 90%;
+}
+
+@keyframes chatSkeletonShimmer {
+  0% {
+    background-position: -60% 0;
+  }
+  100% {
+    background-position: 160% 0;
+  }
+}
+

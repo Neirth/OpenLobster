@@ -23,7 +23,7 @@ import {
   useConfig,
 } from "@openlobster/ui/hooks";
 import { client } from "../../graphql/client";
-import AppShell from "../../components/AppShell/AppShell";
+import AppShell from "../../components/AppShell";
 import "./DashboardView.css";
 
 /**

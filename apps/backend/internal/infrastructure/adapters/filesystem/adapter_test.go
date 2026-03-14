@@ -191,7 +191,7 @@ func TestListContent_FileEntries(t *testing.T) {
 	assert.True(t, dirEntry.IsDir)
 }
 
-// ─── Protección de archivo de configuración ───────────────────────────────────
+// ─── Configuration file protection ───────────────────────────────────────────
 
 func TestReadFile_ProtectedConfig(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -242,14 +242,14 @@ func TestListContent_ProtectedConfig(t *testing.T) {
 
 	_, err := adapter.ListContent(t.Context(), filepath.Dir(configPath))
 	assert.NoError(t, err)
-	// Listar el directorio padre está permitido; solo ReadFile/WriteFile/EditFile del archivo concreto están bloqueados
+	// Listing the parent directory is allowed; only ReadFile/WriteFile/EditFile for the specific file are blocked.
 }
 
 func TestNewAdapter_EmptyPath(t *testing.T) {
-	// Path vacío: filepath.Abs falla, se usa configPath como está
+	// Empty path: filepath.Abs fails, configPath is used as-is.
 	adapter := NewAdapter("")
 	assert.NotNil(t, adapter)
-	// Con configPath vacío, isProtected retorna false; ReadFile de un path normal funciona
+	// With an empty configPath, isProtected returns false; ReadFile for a normal path works.
 	tmpDir := t.TempDir()
 	f := filepath.Join(tmpDir, "test.txt")
 	require.NoError(t, os.WriteFile(f, []byte("ok"), 0644))

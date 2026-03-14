@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -27,6 +28,15 @@ import (
 	"time"
 
 	"github.com/neirth/openlobster/internal/infrastructure/secrets"
+)
+
+// Timeouts for OAuth flow so failures surface quickly (no long freezes).
+const (
+	oauthDiscoveryTimeout    = 3 * time.Second
+	oauthRegistrationTimeout = 3 * time.Second
+	oauthSecretsTimeout      = 5 * time.Second
+	oauthTokenExchangeTimeout = 5 * time.Second
+	oauthInitiateTotalTimeout = 12 * time.Second
 )
 
 // DefaultCallbackBaseURL is the fallback redirect_uri when none is configured.
@@ -79,24 +89,27 @@ type authServerMetadata struct {
 //     b. Root: https://authServerBase/.well-known/oauth-authorization-server
 //  3. GET /.well-known/oauth-authorization-server directly on the resource host.
 //  4. Fall back to default paths derived from the resource server base URL.
-func discoverAuthServer(mcpURL string) (*authServerMetadata, error) {
+func discoverAuthServer(ctx context.Context, mcpURL string) (*authServerMetadata, error) {
 	parsed, err := url.Parse(mcpURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse mcp url: %w", err)
+		return nil, fmt.Errorf("oauth: invalid URL %q: %w", mcpURL, err)
 	}
 	// Resource server base URL: scheme + host (discard path per spec §3.1)
 	resourceBase := fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
 	mcpPath := parsed.Path // e.g. "/mcp/" — used for path-qualified well-known URLs
 
-	httpClient := &http.Client{Timeout: 5 * time.Second}
+	httpClient := &http.Client{Timeout: oauthDiscoveryTimeout}
 
 	fetchMeta := func(metaURL string) (*authServerMetadata, bool) {
-		req, _ := http.NewRequest(http.MethodGet, metaURL, nil)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, metaURL, nil)
 		req.Header.Set("MCP-Protocol-Version", "2025-03-26")
 		resp, err := httpClient.Do(req)
 		if err != nil || resp.StatusCode != http.StatusOK {
 			if resp != nil {
 				resp.Body.Close()
+			}
+			if err != nil {
+				log.Printf("oauth: discovery GET %s: %v", metaURL, err)
 			}
 			return nil, false
 		}
@@ -140,7 +153,7 @@ func discoverAuthServer(mcpURL string) (*authServerMetadata, error) {
 	type protectedResourceDoc struct {
 		AuthorizationServers []string `json:"authorization_servers"`
 	}
-	protectedReq, _ := http.NewRequest(http.MethodGet, resourceBase+"/.well-known/oauth-protected-resource"+mcpPath, nil)
+	protectedReq, _ := http.NewRequestWithContext(ctx, http.MethodGet, resourceBase+"/.well-known/oauth-protected-resource"+mcpPath, nil)
 	protectedReq.Header.Set("MCP-Protocol-Version", "2025-03-26")
 	if protectedResp, err := httpClient.Do(protectedReq); err == nil && protectedResp.StatusCode == http.StatusOK {
 		var doc protectedResourceDoc
@@ -160,6 +173,7 @@ func discoverAuthServer(mcpURL string) (*authServerMetadata, error) {
 	}
 
 	// Step 4: fall back to default paths (spec §3.1.5)
+	log.Printf("oauth: discovery: no well-known document for %s, using default authorize/token paths", resourceBase)
 	return &authServerMetadata{
 		AuthorizationEndpoint: resourceBase + "/authorize",
 		TokenEndpoint:         resourceBase + "/token",
@@ -172,7 +186,7 @@ func discoverAuthServer(mcpURL string) (*authServerMetadata, error) {
 // registerClient performs Dynamic Client Registration and returns the
 // assigned client_id. If registration_endpoint is empty, returns "" without
 // error so callers can fall back to a hard-coded client_id.
-func registerClient(registrationEndpoint, callbackBaseURL string) (clientID string, err error) {
+func registerClient(ctx context.Context, registrationEndpoint, callbackBaseURL string) (clientID string, err error) {
 	if registrationEndpoint == "" {
 		return "", nil
 	}
@@ -183,21 +197,26 @@ func registerClient(registrationEndpoint, callbackBaseURL string) (clientID stri
 		"response_types": ["code"],
 		"token_endpoint_auth_method": "none"
 	}`
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(registrationEndpoint, "application/json", strings.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registrationEndpoint, strings.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("dynamic client registration: %w", err)
+		return "", fmt.Errorf("oauth: create registration request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: oauthRegistrationTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("oauth: dynamic client registration at %s: %w", registrationEndpoint, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("dynamic client registration failed (%d): %s", resp.StatusCode, raw)
+		return "", fmt.Errorf("oauth: dynamic registration failed (%d) at %s: %s", resp.StatusCode, registrationEndpoint, raw)
 	}
 	var result struct {
 		ClientID string `json:"client_id"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode registration response: %w", err)
+		return "", fmt.Errorf("oauth: invalid registration response: %w", err)
 	}
 	return result.ClientID, nil
 }
@@ -286,29 +305,58 @@ func (m *OAuthManager) RemovePendingServer(name string) {
 	delete(m.serverURLs, name)
 }
 
+// SetClientID persists a custom client_id for the given server (e.g. from "advanced options"
+// when adding an MCP server). InitiateOAuth will use it instead of dynamic registration.
+func (m *OAuthManager) SetClientID(ctx context.Context, serverName, clientID string) error {
+	if clientID == "" {
+		return nil
+	}
+	key := fmt.Sprintf("mcp/remote/%s/client_id", serverName)
+	return m.secrets.Set(ctx, key, clientID)
+}
+
 // InitiateOAuth starts the Authorization Code + PKCE flow for a remote MCP.
 // Returns the authorization URL that the user must open in a browser.
 func (m *OAuthManager) InitiateOAuth(ctx context.Context, serverName, mcpURL string) (string, error) {
-	meta, err := discoverAuthServer(mcpURL)
+	ctx, cancel := context.WithTimeout(ctx, oauthInitiateTotalTimeout)
+	defer cancel()
+
+	log.Printf("oauth: starting flow for server %q (%s)", serverName, mcpURL)
+
+	meta, err := discoverAuthServer(ctx, mcpURL)
 	if err != nil {
-		return "", fmt.Errorf("discover auth server: %w", err)
+		return "", fmt.Errorf("oauth: discover authorization server for %s: %w", mcpURL, err)
 	}
 
-	// Try dynamic client registration; use "openlobster" as fallback client_id
-	clientID, err := registerClient(meta.RegistrationEndpoint, m.callbackBaseURL)
-	if err != nil || clientID == "" {
-		clientID = "openlobster"
+	clientIDKey := fmt.Sprintf("mcp/remote/%s/client_id", serverName)
+	var clientID string
+	// Use custom client_id from secrets if set (e.g. via "advanced options" when adding the server)
+	if existing, getErr := m.secrets.Get(ctx, clientIDKey); getErr == nil && existing != "" {
+		clientID = existing
+	} else {
+		// Try dynamic client registration; use "openlobster" as fallback client_id
+		clientID, err = registerClient(ctx, meta.RegistrationEndpoint, m.callbackBaseURL)
+		if err != nil || clientID == "" {
+			if err != nil {
+				log.Printf("oauth: dynamic registration failed for %s: %v (using client_id openlobster)", serverName, err)
+			}
+			clientID = "openlobster"
+		}
 	}
-	// Persist client_id for future sessions
-	_ = m.secrets.Set(ctx, fmt.Sprintf("mcp/remote/%s/client_id", serverName), clientID)
+
+	// Persist client_id for future sessions; if secrets backend (e.g. OpenBao) is unreachable, fail fast with a clear error
+	if err := m.secrets.Set(ctx, clientIDKey, clientID); err != nil {
+		log.Printf("oauth: ERROR saving client_id in secrets (key %s): %v", clientIDKey, err)
+		return "", fmt.Errorf("oauth: could not persist client_id in secrets backend (ensure OpenBao/Vault is reachable from the pod): %w", err)
+	}
 
 	verifier, err := generateCodeVerifier()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("oauth: generate code_verifier: %w", err)
 	}
 	state, err := generateState()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("oauth: generate state: %w", err)
 	}
 
 	m.mu.Lock()
@@ -370,14 +418,17 @@ func (m *OAuthManager) HandleCallback(ctx context.Context, code, state, errParam
 		return "", err
 	}
 
-	// Persist token in SecretsProvider
+	// Persist token in SecretsProvider (short timeout so callback fails fast if OpenBao is unreachable)
 	tokenKey := fmt.Sprintf("mcp/remote/%s/token", entry.ServerName)
-	if err := m.secrets.Set(ctx, tokenKey, token); err != nil {
+	storeCtx, storeCancel := context.WithTimeout(ctx, oauthSecretsTimeout)
+	defer storeCancel()
+	if err := m.secrets.Set(storeCtx, tokenKey, token); err != nil {
+		log.Printf("oauth: ERROR saving token in secrets (key %s): %v", tokenKey, err)
 		m.mu.Lock()
 		m.statuses[entry.ServerName] = OAuthStatusError
 		m.errs[entry.ServerName] = err.Error()
 		m.mu.Unlock()
-		return "", fmt.Errorf("store token: %w", err)
+		return "", fmt.Errorf("oauth: could not persist token in secrets backend (check OpenBao/Vault): %w", err)
 	}
 
 	m.mu.Lock()
@@ -408,16 +459,16 @@ func exchangeCode(entry *oauthPendingEntry, code string) (string, error) {
 	body.Set("client_id", entry.ClientID)
 	body.Set("code_verifier", entry.CodeVerifier)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: oauthTokenExchangeTimeout}
 	resp, err := client.PostForm(entry.TokenEndpoint, body)
 	if err != nil {
-		return "", fmt.Errorf("token exchange: %w", err)
+		return "", fmt.Errorf("oauth: code exchange at %s: %w", entry.TokenEndpoint, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, raw)
+		return "", fmt.Errorf("oauth: token endpoint %s returned %d: %s", entry.TokenEndpoint, resp.StatusCode, raw)
 	}
 
 	var result struct {
@@ -425,10 +476,10 @@ func exchangeCode(entry *oauthPendingEntry, code string) (string, error) {
 		TokenType   string `json:"token_type"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode token response: %w", err)
+		return "", fmt.Errorf("oauth: invalid token response: %w", err)
 	}
 	if result.AccessToken == "" {
-		return "", fmt.Errorf("token endpoint returned empty access_token")
+		return "", fmt.Errorf("oauth: token endpoint returned an empty access_token")
 	}
 	return result.AccessToken, nil
 }

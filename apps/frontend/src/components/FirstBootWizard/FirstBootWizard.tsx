@@ -736,7 +736,7 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                         <Input
                           label={t("marketplace.endpoint")}
                           type="url"
-                          value={detailUrl()}
+                          value={detailUrl() || server.url}
                           onInput={(e) => setDetailUrl(e.currentTarget.value)}
                           placeholder="https://..."
                         />

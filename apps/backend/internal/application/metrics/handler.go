@@ -9,17 +9,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Handler sirve el endpoint /metrics en formato Prometheus.
+// Handler serves the /metrics endpoint in Prometheus format.
 type Handler struct {
 	deps *resolvers.Deps
 }
 
-// NewHandler crea el handler HTTP para métricas.
+// NewHandler creates the HTTP handler for metrics.
 func NewHandler(deps *resolvers.Deps) *Handler {
 	return &Handler{deps: deps}
 }
 
-// ServeHTTP escribe métricas en formato Prometheus.
+// ServeHTTP writes metrics in Prometheus format.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m := h.deps.Metrics(r.Context())
 	if m == nil {

@@ -9,23 +9,23 @@ import (
 	"github.com/neirth/openlobster/internal/application/graphql/resolvers"
 )
 
-// Handler proporciona utilidades para GraphQL (p. ej. actualizar canales).
+// Handler provides utilities for GraphQL (e.g. updating channels).
 type Handler struct {
 	deps *resolvers.Deps
 }
 
-// NewHandler crea el handler para GraphQL.
+// NewHandler creates the GraphQL handler.
 func NewHandler(deps *resolvers.Deps) *Handler {
 	return &Handler{deps: deps}
 }
 
-// UpdateAgentChannels actualiza los canales del agente en el registry.
+// UpdateAgentChannels updates the agent channels in the registry.
 func (h *Handler) UpdateAgentChannels(channels []dto.ChannelStatus) {
 	h.deps.AgentRegistry.UpdateAgentChannels(channels)
 }
 
-// NewGraphQLServer devuelve un http.Handler que sirve la API GraphQL.
-// Usado por tests de integración y e2e.
+// NewGraphQLServer returns an http.Handler that serves the GraphQL API.
+// Used by integration and e2e tests.
 func NewGraphQLServer(deps *resolvers.Deps) http.Handler {
 	r := resolvers.NewResolver(deps)
 	schema := generated.NewExecutableSchema(generated.Config{Resolvers: r})

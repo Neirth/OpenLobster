@@ -61,18 +61,24 @@ func (r *repository) Update(ctx context.Context, user *domainmodels.User) error 
 
 func (r *repository) ListAll(ctx context.Context) ([]domainmodels.User, error) {
 	var userModels []domainmodels.UserModel
-	if err := r.db.WithContext(ctx).Order("created_at DESC").Find(&userModels).Error; err != nil {
+	// Exclude reserved system users (e.g. "loopback") that have non-UUID IDs.
+	if err := r.db.WithContext(ctx).Order("created_at DESC").
+		Where("length(id) = 36").Find(&userModels).Error; err != nil {
 		return nil, err
 	}
-	users := make([]domainmodels.User, len(userModels))
-	for i, m := range userModels {
-		users[i] = domainmodels.User{
-			ID:        uuid.MustParse(m.ID),
+	users := make([]domainmodels.User, 0, len(userModels))
+	for _, m := range userModels {
+		id, err := uuid.Parse(m.ID)
+		if err != nil {
+			continue // skip non-UUID system rows
+		}
+		users = append(users, domainmodels.User{
+			ID:        id,
 			PrimaryID: m.PrimaryID,
 			Name:      m.Name,
 			CreatedAt: m.CreatedAt,
 			UpdatedAt: m.UpdatedAt,
-		}
+		})
 	}
 	return users, nil
 }

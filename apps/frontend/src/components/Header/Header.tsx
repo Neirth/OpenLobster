@@ -17,6 +17,7 @@ import type { GraphQLClient } from "graphql-request";
 import { A } from "@solidjs/router";
 import { useAgent } from "@openlobster/ui/hooks";
 import { t } from "../../App";
+import { effectiveTheme, setTheme } from "../../stores/themeStore";
 import { wsConnected } from "../../stores/wsStore";
 import "./Header.css";
 
@@ -93,6 +94,28 @@ const Header: Component<HeaderProps> = (props) => {
         />
         <span class="header__agent-name">{agent.data?.name ?? t("header.defaultAgentName")}</span>
         <span class="header__version">v{agent.data?.version ?? "0.1.0"}</span>
+        <div class="header__theme" role="group" aria-label={t("header.themeLabel")}>
+          <button
+            type="button"
+            class="header__theme-btn"
+            classList={{ "header__theme-btn--active": effectiveTheme() === "light" }}
+            onClick={() => setTheme("light")}
+            aria-label={t("header.themeLight")}
+            title={t("header.themeLight")}
+          >
+            <span class="material-symbols-outlined" aria-hidden>light_mode</span>
+          </button>
+          <button
+            type="button"
+            class="header__theme-btn"
+            classList={{ "header__theme-btn--active": effectiveTheme() === "dark" }}
+            onClick={() => setTheme("dark")}
+            aria-label={t("header.themeDark")}
+            title={t("header.themeDark")}
+          >
+            <span class="material-symbols-outlined" aria-hidden>dark_mode</span>
+          </button>
+        </div>
         <span class="header__avatar">
           <span
             class="material-symbols-outlined"

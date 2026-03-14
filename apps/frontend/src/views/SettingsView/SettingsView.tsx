@@ -13,7 +13,7 @@ import {
 } from "@openlobster/ui/graphql/queries";
 import { WRITE_SYSTEM_FILE_MUTATION } from "@openlobster/ui/graphql/mutations";
 import { GRAPHQL_ENDPOINT } from "../../graphql/client";
-import AppShell from "../../components/AppShell/AppShell";
+import AppShell from "../../components/AppShell";
 import "./SettingsView.css";
 
 /**
@@ -26,7 +26,7 @@ function graphqlHeaders(): Record<string, string> {
   return headers;
 }
 
-/** Valores por defecto del formulario cuando la carga falla o para inicialización. */
+/** Default form values used when loading fails or for initialisation. */
 function getDefaultFormValues(): Record<string, any> {
   return {
     agentName: "OpenLobster",
@@ -86,7 +86,7 @@ function getDefaultFormValues(): Record<string, any> {
   };
 }
 
-/** Tabla 3x2 con enlaces a documentación para crear bots en cada plataforma. */
+/** 3x2 table with documentation links for creating bots on each platform. */
 const BOT_DOC_LINKS: { labelKey: string; href: string }[] = [
   { labelKey: "settings.docTelegram", href: "https://core.telegram.org/bots" },
   { labelKey: "settings.docDiscord", href: "https://discord.com/developers/docs" },
@@ -157,7 +157,7 @@ const SettingsView: Component = () => {
           type: "error",
           text: t("settings.loadError"),
         });
-        // Aún así cargar valores por defecto para que el formulario sea editable (incl. graphqlBaseUrl)
+        // Still load default values so the form remains editable (including graphqlBaseUrl).
         setFormValues(getDefaultFormValues());
         return;
       }
@@ -248,7 +248,7 @@ const SettingsView: Component = () => {
             ? error.message
             : "Failed to load configuration",
       });
-      // Cargar valores por defecto para que el formulario sea editable (incl. graphqlBaseUrl)
+      // Load default values so the form remains editable (including graphqlBaseUrl).
       setFormValues(getDefaultFormValues());
     } finally {
       clearTimeout(timeoutId);
@@ -554,7 +554,7 @@ const SettingsView: Component = () => {
         </section>
       </div>
 
-      {/* Documentation links - tabla 3x2 */}
+      {/* Documentation links - 3x2 table */}
       <section class="settings-section settings-section--spaced settings-doc-links">
         <h2 class="section-title">{t("settings.botDocsTitle")}</h2>
         <div class="settings-doc-links__grid">

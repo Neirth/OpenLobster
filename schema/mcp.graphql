@@ -61,8 +61,9 @@ extend type Query {
 extend type Mutation {
   connectMcp(
     name:      String!
-    transport: String
-    url:       String
+    transport: String!
+    url:       String!
+    clientId:  String   # optional; custom OAuth client_id from "advanced options"
   ): MCPConnectResult!
   disconnectMcp(name: String!): Boolean!
   initiateOAuth(name: String!, url: String!): OAuthInitiateResult!

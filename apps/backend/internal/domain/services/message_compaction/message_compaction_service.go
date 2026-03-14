@@ -35,7 +35,7 @@ func (c *Service) SetAIProvider(p ports.AIProviderPort) {
 	c.aiProvider = p
 }
 
-// MinUserMessagesForCompaction: no compactar hasta tener conversación real.
+// MinUserMessagesForCompaction: do not compact until there is a real conversation.
 const MinUserMessagesForCompaction = 2
 
 // ShouldCompact returns true when the CONVERSATION (user/assistant/tool) token usage
@@ -51,7 +51,7 @@ func (c *Service) ShouldCompact(messages []ports.ChatMessage, modelMaxTokens int
 	if userCount < MinUserMessagesForCompaction {
 		return false
 	}
-	// Solo contar tokens de la conversación (user, assistant, tool), no system.
+	// Count tokens only from the conversation (user, assistant, tool), not system.
 	conversationTokens := estimateConversationTokens(messages)
 	threshold := int(float64(modelMaxTokens) * c.ThresholdRatio)
 	return conversationTokens >= threshold

@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: see LICENSE
 
 // Package ollama provides an AI provider adapter backed by a local Ollama instance.
-// It delegates all HTTP and streaming logic to the official Ollama Go SDK
-// (github.com/ollama/ollama/api), keeping this file focused on protocol
-// translation between the domain ports and the SDK types.
+// It communicates directly with the Ollama REST API over HTTP, with no external SDK dependency.
 package ollama
 
 import (
@@ -23,7 +21,6 @@ import (
 	"strings"
 	"sync"
 
-	ollamaapi "github.com/ollama/ollama/api"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
@@ -73,7 +70,7 @@ func ensureOllamaPrivateKey() {
 
 // Adapter implements ports.AIProviderPort using the official Ollama Go SDK.
 type Adapter struct {
-	client    *ollamaapi.Client
+	client    *Client
 	model     string
 	maxTokens int
 	debug     bool
@@ -109,7 +106,7 @@ func newAdapter(baseURL, apiKey, model string, maxTokens int, debug bool) *Adapt
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		log.Printf("ollama: invalid endpoint %q, using default: %v", baseURL, err)
-		c, _ := ollamaapi.ClientFromEnvironment()
+		c, _ := ClientFromEnvironment()
 		return &Adapter{client: c, model: model, maxTokens: maxTokens, debug: debug}
 	}
 	httpClient := http.DefaultClient
@@ -119,7 +116,7 @@ func newAdapter(baseURL, apiKey, model string, maxTokens int, debug bool) *Adapt
 		}
 	}
 	return &Adapter{
-		client:    ollamaapi.NewClient(u, httpClient),
+		client:    NewClient(u, httpClient),
 		model:     model,
 		maxTokens: maxTokens,
 		debug:     debug,
@@ -159,7 +156,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 	}
 
 	stream := false
-	ollamaReq := &ollamaapi.ChatRequest{
+	ollamaReq := &ChatRequest{
 		Model:    a.model,
 		Messages: messages,
 		Tools:    tools,
@@ -169,8 +166,8 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		},
 	}
 
-	var sdkResp ollamaapi.ChatResponse
-	err := a.client.Chat(ctx, ollamaReq, func(r ollamaapi.ChatResponse) error {
+	var sdkResp ChatResponse
+	err := a.client.Chat(ctx, ollamaReq, func(r ChatResponse) error {
 		sdkResp = r
 		return nil
 	})
@@ -264,8 +261,13 @@ func sanitizeMessagesForOllama(messages []ports.ChatMessage) []ports.ChatMessage
 	for _, m := range messages {
 		if m.Role == "tool" {
 			if m.ToolCallID == "" {
-				log.Printf("ollama: dropping tool message with empty tool_call_id")
-				continue
+				// Tool messages without a tool_call_id come from internal logging
+				// (e.g. persisted MCP/tool outputs) and are never part of the
+				// function-calling protocol expected by Ollama. Drop them
+				// silently from the history we send to the provider to avoid
+				// noisy logs and potential confusion, while keeping the user
+				//‑visible history unaffected.
+				continue // drop tool messages that cannot be correlated
 			}
 			if !validIDs[m.ToolCallID] {
 				log.Printf("ollama: dropping orphan tool message (tool_call_id=%q not in any assistant)", m.ToolCallID)
@@ -284,8 +286,8 @@ func sanitizeMessagesForOllama(messages []ports.ChatMessage) []ports.ChatMessage
 
 // collectImageBlocks extracts image bytes from multimodal content blocks.
 // Only blocks with pre-downloaded Data are used; audio and text blocks are ignored.
-func collectImageBlocks(blocks []ports.ContentBlock) []ollamaapi.ImageData {
-	var images []ollamaapi.ImageData
+func collectImageBlocks(blocks []ports.ContentBlock) []ImageData {
+	var images []ImageData
 	for _, b := range blocks {
 		if b.Type != ports.ContentBlockImage {
 			continue
@@ -293,7 +295,7 @@ func collectImageBlocks(blocks []ports.ContentBlock) []ollamaapi.ImageData {
 		// Prefer pre-downloaded data when available.
 		if len(b.Data) > 0 {
 			log.Printf("ollama: image block attached (%d bytes, mime=%s)", len(b.Data), b.MIMEType)
-			images = append(images, ollamaapi.ImageData(b.Data))
+			images = append(images, ImageData(b.Data))
 			continue
 		}
 
@@ -309,10 +311,10 @@ func collectImageBlocks(blocks []ports.ContentBlock) []ollamaapi.ImageData {
 // Ollama can correlate subsequent tool-result messages correctly.
 // User messages with multimodal Blocks have their image data attached via the
 // Images field; other block types (audio, text) are carried in Content.
-func (a *Adapter) convertMessages(messages []ports.ChatMessage) []ollamaapi.Message {
-	result := make([]ollamaapi.Message, len(messages))
+func (a *Adapter) convertMessages(messages []ports.ChatMessage) []Message {
+	result := make([]Message, len(messages))
 	for i, msg := range messages {
-		m := ollamaapi.Message{
+		m := Message{
 			Role:    msg.Role,
 			Content: msg.Content,
 		}
@@ -353,13 +355,13 @@ func (a *Adapter) convertMessages(messages []ports.ChatMessage) []ollamaapi.Mess
 		if len(msg.ToolCalls) > 0 {
 			for idx, tc := range msg.ToolCalls {
 				name := strings.ReplaceAll(tc.Function.Name, ":", "__")
-				var argsObj ollamaapi.ToolCallFunctionArguments
+				var argsObj ToolCallFunctionArguments
 				if err := json.Unmarshal([]byte(tc.Function.Arguments), &argsObj); err != nil {
-					argsObj = ollamaapi.ToolCallFunctionArguments{}
+					argsObj = ToolCallFunctionArguments{}
 				}
-				m.ToolCalls = append(m.ToolCalls, ollamaapi.ToolCall{
+				m.ToolCalls = append(m.ToolCalls, ToolCall{
 					ID: tc.ID,
-					Function: ollamaapi.ToolCallFunction{
+					Function: ToolCallFunction{
 						Index:     idx,
 						Name:      name,
 						Arguments: argsObj,
@@ -375,19 +377,19 @@ func (a *Adapter) convertMessages(messages []ports.ChatMessage) []ollamaapi.Mess
 // convertTools translates domain Tool definitions into SDK Tool types.
 // Colons in qualified MCP tool names (server:tool) are replaced with __ because
 // Ollama enforces the OpenAI function-name character set ([a-zA-Z0-9_-]).
-func (a *Adapter) convertTools(tools []ports.Tool) ollamaapi.Tools {
-	result := make(ollamaapi.Tools, 0, len(tools))
+func (a *Adapter) convertTools(tools []ports.Tool) Tools {
+	result := make(Tools, 0, len(tools))
 	for _, t := range tools {
 		if t.Function == nil {
 			continue
 		}
 		name := strings.ReplaceAll(t.Function.Name, ":", "__")
-		result = append(result, ollamaapi.Tool{
+		result = append(result, Tool{
 			Type: "function",
-			Function: ollamaapi.ToolFunction{
+			Function: ToolFunction{
 				Name:        name,
 				Description: t.Function.Description,
-				Parameters: ollamaapi.ToolFunctionParameters{
+				Parameters: ToolFunctionParameters{
 					Type:       paramType(t.Function.Parameters),
 					Required:   paramRequired(t.Function.Parameters),
 					Properties: paramProperties(t.Function.Parameters),
@@ -423,20 +425,20 @@ func paramRequired(p map[string]interface{}) []string {
 
 // paramProperties converts the "properties" field of a JSON-schema parameters map
 // into the ToolPropertiesMap expected by the Ollama SDK.
-func paramProperties(p map[string]interface{}) *ollamaapi.ToolPropertiesMap {
+func paramProperties(p map[string]interface{}) *ToolPropertiesMap {
 	raw, ok := p["properties"].(map[string]interface{})
 	if !ok {
 		return nil
 	}
-	out := ollamaapi.NewToolPropertiesMap()
+	out := NewToolPropertiesMap()
 	for k, v := range raw {
 		propMap, ok := v.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		prop := ollamaapi.ToolProperty{}
+		prop := ToolProperty{}
 		if t, ok := propMap["type"].(string); ok {
-			prop.Type = ollamaapi.PropertyType{t}
+			prop.Type = PropertyType{t}
 		}
 		prop.Description, _ = propMap["description"].(string)
 		if enums, ok := propMap["enum"].([]interface{}); ok {

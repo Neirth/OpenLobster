@@ -4,7 +4,7 @@
 FROM dhi.io/golang:1.26-debian13-dev AS backend-build
 
 # Install Node.js and pnpm to run backend build scripts
-RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/* \
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm jq && rm -rf /var/lib/apt/lists/* \
     && corepack enable && corepack prepare pnpm@9.1.0 --activate
 
 # Copy project files
@@ -12,7 +12,9 @@ COPY . /build
 WORKDIR /build
 
 # Download Go module dependencies
-RUN cd apps/backend && go mod tidy && go mod download
+WORKDIR /build/apps/backend
+RUN go mod tidy && go mod download
+WORKDIR /build
 
 # Install workspace (needed for pnpm --filter)
 RUN pnpm install --ignore-scripts

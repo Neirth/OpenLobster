@@ -6,7 +6,7 @@ import (
 	"github.com/neirth/openlobster/internal/domain/models"
 )
 
-// MessageRepo expone operaciones sobre mensajes.
+// MessageRepo exposes operations over messages.
 type MessageRepo interface {
 	Save(ctx context.Context, msg *models.Message) error
 	GetByConversation(ctx context.Context, conversationID string, limit int) ([]models.Message, error)
@@ -15,13 +15,13 @@ type MessageRepo interface {
 	CountMessages(ctx context.Context) (recv, sent int64, err error)
 }
 
-// ConversationPort expone conversaciones.
+// ConversationPort exposes conversations.
 type ConversationPort interface {
 	ListConversations() ([]ConversationSnapshot, error)
 	DeleteUser(ctx context.Context, conversationID string) error
 }
 
-// SkillsPort expone operaciones sobre skills.
+// SkillsPort exposes operations over skills.
 type SkillsPort interface {
 	ListSkills() ([]SkillSnapshot, error)
 	EnableSkill(name string) error
@@ -30,13 +30,13 @@ type SkillsPort interface {
 	DeleteSkill(name string) error
 }
 
-// SystemFilesPort expone archivos del sistema.
+// SystemFilesPort exposes system workspace files.
 type SystemFilesPort interface {
 	ListFiles() ([]SystemFileSnapshot, error)
 	WriteFile(name, content string) error
 }
 
-// ToolPermissionsRepo expone permisos de herramientas.
+// ToolPermissionsRepo exposes tool permissions.
 type ToolPermissionsRepo interface {
 	Set(ctx context.Context, userID, toolName, mode string) error
 	Delete(ctx context.Context, userID, toolName string) error
@@ -44,12 +44,12 @@ type ToolPermissionsRepo interface {
 	ListAll(ctx context.Context) ([]ToolPermissionRecord, error)
 }
 
-// ToolNamesSource devuelve los nombres de todas las herramientas (para Deny/Allow All).
+// ToolNamesSource returns the names of all tools (for Deny/Allow All).
 type ToolNamesSource interface {
 	AllToolNames() []string
 }
 
-// MCPServerRepo expone servidores MCP.
+// MCPServerRepo exposes MCP servers.
 type MCPServerRepo interface {
 	Save(ctx context.Context, name, url string) error
 	Delete(ctx context.Context, name string) error
@@ -71,48 +71,50 @@ type McpConnectPort interface {
 type McpOAuthPort interface {
 	InitiateOAuth(ctx context.Context, serverName, mcpURL string) (authURL string, err error)
 	Status(serverName string) (status, errMsg string)
+	// SetClientID persists a custom client_id for the server (used when adding server with "advanced options").
+	SetClientID(ctx context.Context, serverName, clientID string) error
 }
 
-// SubAgentPort expone sub-agentes.
+// SubAgentPort exposes sub-agents.
 type SubAgentPort interface {
 	List(ctx context.Context) ([]SubAgentSnapshot, error)
 	Spawn(ctx context.Context, name, model, task string) (string, error)
 	Kill(ctx context.Context, id string) error
 }
 
-// PairingPort expone operaciones de pairing.
+// PairingPort exposes pairing operations.
 type PairingPort interface {
 	Approve(ctx context.Context, code, userID, displayName string) (*PairingSnapshot, error)
 	Deny(ctx context.Context, code, reason string) error
 	ListActive(ctx context.Context) ([]PairingSnapshot, error)
 }
 
-// UserRepo expone usuarios.
+// UserRepo exposes users.
 type UserRepo interface {
 	Create(ctx context.Context, user *models.User) error
 	GetByID(ctx context.Context, id string) (*models.User, error)
 	ListAll(ctx context.Context) ([]models.User, error)
 }
 
-// UserChannelRepo expone user-channel.
+// UserChannelRepo exposes user-channel mappings.
 type UserChannelRepo interface {
 	ExistsByPlatformUserID(ctx context.Context, platformUserID string) (bool, error)
 	Create(ctx context.Context, userID, channelType, platformUserID, username string) error
 	GetDisplayNameByUserID(ctx context.Context, userID string) (string, error)
 }
 
-// MessageSender envía mensajes a canales.
+// MessageSender sends messages to channels.
 type MessageSender interface {
 	SendTextToChannel(ctx context.Context, channelType, channelID, text string) error
 }
 
-// EventBusPort publica eventos.
+// EventBusPort publishes events.
 type EventBusPort interface {
 	Publish(ctx context.Context, eventType string, payload interface{}) error
 }
 
-// ConfigUpdatePort persiste cambios de configuración y notifica qué canales se afectaron.
-// El caller puede recargar esos canales en caliente.
+// ConfigUpdatePort persists configuration changes and reports which channels were affected.
+// The caller can hot-reload those channels.
 type ConfigUpdatePort interface {
 	Apply(ctx context.Context, input map[string]interface{}) (changedChannels []string, err error)
 }
