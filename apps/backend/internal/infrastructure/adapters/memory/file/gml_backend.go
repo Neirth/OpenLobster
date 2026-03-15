@@ -177,24 +177,42 @@ func (b *GMLBackend) AddKnowledge(_ context.Context, userID string, content stri
 
 	userNode := b.findOrCreateUserInGraph(graphCopy, userID)
 
-	// Deduplication: if a fact node with the same label is already connected
-	// to this user (regardless of edge type), update its value in-place instead
-	// of creating a duplicate node.
-	for _, edge := range graphCopy.Edges {
-		if edge.Source != userNode.ID {
-			continue
-		}
-		if existing, ok := graphCopy.Nodes[edge.Target]; ok && existing.Type == "fact" && strings.EqualFold(existing.Label, factLabel) {
-			existing.Value = content
-			b.graph = graphCopy
-			b.dirty = true
-			b.mu.Unlock()
-			b.schedulePersist(graphCopy.Copy())
-			return nil
+	// Step 1: search for an existing concept node globally (shared across users).
+	existingFactID := -1
+	for id, node := range graphCopy.Nodes {
+		if node.Type == "fact" && strings.EqualFold(node.Label, factLabel) {
+			existingFactID = id
+			node.Value = content // update content in-place
+			break
 		}
 	}
 
-	// No existing fact found — create a new node and edge.
+	if existingFactID >= 0 {
+		// Concept already exists: upsert this user's relation without touching
+		// other users' relations to the same node.
+		userRelated := false
+		for _, edge := range graphCopy.Edges {
+			if edge.Source == userNode.ID && edge.Target == existingFactID {
+				edge.Label = edgeLabel
+				userRelated = true
+				break
+			}
+		}
+		if !userRelated {
+			graphCopy.Edges = append(graphCopy.Edges, &Edge{
+				Source: userNode.ID,
+				Target: existingFactID,
+				Label:  edgeLabel,
+			})
+		}
+		b.graph = graphCopy
+		b.dirty = true
+		b.mu.Unlock()
+		b.schedulePersist(graphCopy.Copy())
+		return nil
+	}
+
+	// No existing concept — create a new node and edge.
 	factID := graphCopy.NextID
 	graphCopy.NextID++
 	graphCopy.Nodes[factID] = &Node{

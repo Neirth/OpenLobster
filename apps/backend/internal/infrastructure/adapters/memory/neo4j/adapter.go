@@ -62,20 +62,39 @@ func (a *Adapter) AddKnowledge(ctx context.Context, userID string, content strin
 		rel = "HAS_FACT"
 	}
 
-	// Deduplication: if a Fact node with the same label already exists for
-	// this user (case-insensitive), update its content in-place.
-	updateResult, err := session.Run(ctx,
-		"MATCH (u:User {id: $userID})-[]->(f:Fact) WHERE toLower(f.label) = toLower($label) SET f.content = $content RETURN f.id AS id LIMIT 1",
-		map[string]interface{}{"userID": userID, "label": label, "content": content},
+	// Step 1: search for an existing concept node globally (shared across users).
+	var existingFactID string
+	searchResult, searchErr := session.Run(ctx,
+		"MATCH (f:Fact) WHERE toLower(f.label) = toLower($label) RETURN f.id AS id LIMIT 1",
+		map[string]interface{}{"label": label},
 	)
-	if err == nil {
-		if rec, recErr := updateResult.Single(ctx); recErr == nil && rec != nil {
-			return nil
+	if searchErr == nil {
+		if rec, recErr := searchResult.Single(ctx); recErr == nil && rec != nil {
+			if id, ok := rec.Get("id"); ok {
+				existingFactID, _ = id.(string)
+			}
 		}
 	}
 
-	// No existing fact found — create user node (if needed), a new Fact node
-	// and the relationship.
+	if existingFactID != "" {
+		// Concept already exists: update its content, then upsert this user's
+		// relation without touching other users' relations to the same node.
+		upsertResult, err := session.Run(ctx,
+			"MATCH (f:Fact {id: $factID}) SET f.content = $content "+
+				"WITH f MERGE (u:User {id: $userID}) "+
+				"OPTIONAL MATCH (u)-[oldRel]->(f) DELETE oldRel "+
+				"WITH u, f CREATE (u)-[r:"+rel+"]->(f)",
+			map[string]interface{}{"factID": existingFactID, "content": content, "userID": userID},
+		)
+		if err != nil {
+			return err
+		}
+		upsertResult.Consume(ctx)
+		return nil
+	}
+
+	// No existing concept — create a new Fact node shared across users and
+	// attach this user's relation.
 	factID := uuid.New().String()
 	createResult, err := session.Run(ctx,
 		"MERGE (u:User {id: $userID}) "+
