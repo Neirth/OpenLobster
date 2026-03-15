@@ -8,6 +8,8 @@
  */
 
 :root {
+  color-scheme: dark;
+
   /* ─── Backgrounds (hierarchy by tonality — no borders) ─── */
   --color-bg-base:      #141414; /* Main content area */
   --color-bg-surface:   #0D0D0D; /* Header, footer */
@@ -104,8 +106,10 @@
   --ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Light theme (future) */
+/* Light theme */
 [data-theme="light"] {
+  color-scheme: light;
+
   --color-bg-base:        #FAFAFA;
   --color-bg-surface:     #F0F0F0;
   --color-bg-sunken:      #E8E8E8;
