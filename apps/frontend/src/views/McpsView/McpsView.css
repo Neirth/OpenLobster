@@ -161,7 +161,7 @@
 }
 
 .server-card:hover {
-  background: rgba(37, 37, 37, 0.4);
+  background: var(--color-bg-elevated);
 }
 
 .server-card--inactive {
@@ -352,7 +352,7 @@
   padding: 0 12px;
   background: var(--color-bg-selected);
   color: var(--color-text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   font-size: var(--text-xs);
@@ -393,13 +393,13 @@
 }
 
 .oauth-status--pending {
-  background: rgba(59, 130, 246, 0.1);
-  color: #60a5fa;
+  background: var(--color-info-bg);
+  color: var(--color-info);
 }
 
 .oauth-status--success {
-  background: rgba(34, 197, 94, 0.1);
-  color: #4ade80;
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .oauth-status--success .material-symbols-outlined {
@@ -408,16 +408,16 @@
 }
 
 .oauth-status--error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
+  background: var(--color-error-bg);
+  color: var(--color-error);
 }
 
 /* ── Form error message ────────────────────────────────────────── */
 
 .modal-form-error {
   font-size: var(--text-xs);
-  color: #f87171;
-  background: rgba(239, 68, 68, 0.08);
+  color: var(--color-error);
+  background: var(--color-error-bg);
   border-radius: var(--radius-sm);
   padding: 6px 10px;
   margin: 0 0 4px 0;
@@ -429,8 +429,8 @@
   gap: 6px;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
-  background: rgba(99, 102, 241, 0.06);
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  background: var(--color-accent-bg);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   margin: 4px 0 0 0;
@@ -441,7 +441,7 @@
   font-size: 14px;
   flex-shrink: 0;
   margin-top: 1px;
-  color: #818cf8;
+  color: var(--color-accent);
 }
 
 /* ── Section tabs ─────────────────────────────────────────────────────────── */
@@ -543,12 +543,12 @@
 }
 
 .permissions-user-item:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-bg-elevated);
 }
 
 .permissions-user-item--active {
-  background: var(--color-surface-active, rgba(99, 102, 241, 0.12));
-  border-right: 2px solid var(--color-primary, #6366f1);
+  background: var(--color-accent-bg);
+  border-right: 2px solid var(--color-accent);
 }
 
 .permissions-user-item__avatar {
@@ -566,7 +566,7 @@
 }
 
 .permissions-user-item--agent .permissions-user-item__avatar {
-  color: var(--color-primary, #6366f1);
+  color: var(--color-accent);
 }
 
 .permissions-user-item__agent-badge {
@@ -574,9 +574,9 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-primary, #6366f1);
-  background: rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 1px 5px;
   flex-shrink: 0;
@@ -629,23 +629,23 @@
 }
 
 .btn-bulk-allow {
-  background: rgba(99, 102, 241, 0.12);
-  border-color: rgba(99, 102, 241, 0.35);
-  color: var(--color-primary, #6366f1);
+  background: var(--color-accent-bg);
+  border-color: var(--color-border);
+  color: var(--color-accent);
 }
 
 .btn-bulk-allow:hover:not(:disabled) {
-  background: rgba(99, 102, 241, 0.22);
+  background: color-mix(in srgb, var(--color-accent-bg) 80%, var(--color-accent));
 }
 
 .btn-bulk-deny {
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  background: var(--color-error-bg);
+  border-color: var(--color-border);
+  color: var(--color-error);
 }
 
 .btn-bulk-deny:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.16);
+  background: color-mix(in srgb, var(--color-error-bg) 80%, var(--color-error));
 }
 
 .permissions-policy-note {
@@ -653,8 +653,8 @@
   align-items: flex-start;
   gap: 8px;
   padding: 10px 14px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: var(--color-accent-bg);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   color: var(--color-text-secondary);
   font-size: 12px;
@@ -663,7 +663,7 @@
 
 .permissions-policy-note__icon {
   font-size: 16px;
-  color: var(--color-primary, #6366f1);
+  color: var(--color-accent);
   flex-shrink: 0;
   margin-top: 1px;
 }
@@ -682,7 +682,7 @@
   grid-template-columns: 200px 1fr 110px;
   gap: 12px;
   padding: 10px 16px;
-  background: var(--color-surface-secondary);
+  background: var(--color-bg-elevated);
   border-bottom: 1px solid var(--color-border);
   font-size: 11px;
   font-weight: 600;
@@ -715,7 +715,7 @@
 }
 
 .permissions-tool-row:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-bg-elevated);
 }
 
 .permissions-tool-row__name {
@@ -760,29 +760,29 @@
 
 .permissions-toggle__icon {
   font-size: 14px;
-  color: #fff;
+  color: inherit;
 }
 
 .permissions-toggle--allow {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.25);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--color-bg-selected);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
 }
 
 .permissions-toggle--allow:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--color-bg-elevated);
 }
 
 .permissions-toggle--deny {
-  background: var(--color-surface-secondary);
+  background: var(--color-bg-elevated);
   border-color: var(--color-border);
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--color-text-muted);
 }
 
 .permissions-toggle--deny:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--color-bg-selected);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
 }
 
 .permissions-empty-state {
@@ -880,17 +880,17 @@
   padding: 16px;
   border-radius: 10px;
   border: 1px solid var(--color-border);
-  background: var(--color-surface-secondary);
+  background: var(--color-bg-elevated);
   transition: opacity 0.15s, background 0.15s;
   cursor: pointer;
 }
 
 .builtin-card:hover {
-  background: var(--color-surface-active, rgba(255,255,255,0.06));
+  background: var(--color-bg-selected);
 }
 
 .builtin-card--active {
-  background: var(--color-surface-secondary);
+  background: var(--color-bg-elevated);
   opacity: 1;
 }
 
@@ -904,7 +904,7 @@
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: var(--color-surface-tertiary, rgba(255,255,255,0.05));
+  background: var(--color-bg-selected);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -926,10 +926,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg, #1a1a1a);
+  background: var(--color-bg-base);
 }
 
-.builtin-card__badge--ok   { color: rgba(255, 255, 255, 0.85); }
+.builtin-card__badge--ok   { color: var(--color-text-primary); }
 .builtin-card__badge--lock { color: var(--color-text-muted); }
 
 .builtin-card__body {
@@ -958,7 +958,7 @@
   letter-spacing: 0.02em;
 }
 
-.builtin-card__status--active   { color: rgba(255, 255, 255, 0.85); }
+.builtin-card__status--active   { color: var(--color-text-primary); }
 .builtin-card__status--disabled { color: var(--color-text-muted); }
 
 /* ── Permissions: group header ───────────────────────────────────────── */
@@ -967,7 +967,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px 6px;
-  background: var(--color-surface-tertiary, rgba(255,255,255,0.04));
+  background: var(--color-bg-elevated);
   border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
@@ -978,12 +978,12 @@
 }
 
 .permissions-tool-group__header:hover {
-  background: var(--color-surface-hover, rgba(255,255,255,0.07));
+  background: var(--color-bg-selected);
 }
 
 .permissions-tool-group__icon {
   font-size: 15px;
-  color: var(--color-primary, #6366f1);
+  color: var(--color-accent);
 }
 
 .permissions-tool-group__name {
@@ -998,7 +998,7 @@
   margin-left: auto;
   font-size: 11px;
   color: var(--color-text-muted);
-  background: var(--color-surface-secondary);
+  background: var(--color-bg-selected);
   padding: 1px 7px;
   border-radius: 10px;
 }
@@ -1037,7 +1037,7 @@
 .builtin-detail-meta__status--active {
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-primary, #6366f1);
+  color: var(--color-accent);
   letter-spacing: 0.03em;
 }
 

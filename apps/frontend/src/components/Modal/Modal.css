@@ -5,7 +5,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -29,7 +29,7 @@
   max-width: 90vw;
   max-height: 90vh;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-lg);
   animation: slideUp 0.2s ease-out;
 }
 
@@ -214,7 +214,7 @@
 
 .task-type-selector button.active {
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-on-color);
 }
 
 .task-type-selector button:not(.active):hover {

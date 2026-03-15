@@ -118,6 +118,7 @@ const conversations: Conversation[] = [
     participantName: "John",
     lastMessageAt: "2024-02-26T23:07:00.000Z",
     unreadCount: 2,
+    isGroup: false,
   },
   {
     id: "2",
@@ -127,6 +128,18 @@ const conversations: Conversation[] = [
     participantName: "Jane",
     lastMessageAt: "2024-02-26T23:06:00.000Z",
     unreadCount: 0,
+    isGroup: false,
+  },
+  {
+    id: "3",
+    channelId: "1",
+    channelName: "Discord",
+    participantId: "g1",
+    participantName: "Sergio",
+    groupName: "Sergio, Josu y Horizon",
+    lastMessageAt: "2024-02-26T22:00:00.000Z",
+    unreadCount: 0,
+    isGroup: true,
   },
 ];
 
@@ -184,8 +197,8 @@ const tasks: Task[] = [
 ];
 
 const mcpServers: McpServer[] = [
-  { name: "filesystem", transport: "stdio", status: "online", toolCount: 5 },
-  { name: "github", transport: "http", status: "degraded", toolCount: 8 },
+  { name: "filesystem", transport: "stdio", status: "online", toolCount: 5, url: "http://localhost:8080" },
+  { name: "github", transport: "http", status: "degraded", toolCount: 8, url: "https://api.github.com" },
   { name: "broken", transport: "http", status: "offline", toolCount: 0 },
 ];
 

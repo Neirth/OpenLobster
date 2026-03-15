@@ -39,21 +39,21 @@
   text-align: center;
   padding: 12px 0;
   font-size: 11px;
-  color: var(--color-text-muted, #444);
+  color: var(--color-text-muted);
   letter-spacing: 0.02em;
 }
 
 .app-shell__footer a {
-  color: #ffffff; /* enlace blanco */
+  color: var(--color-text-primary);
   text-decoration: none;
   font-weight: 600;
   transition: opacity 120ms ease;
 }
 .app-shell__footer a:visited {
-  color: #ffffff; /* same white when visited */
+  color: var(--color-text-primary);
 }
 .app-shell__footer a:hover {
-  opacity: 0.9;
+  opacity: 0.7;
   text-decoration: underline;
 }
 

@@ -658,7 +658,8 @@ func (t *AddMemoryTool) Definition() ToolDefinition {
 			"properties": {
 				"content":  {"type": "string", "description": "Full sentence describing what to remember (e.g. 'User lives in Valencia', 'User loves electronic music')"},
 				"label":    {"type": "string", "description": "Short keyword for the fact (e.g. 'Valencia', 'Electronica', 'Software Engineer'). Defaults to first words of content."},
-				"relation": {"type": "string", "description": "Edge from user to this fact: LIVES_IN, LIKES, IS, WORKS_AT, WORKS_AS, PREFERS, HAS_FACT, etc. Defaults to HAS_FACT."}
+				"relation": {"type": "string", "description": "Edge from user to this fact: LIVES_IN, LIKES, IS, WORKS_AT, WORKS_AS, PREFERS, HAS_FACT, etc. Defaults to HAS_FACT."},
+				"for_user": {"type": "string", "description": "Name of the user this memory belongs to. Only for memory consolidation agents processing multiple users — omit for normal per-user interactions."}
 			},
 			"required": ["content"]
 		}`),
@@ -673,9 +674,13 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 	label, _ := params["label"].(string)
 	relation, _ := params["relation"].(string)
 
-	// Prefer the display name (users.name) as the memory key when available.
+	// for_user allows consolidation agents to store facts for a specific user
+	// rather than the ambient context user (which is empty in loopback runs).
 	var userKey string
-	if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
+	if forUser, ok := params["for_user"].(string); ok && forUser != "" {
+		userKey = forUser
+	} else if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
+		// Prefer the display name (users.name) as the memory key when available.
 		userKey = dn
 	} else if u, ok := ctx.Value(contextKeyUserID).(string); ok {
 		userKey = u
@@ -787,8 +792,9 @@ func (t *SetUserPropertyTool) Definition() ToolDefinition {
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"key": {"type": "string", "description": "Attribute name, snake_case (e.g. 'real_name', 'phone', 'birthday', 'preferred_language', 'timezone', 'occupation')"},
-				"value": {"type": "string", "description": "Attribute value as a string"}
+				"key":      {"type": "string", "description": "Attribute name, snake_case (e.g. 'real_name', 'phone', 'birthday', 'preferred_language', 'timezone', 'occupation')"},
+				"value":    {"type": "string", "description": "Attribute value as a string"},
+				"for_user": {"type": "string", "description": "Name of the user this property belongs to. Only for memory consolidation agents processing multiple users — omit for normal per-user interactions."}
 			},
 			"required": ["key", "value"]
 		}`),
@@ -802,9 +808,12 @@ func (t *SetUserPropertyTool) Execute(ctx context.Context, params map[string]int
 		return nil, fmt.Errorf("key is required")
 	}
 
-	// Prefer the display name (users.name) as the memory key when available.
+	// for_user allows consolidation agents to set properties for a specific user.
 	var userKey string
-	if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
+	if forUser, ok := params["for_user"].(string); ok && forUser != "" {
+		userKey = forUser
+	} else if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
+		// Prefer the display name (users.name) as the memory key when available.
 		userKey = dn
 	} else if u, ok := ctx.Value(contextKeyUserID).(string); ok {
 		userKey = u
@@ -831,7 +840,8 @@ func (t *SearchMemoryTool) Definition() ToolDefinition {
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"query": {"type": "string", "description": "Topic or keyword to look up (e.g. 'music', 'work', 'language', 'hobbies')"}
+				"query":    {"type": "string", "description": "Topic or keyword to look up (e.g. 'music', 'work', 'language', 'hobbies')"},
+				"for_user": {"type": "string", "description": "Name of the user whose memory to search. Only for memory consolidation agents processing multiple users — omit for normal per-user interactions."}
 			},
 			"required": ["query"]
 		}`),
@@ -844,9 +854,12 @@ func (t *SearchMemoryTool) Execute(ctx context.Context, params map[string]interf
 		return nil, fmt.Errorf("query is required")
 	}
 
-	// Prefer display name as memory key when available.
+	// for_user allows consolidation agents to search memory for a specific user.
 	var userKey string
-	if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
+	if forUser, ok := params["for_user"].(string); ok && forUser != "" {
+		userKey = forUser
+	} else if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
+		// Prefer display name as memory key when available.
 		userKey = dn
 	} else if u, ok := ctx.Value(contextKeyUserID).(string); ok {
 		userKey = u

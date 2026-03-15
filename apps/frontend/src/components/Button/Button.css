@@ -33,15 +33,15 @@
 /* Variants */
 .btn-primary {
   background-color: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-on-color);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #5a9cff;
+  background-color: color-mix(in srgb, var(--color-accent) 85%, #fff);
 }
 
 .btn-primary:active:not(:disabled) {
-  background-color: #4480e0;
+  background-color: color-mix(in srgb, var(--color-accent) 75%, #000);
 }
 
 .btn-secondary {
@@ -65,11 +65,11 @@
 
 .btn-danger {
   background-color: var(--color-error);
-  color: #ffffff;
+  color: var(--color-on-color);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: #ff5e52;
+  background-color: color-mix(in srgb, var(--color-error) 85%, #fff);
 }
 
 .btn:disabled {

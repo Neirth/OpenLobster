@@ -1,125 +1,62 @@
 /* Copyright (c) OpenLobster contributors. See LICENSE for details. */
 
+/* Legacy aliases — kept for migrating view components */
 :root {
-  /* Backgrounds — exact values from design guide */
-  --color-bg-sunken:   #0a0a0a;  /* Header bar, deepest chrome */
-  --color-bg-surface:  #0d0d0d;  /* Secondary panels */
-  --color-bg-base:     #141414;  /* Main content background */
-  --color-bg-elevated: #1e1e1e;  /* Cards, expanded rows */
-  --color-bg-selected: #252525;  /* Active nav pill, badges, inputs */
+  --font-family-sans: var(--font-sans);
+  --font-family-mono: var(--font-mono);
 
-  /* Text — exact values from design guide */
-  --color-text-primary:   #e0e0e0;
-  --color-text-secondary: #a0a0a0;
-  --color-text-muted:     #606060;
+  --font-size-xs:   0.6875rem;
+  --font-size-sm:   0.8125rem;
+  --font-size-base: 1rem;
+  --font-size-lg:   1.125rem;
+  --font-size-xl:   1.25rem;
+  --font-size-2xl:  1.5rem;
+  --font-size-3xl:  1.875rem;
+  --font-size-4xl:  2.25rem;
 
-  /* Semantic colors */
-  --color-accent:  #4f8ef7;
-  --color-success: #4caf50;
-  --color-warning: #ff9800;
-  --color-error:   #ef4444;
-  --color-info:    #29b6f6;
-  --color-purple:  #9c27b0;
-
-  /* Typography — Inter as per design guide */
-  --font-family-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
-    'Segoe UI', sans-serif;
-  --font-family-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
-  --font-sans: var(--font-family-sans);
-  --font-mono: var(--font-family-mono);
-
-  /* Type scale — exact sizes from design guide */
-  --font-size-xs:   0.6875rem;  /* 11px — labels, badges, section headers */
-  --font-size-sm:   0.8125rem;  /* 13px — body rows */
-  --font-size-base: 1rem;       /* 16px */
-  --font-size-lg:   1.125rem;   /* 18px */
-  --font-size-xl:   1.25rem;    /* 20px */
-  --font-size-2xl:  1.5rem;     /* 24px */
-  --font-size-3xl:  1.875rem;   /* 30px */
-  --font-size-4xl:  2.25rem;    /* 36px */
-
-  /* Short aliases used across component CSS */
   --text-xs:   0.6875rem;
   --text-sm:   0.8125rem;
   --text-base: 1rem;
 
-  /* Font weights */
-  --weight-normal:   400;
-  --weight-medium:   500;
-  --weight-semibold: 600;
-  --weight-bold:     700;
-
-  /* Letter spacing */
   --tracking-wide:  0.1em;
   --tracking-wider: 0.15em;
 
-  /* Line height */
   --line-height-tight:  1.2;
   --line-height-normal: 1.5;
   --line-height-loose:  1.75;
 
-  /* Spacing grid (8px base) */
-  --space-xs:  0.25rem;   /* 4px */
-  --space-sm:  0.5rem;    /* 8px */
-  --space-md:  1rem;      /* 16px */
-  --space-lg:  1.5rem;    /* 24px */
-  --space-xl:  2rem;      /* 32px */
-  --space-2xl: 2.5rem;    /* 40px */
-  --space-3xl: 3rem;      /* 48px */
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2rem;
+  --space-2xl: 2.5rem;
+  --space-3xl: 3rem;
 
-  /* Border radius */
-  --radius-sm:   0.25rem;
-  --radius-md:   0.375rem;
-  --radius-lg:   0.5rem;
-  --radius-xl:   0.75rem;
-  --radius-full: 9999px;
-
-  /* Transitions */
   --duration-fast:   100ms;
-  --duration-micro:  150ms;
   --duration-normal: 200ms;
   --duration-slow:   300ms;
-  --ease-out: cubic-bezier(0, 0, 0.2, 1);
 
-  /* Line-height aliases */
   --leading-tight:  1.2;
   --leading-normal: 1.5;
   --leading-loose:  1.75;
 
-  /* Focus ring */
-  --color-focus-ring: var(--color-accent);
-
-  /* Legacy aliases for migrating view components */
-  --color-primary:          var(--color-accent);
-  --color-surface:          var(--color-bg-elevated);
+  --color-primary:           var(--color-accent);
+  --color-surface:           var(--color-bg-elevated);
   --color-surface-secondary: var(--color-bg-selected);
-  --color-border:           transparent;
-  --color-text:             var(--color-text-primary);
-}
-
-/* Light theme — overrides when data-theme="light" */
-[data-theme="light"] {
-  --color-bg-sunken:   #e8e8e8;
-  --color-bg-surface:  #eeeeee;
-  --color-bg-base:     #f5f5f5;
-  --color-bg-elevated:  #ffffff;
-  --color-bg-selected:  #e0e0e0;
-
-  --color-text-primary:   #1a1a1a;
-  --color-text-secondary: #505050;
-  --color-text-muted:     #909090;
+  --color-text:              var(--color-text-primary);
 }
 
 [data-theme="light"] * {
-  scrollbar-color: #cccccc transparent;
+  scrollbar-color: var(--color-scrollbar) transparent;
 }
 
 [data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: #cccccc;
+  background: var(--color-scrollbar);
 }
 
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: #aaaaaa;
+  background: var(--color-scrollbar-hover);
 }
 
 * {
@@ -172,7 +109,7 @@ input, textarea, select {
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #222222 transparent;
+  scrollbar-color: var(--color-scrollbar) transparent;
 }
 
 /* Chromium / Safari */
@@ -186,12 +123,12 @@ input, textarea, select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #222222;
+  background: var(--color-scrollbar);
   border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #333333;
+  background: var(--color-scrollbar-hover);
 }
 
 ::-webkit-scrollbar-corner {

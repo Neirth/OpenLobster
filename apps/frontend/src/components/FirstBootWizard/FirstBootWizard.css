@@ -5,7 +5,7 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.75);
+  background: var(--color-overlay);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -21,13 +21,13 @@
 /* ── Modal box ──────────────────────────────────────────────────────────── */
 .wizard-box {
   background: var(--color-bg-elevated);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   width: min(640px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
   animation: wizard-slideUp 0.25s ease-out;
   overflow: hidden;
 }
@@ -48,7 +48,7 @@
   display: flex;
   gap: 6px;
   padding: 16px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -166,7 +166,7 @@
 .wizard-field select {
   padding: 10px 12px;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -269,7 +269,7 @@
   gap: 8px;
   padding: 16px;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: border-color var(--duration-micro) var(--ease-out);
@@ -285,7 +285,7 @@
 
 .wizard-capability-card:has(input:checked) {
   border-color: var(--color-accent);
-  background: rgba(79, 142, 247, 0.1);
+  background: var(--color-accent-bg);
 }
 
 .wizard-cap-icon {
@@ -322,7 +322,7 @@
   width: 100%;
   padding: 10px 12px 10px 40px;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
   font-size: var(--text-sm);
@@ -365,7 +365,7 @@
   gap: 12px;
   padding: 14px;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
@@ -534,7 +534,7 @@
   width: 100%;
   padding: 10px 12px;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
   font-size: var(--text-sm);
@@ -560,7 +560,7 @@
   width: 100%;
   padding: 10px 12px;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
   font-size: var(--text-sm);
@@ -609,7 +609,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 16px 24px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -635,7 +635,7 @@
 
 .wizard-btn-primary {
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-color);
   border: none;
 }
 
@@ -651,7 +651,7 @@
 .wizard-btn-secondary {
   background: var(--color-bg-selected);
   color: var(--color-text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--color-border);
 }
 
 .wizard-btn-secondary:hover {

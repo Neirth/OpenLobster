@@ -113,8 +113,8 @@ describe("TasksView Component", () => {
     expect(container.querySelector("textarea")).toBeTruthy();
     // Check for task type selector (buttons for one-shot / cyclic)
     expect(container.querySelector(".task-type-selector")).toBeTruthy();
-    // Check for schedule input
-    expect(container.querySelector('input[type="text"]')).toBeTruthy();
+    // Default task type is one-shot, which renders a datetime-local input
+    expect(container.querySelector('input[type="datetime-local"]')).toBeTruthy();
   });
 
   it("new task form has cancel and create buttons", () => {
@@ -163,4 +163,106 @@ describe("TasksView Component", () => {
     const dashCell = Array.from(cells).find((el) => el.textContent === "—");
     expect(dashCell).toBeTruthy();
   });
+
+  it("renders edit buttons for each task", () => {
+    const { container } = renderWithClient(() => <TasksView />);
+    const editBtns = container.querySelectorAll(".task-edit-btn");
+    expect(editBtns.length).toBe(3);
+  });
+
+  it("opens edit modal when edit button is clicked", () => {
+    const { container, getByText } = renderWithClient(() => <TasksView />);
+    const editBtn = container.querySelector(".task-edit-btn") as HTMLElement;
+    fireEvent.click(editBtn);
+    expect(container.querySelector(".modal-overlay")).toBeTruthy();
+    expect(getByText("Edit Task")).toBeTruthy();
+  });
+
+  it("edit modal pre-fills prompt from task data", () => {
+    const { container } = renderWithClient(() => <TasksView />);
+    const editBtn = container.querySelector(".task-edit-btn") as HTMLElement;
+    fireEvent.click(editBtn);
+    const textarea = container.querySelector(".modal-overlay textarea") as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Morning brief");
+  });
+
+  it("edit modal has task-type-selector", () => {
+    const { container } = renderWithClient(() => <TasksView />);
+    const editBtn = container.querySelector(".task-edit-btn") as HTMLElement;
+    fireEvent.click(editBtn);
+    expect(container.querySelector(".modal-overlay .task-type-selector")).toBeTruthy();
+  });
+
+  it("edit modal closes when cancel is clicked", () => {
+    const { container, getAllByText } = renderWithClient(() => <TasksView />);
+    const editBtn = container.querySelector(".task-edit-btn") as HTMLElement;
+    fireEvent.click(editBtn);
+    expect(container.querySelector(".modal-overlay")).toBeTruthy();
+    const cancelBtns = getAllByText("Cancel");
+    fireEvent.click(cancelBtns[cancelBtns.length - 1]);
+    expect(container.querySelector(".modal-overlay")).toBeNull();
+  });
+
+  it("switching to cyclic task type shows text input for schedule", () => {
+    const { container } = renderWithClient(() => <TasksView />);
+    const newTaskBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "+ New Task"
+    ) as HTMLElement;
+    fireEvent.click(newTaskBtn);
+    // default is one-shot → datetime-local
+    const modal = container.querySelector(".modal-overlay") as HTMLElement;
+    expect(modal.querySelector('input[type="datetime-local"]')).toBeTruthy();
+    // click Cyclic button inside modal
+    const cyclicBtn = Array.from(modal.querySelectorAll(".task-type-selector button")).find(
+      (b) => b.textContent?.trim() === "Cyclic"
+    ) as HTMLElement;
+    fireEvent.click(cyclicBtn);
+    expect(modal.querySelector('input[type="text"]')).toBeTruthy();
+    expect(modal.querySelector('input[type="datetime-local"]')).toBeNull();
+  });
+
+  it("switching back to one-shot shows datetime-local input", () => {
+    const { container } = renderWithClient(() => <TasksView />);
+    const newTaskBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "+ New Task"
+    ) as HTMLElement;
+    fireEvent.click(newTaskBtn);
+    const modal = container.querySelector(".modal-overlay") as HTMLElement;
+    const selectorBtns = modal.querySelectorAll(".task-type-selector button");
+    const cyclicBtn = Array.from(selectorBtns).find((b) => b.textContent?.trim() === "Cyclic") as HTMLElement;
+    const oneshotBtn = Array.from(selectorBtns).find((b) => b.textContent?.trim() === "One-shot") as HTMLElement;
+    // switch to cyclic
+    fireEvent.click(cyclicBtn);
+    expect(modal.querySelector('input[type="text"]')).toBeTruthy();
+    // switch back to one-shot
+    fireEvent.click(oneshotBtn);
+    expect(modal.querySelector('input[type="datetime-local"]')).toBeTruthy();
+    expect(modal.querySelector('input[type="text"]')).toBeNull();
+  });
+
+  it("renders cyclic task type badge for cyclic tasks", () => {
+    const { container } = renderWithClient(() => <TasksView />);
+    const cyclicBadge = container.querySelector(".task-type-badge--cyclic");
+    expect(cyclicBadge).toBeTruthy();
+  });
+
+  it("renders one-shot task type badge for one-shot tasks", () => {
+    const { container } = renderWithClient(() => <TasksView />);
+    const oneshotBadge = container.querySelector(".task-type-badge--oneshot");
+    expect(oneshotBadge).toBeTruthy();
+  });
+
+  it("renders em-dash fallback when schedule is null", () => {
+    const { container } = renderWithClient(() => <TasksView />);
+    const cells = container.querySelectorAll(".task-schedule");
+    const dashCell = Array.from(cells).find((el) => el.textContent === "—");
+    expect(dashCell).toBeTruthy();
+  });
 });
+
+function getByText_helper(container: HTMLElement, text: string): HTMLElement {
+  const all = Array.from(container.querySelectorAll("*")) as HTMLElement[];
+  const el = all.find((el) => el.textContent?.trim() === text && el.children.length === 0);
+  if (!el) throw new Error(`Text "${text}" not found`);
+  return el;
+}

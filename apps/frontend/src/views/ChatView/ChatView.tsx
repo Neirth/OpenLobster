@@ -10,7 +10,7 @@
  */
 
 import type { Component } from 'solid-js';
-import { createSignal, For, Show, Switch, Match, Suspense, createEffect, batch } from 'solid-js';
+import { createSignal, For, Show, Suspense, createEffect, batch } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
 import { useConversations, useSubscriptions, useConfig } from '@openlobster/ui/hooks';
 import { SEND_MESSAGE_MUTATION, DELETE_USER_MUTATION } from '@openlobster/ui/graphql/mutations';
@@ -28,12 +28,6 @@ const PAGE_SIZE = 50;
 
 const QUICK_EMOJIS = ['😀', '😂', '🔥', '✅', '🙏', '👍', '🎉', '🤖'];
 const TOOL_OUTPUT_MAX_CHARS = 2000;
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 // ── Message thread ────────────────────────────────────────────────────────────
 

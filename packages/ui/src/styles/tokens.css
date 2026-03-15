@@ -7,7 +7,11 @@
  * for use by the terminal frontend (which cannot consume CSS).
  */
 
-:root {
+:root,
+[data-theme="dark"] {
+  /* ── Color tokens (themed) ──── */
+  color-scheme: dark;
+
   /* ─── Backgrounds (hierarchy by tonality — no borders) ─── */
   --color-bg-base:      #141414; /* Main content area */
   --color-bg-surface:   #0D0D0D; /* Header, footer */
@@ -34,9 +38,99 @@
   --color-border:       #1F1F1F;
   --color-border-muted: #161616;
 
+  /* ─── Semantic backgrounds (tinted, for badges / bubbles) ─── */
+  --color-accent-bg:  rgba(79, 142, 247, 0.1);
+  --color-success-bg: rgba(76, 175, 80, 0.15);
+  --color-warning-bg: rgba(255, 152, 0, 0.15);
+  --color-error-bg:   rgba(244, 67, 54, 0.15);
+  --color-info-bg:    rgba(41, 182, 246, 0.15);
+  --color-purple-bg:  rgba(156, 39, 176, 0.15);
+
+  /* ─── Overlay (modal backdrops) ─── */
+  --color-overlay: rgba(0, 0, 0, 0.65);
+
+  /* ─── Scrollbar ─── */
+  --color-scrollbar:       #222222;
+  --color-scrollbar-hover: #333333;
+
+  /* ─── Toggle knob (white — visible on colored tracks) ─── */
+  --color-toggle-knob: #ffffff;
+
+  /* ─── Text on colored backgrounds (buttons, badges) ─── */
+  --color-on-color: #ffffff;
+
   /* ─── Interactivity ─── */
   --color-focus-ring: rgba(79, 142, 247, 0.4);
 
+  /* ─── Shadows ─── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="light"] {
+  /* ── Color tokens (themed) ─── */
+  color-scheme: light;
+
+  /* ─── Backgrounds ─── */
+  --color-bg-base:      #FAFAFA;
+  --color-bg-surface:   #F0F0F0;
+  --color-bg-sunken:    #E8E8E8;
+  --color-bg-elevated:  #FFFFFF;
+  --color-bg-selected:  #EBEBEB;
+  --color-bg-overlay:   #F5F5F5;
+
+  /* ─── Text ─── */
+  --color-text-primary:   #0D0D0D;
+  --color-text-secondary: #404040;
+  --color-text-muted:     #909090;
+  --color-text-inverse:   #E0E0E0;
+
+  /* ─── Semantic ─── */
+  --color-accent:  #2563EB; /* Darker blue for contrast on light */
+  --color-success: #388E3C;
+  --color-warning: #E65100;
+  --color-error:   #C62828;
+  --color-info:    #0277BD;
+  --color-purple:  #6A1B9A;
+
+  /* ─── Borders ─── */
+  --color-border:       #D0D0D0;
+  --color-border-muted: #E0E0E0;
+
+  /* ─── Semantic backgrounds ─── */
+  --color-accent-bg:  rgba(37, 99, 235, 0.08);
+  --color-success-bg: rgba(56, 142, 60, 0.1);
+  --color-warning-bg: rgba(230, 81, 0, 0.1);
+  --color-error-bg:   rgba(198, 40, 40, 0.1);
+  --color-info-bg:    rgba(2, 119, 189, 0.1);
+  --color-purple-bg:  rgba(106, 27, 154, 0.1);
+
+  /* ─── Overlay ─── */
+  --color-overlay: rgba(0, 0, 0, 0.4);
+
+  /* ─── Scrollbar ─── */
+  --color-scrollbar:       #cccccc;
+  --color-scrollbar-hover: #aaaaaa;
+
+  /* ─── Toggle knob ─── */
+  --color-toggle-knob: #ffffff;
+
+  /* ─── Text on colored backgrounds ─── */
+  --color-on-color: #ffffff;
+
+  /* ─── Interactivity ─── */
+  --color-focus-ring: rgba(37, 99, 235, 0.35);
+
+  /* ─── Shadows ─── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+/* ── Non-color tokens (theme-independent) ────────────────────── */
+
+:root {
   /* ─── Typography ─── */
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
@@ -89,11 +183,6 @@
   --radius-xl:   12px;
   --radius-full: 9999px;
 
-  /* ─── Shadows (minimal) ─── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
-
   /* ─── Motion ─── */
   --duration-micro:   100ms;
   --duration-simple:  200ms;
@@ -104,17 +193,22 @@
   --ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Light theme (future) */
-[data-theme="light"] {
-  --color-bg-base:        #FAFAFA;
-  --color-bg-surface:     #F0F0F0;
-  --color-bg-sunken:      #E8E8E8;
-  --color-bg-elevated:    #FFFFFF;
-  --color-bg-selected:    #E3EFFE;
-  --color-text-primary:   #0D0D0D;
-  --color-text-secondary: #404040;
-  --color-text-muted:     #909090;
-  --color-border:         #D0D0D0;
+/* ── Theme transition ────────────────────────────────────────── */
+
+/* Smooth color transition when switching between light and dark themes.
+ * Targets only color-related properties to avoid interfering with layout
+ * or component-level transitions. Images and videos are excluded. */
+:root {
+  transition:
+    background-color 150ms ease,
+    color            150ms ease,
+    border-color     150ms ease,
+    box-shadow       150ms ease;
+}
+
+img,
+video {
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

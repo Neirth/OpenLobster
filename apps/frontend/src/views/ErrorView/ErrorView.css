@@ -16,7 +16,7 @@
   bottom: 0;
   width: 100vw;
   height: 100vh;
-  background-color: #000000;
+  background-color: var(--color-bg-base, #000000);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -48,7 +48,7 @@
 }
 
 .error-view--fullscreen .error-code {
-  color: #d0d0d0;
+  color: var(--color-text-secondary);
 }
 
 .error-message {
@@ -62,6 +62,6 @@
 }
 
 .error-view--fullscreen .error-message {
-  color: #a0a0a0;
+  color: var(--color-text-muted);
 }
 

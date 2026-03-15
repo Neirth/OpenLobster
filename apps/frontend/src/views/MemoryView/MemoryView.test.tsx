@@ -143,4 +143,124 @@ describe("MemoryView Component", () => {
     const { container } = renderWithQueryClient(() => <MemoryView />);
     expect(container.querySelector(".memory-sidebar")).toBeTruthy();
   });
+
+  it("renders search box in sidebar", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    expect(container.querySelector(".search-box")).toBeTruthy();
+  });
+
+  it("search filters nodes by label", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    const searchBox = container.querySelector(".search-box") as HTMLInputElement;
+    fireEvent.input(searchBox, { target: { value: "John" } });
+    const items = container.querySelectorAll(".memory-item");
+    expect(items.length).toBe(1);
+  });
+
+  it("search shows no results for non-matching query", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    const searchBox = container.querySelector(".search-box") as HTMLInputElement;
+    fireEvent.input(searchBox, { target: { value: "zzznomatch" } });
+    const items = container.querySelectorAll(".memory-item");
+    expect(items.length).toBe(0);
+  });
+
+  it("search clearing restores all items", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    const searchBox = container.querySelector(".search-box") as HTMLInputElement;
+    fireEvent.input(searchBox, { target: { value: "John" } });
+    expect(container.querySelectorAll(".memory-item").length).toBe(1);
+    fireEvent.input(searchBox, { target: { value: "" } });
+    expect(container.querySelectorAll(".memory-item").length).toBe(2);
+  });
+
+  it("opens edit modal when edit button clicked on selected node", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    fireEvent.click(container.querySelector(".memory-item") as HTMLElement);
+    const editBtn = container.querySelector(".action-btn:not(.action-btn--danger)") as HTMLElement;
+    fireEvent.click(editBtn);
+    expect(container.querySelector(".modal-overlay")).toBeTruthy();
+  });
+
+  it("edit modal has label and type inputs", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    fireEvent.click(container.querySelector(".memory-item") as HTMLElement);
+    fireEvent.click(container.querySelector(".action-btn:not(.action-btn--danger)") as HTMLElement);
+    expect(container.querySelector("#edit-label")).toBeTruthy();
+    expect(container.querySelector("#edit-type")).toBeTruthy();
+  });
+
+  it("edit modal pre-fills label from selected node", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    // Nodes are sorted alphabetically: "Jane Smith" < "John Doe"
+    const items = container.querySelectorAll(".memory-item");
+    fireEvent.click(items[0] as HTMLElement);
+    fireEvent.click(container.querySelector(".action-btn:not(.action-btn--danger)") as HTMLElement);
+    const labelInput = container.querySelector("#edit-label") as HTMLInputElement;
+    expect(labelInput.value).toBe("Jane Smith");
+  });
+
+  it("edit modal closes on cancel", () => {
+    const { container, getByText } = renderWithQueryClient(() => <MemoryView />);
+    fireEvent.click(container.querySelector(".memory-item") as HTMLElement);
+    fireEvent.click(container.querySelector(".action-btn:not(.action-btn--danger)") as HTMLElement);
+    expect(container.querySelector(".modal-overlay")).toBeTruthy();
+    fireEvent.click(getByText("Cancel"));
+    expect(container.querySelector(".modal-overlay")).toBeNull();
+  });
+
+  it("add property button adds a new property row", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    fireEvent.click(container.querySelector(".memory-item") as HTMLElement);
+    fireEvent.click(container.querySelector(".action-btn:not(.action-btn--danger)") as HTMLElement);
+    const addBtn = container.querySelector(".memory-modal-add-prop") as HTMLElement;
+    fireEvent.click(addBtn);
+    expect(container.querySelectorAll(".memory-modal-prop-row").length).toBe(1);
+  });
+
+  it("remove property button removes the row", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    fireEvent.click(container.querySelector(".memory-item") as HTMLElement);
+    fireEvent.click(container.querySelector(".action-btn:not(.action-btn--danger)") as HTMLElement);
+    fireEvent.click(container.querySelector(".memory-modal-add-prop") as HTMLElement);
+    expect(container.querySelectorAll(".memory-modal-prop-row").length).toBe(1);
+    fireEvent.click(container.querySelector(".prop-row-remove") as HTMLElement);
+    expect(container.querySelectorAll(".memory-modal-prop-row").length).toBe(0);
+  });
+
+  it("opens delete modal when delete button clicked on selected node", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    fireEvent.click(container.querySelector(".memory-item") as HTMLElement);
+    const deleteBtn = container.querySelector(".action-btn--danger") as HTMLElement;
+    fireEvent.click(deleteBtn);
+    expect(container.querySelector(".memory-modal-confirm")).toBeTruthy();
+  });
+
+  it("delete modal closes on cancel", () => {
+    const { container, getAllByText } = renderWithQueryClient(() => <MemoryView />);
+    fireEvent.click(container.querySelector(".memory-item") as HTMLElement);
+    fireEvent.click(container.querySelector(".action-btn--danger") as HTMLElement);
+    expect(container.querySelector(".memory-modal-confirm")).toBeTruthy();
+    const cancelBtns = getAllByText("Cancel");
+    fireEvent.click(cancelBtns[cancelBtns.length - 1]);
+    expect(container.querySelector(".memory-modal-confirm")).toBeNull();
+  });
+
+  it("clicking a memory item sets it as active", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    const items = container.querySelectorAll(".memory-item");
+    fireEvent.click(items[1] as HTMLElement);
+    expect(items[1].classList.contains("memory-item--active")).toBe(true);
+    expect(items[0].classList.contains("memory-item--active")).toBe(false);
+  });
+
+  it("property key input updates on change", () => {
+    const { container } = renderWithQueryClient(() => <MemoryView />);
+    fireEvent.click(container.querySelector(".memory-item") as HTMLElement);
+    fireEvent.click(container.querySelector(".action-btn:not(.action-btn--danger)") as HTMLElement);
+    fireEvent.click(container.querySelector(".memory-modal-add-prop") as HTMLElement);
+    const keyInput = container.querySelector(".memory-modal-prop-row input") as HTMLInputElement;
+    fireEvent.input(keyInput, { target: { value: "nickname" } });
+    expect(keyInput.value).toBe("nickname");
+  });
 });

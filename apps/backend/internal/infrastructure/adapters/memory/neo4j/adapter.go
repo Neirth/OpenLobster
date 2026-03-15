@@ -48,27 +48,53 @@ func (a *Adapter) AddKnowledge(ctx context.Context, userID string, content strin
 	defer session.Close(context.Background())
 
 	if label == "" {
-		label = uuid.New().String()
+		words := strings.Fields(content)
+		if len(words) > 4 {
+			words = words[:4]
+		}
+		label = strings.Join(words, "_")
+		if label == "" {
+			label = uuid.New().String()
+		}
 	}
 	rel := relation
 	if rel == "" {
 		rel = "HAS_FACT"
 	}
 
-	// Deduplication: if a Fact node with the same label already exists for
-	// this user (case-insensitive), update its content in-place.
-	updateResult, err := session.Run(ctx,
-		"MATCH (u:User {id: $userID})-[]->(f:Fact) WHERE toLower(f.label) = toLower($label) SET f.content = $content RETURN f.id AS id LIMIT 1",
-		map[string]interface{}{"userID": userID, "label": label, "content": content},
+	// Step 1: search for an existing concept node globally (shared across users).
+	var existingFactID string
+	searchResult, searchErr := session.Run(ctx,
+		"MATCH (f:Fact) WHERE toLower(f.label) = toLower($label) RETURN f.id AS id LIMIT 1",
+		map[string]interface{}{"label": label},
 	)
-	if err == nil {
-		if rec, recErr := updateResult.Single(ctx); recErr == nil && rec != nil {
-			return nil
+	if searchErr == nil {
+		if rec, recErr := searchResult.Single(ctx); recErr == nil && rec != nil {
+			if id, ok := rec.Get("id"); ok {
+				existingFactID, _ = id.(string)
+			}
 		}
 	}
 
-	// No existing fact found — create user node (if needed), a new Fact node
-	// and the relationship.
+	if existingFactID != "" {
+		// Concept already exists: update its content, then upsert this user's
+		// relation without touching other users' relations to the same node.
+		upsertResult, err := session.Run(ctx,
+			"MATCH (f:Fact {id: $factID}) SET f.content = $content "+
+				"WITH f MERGE (u:User {id: $userID}) "+
+				"OPTIONAL MATCH (u)-[oldRel]->(f) DELETE oldRel "+
+				"WITH u, f CREATE (u)-[r:"+rel+"]->(f)",
+			map[string]interface{}{"factID": existingFactID, "content": content, "userID": userID},
+		)
+		if err != nil {
+			return err
+		}
+		upsertResult.Consume(ctx)
+		return nil
+	}
+
+	// No existing concept — create a new Fact node shared across users and
+	// attach this user's relation.
 	factID := uuid.New().String()
 	createResult, err := session.Run(ctx,
 		"MERGE (u:User {id: $userID}) "+
@@ -168,7 +194,7 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 	}
 
 	result, err := session.Run(ctx,
-		"MATCH (u:User {id: $userID})-[r]-(n) RETURN labels(n) AS labels, n.id AS id, n.content AS content, n.name AS name, n.label AS nodeLabel, type(r) AS relType",
+		"MATCH (u:User {id: $userID})-[r]-(n) RETURN labels(n) AS labels, n.id AS id, n.content AS content, n.name AS name, n.label AS nodeLabel, type(r) AS relType, properties(u) AS userProps, properties(n) AS nodeProps",
 		map[string]interface{}{"userID": userID},
 	)
 	if err != nil {
@@ -179,13 +205,21 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 	edges := make([]ports.GraphEdge, 0)
 
 	userNodeID := fmt.Sprintf("user:%s", userID)
-	nodes[userNodeID] = ports.GraphNode{ID: userNodeID, Label: userLabel, Type: "user", Value: userVal}
+	userNode := ports.GraphNode{ID: userNodeID, Label: userLabel, Type: "user", Value: userVal}
 
 	for result.Next(ctx) {
 		record := result.Record()
 		labels, _ := record.Get("labels")
 		id, _ := record.Get("id")
 		relType, _ := record.Get("relType")
+
+		// Populate user node properties from the first row that has them.
+		if _, exists := nodes[userNodeID]; !exists {
+			if up, ok := record.Get("userProps"); ok {
+				userNode.Properties = neo4jPropsToMap(up, "id", "displayName")
+			}
+			nodes[userNodeID] = userNode
+		}
 
 		if idVal, ok := id.(string); ok && idVal != "" {
 			typeStr := "Node"
@@ -205,10 +239,16 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 			} else if n, ok := record.Get("name"); ok && n != nil {
 				value = fmt.Sprintf("%v", n)
 			}
+			np, _ := record.Get("nodeProps")
 			// Use real Neo4j node id so GUI delete/update work.
-			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value}
+			// Exclude "label" since it is already surfaced as the Label field on GraphNode.
+			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value, Properties: neo4jPropsToMap(np, "id", "displayName", "label")}
 			edges = append(edges, ports.GraphEdge{Source: userNodeID, Target: idVal, Label: fmt.Sprintf("%v", relType)})
 		}
+	}
+	// Ensure user node is present even when there are no connected nodes.
+	if _, exists := nodes[userNodeID]; !exists {
+		nodes[userNodeID] = userNode
 	}
 
 	graphNodes := make([]ports.GraphNode, 0, len(nodes))
@@ -222,7 +262,7 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 // getFullGraph returns all User and Fact nodes with their relationships (dashboard full memory view).
 func (a *Adapter) getFullGraph(ctx context.Context, session neo4j.SessionWithContext) (ports.Graph, error) {
 	result, err := session.Run(ctx,
-		"MATCH (u:User)-[r]->(n) RETURN u.id AS userId, u.displayName AS userDisplayName, labels(n) AS labels, n.id AS id, n.content AS content, n.name AS name, n.label AS nodeLabel, n.displayName AS targetDisplayName, type(r) AS relType",
+		"MATCH (u:User)-[r]->(n) RETURN u.id AS userId, u.displayName AS userDisplayName, labels(n) AS labels, n.id AS id, n.content AS content, n.name AS name, n.label AS nodeLabel, n.displayName AS targetDisplayName, type(r) AS relType, properties(u) AS userProps, properties(n) AS nodeProps",
 		nil,
 	)
 	if err != nil {
@@ -251,7 +291,8 @@ func (a *Adapter) getFullGraph(ctx context.Context, session neo4j.SessionWithCon
 				userLabel = fmt.Sprintf("%v", dn)
 				userVal = userLabel
 			}
-			nodes[userNodeID] = ports.GraphNode{ID: userNodeID, Label: userLabel, Type: "user", Value: userVal}
+			up, _ := record.Get("userProps")
+			nodes[userNodeID] = ports.GraphNode{ID: userNodeID, Label: userLabel, Type: "user", Value: userVal, Properties: neo4jPropsToMap(up, "id", "displayName")}
 		}
 
 		if idVal, ok := id.(string); ok && idVal != "" {
@@ -277,8 +318,10 @@ func (a *Adapter) getFullGraph(ctx context.Context, session neo4j.SessionWithCon
 			} else if n, ok := record.Get("name"); ok && n != nil {
 				value = fmt.Sprintf("%v", n)
 			}
+			np, _ := record.Get("nodeProps")
 			// Use real Neo4j node id so GUI delete/update work.
-			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value}
+			// Exclude "label" since it is already surfaced as the Label field on GraphNode.
+			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value, Properties: neo4jPropsToMap(np, "id", "displayName", "label")}
 			edges = append(edges, ports.GraphEdge{Source: userNodeID, Target: idVal, Label: fmt.Sprintf("%v", relType)})
 		}
 	}
@@ -369,11 +412,15 @@ func (a *Adapter) SetUserProperty(ctx context.Context, userID, key, value string
 	defer session.Close(ctx)
 
 	cypher := fmt.Sprintf(`MERGE (u:User {id: $userID}) SET u.%s = $value`, key)
-	_, err := session.Run(ctx, cypher, map[string]interface{}{
+	result, err := session.Run(ctx, cypher, map[string]interface{}{
 		"userID": userID,
 		"value":  value,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	result.Consume(ctx)
+	return nil
 }
 
 // EditMemoryNode updates the content (and optionally label) of a Fact node.
@@ -425,8 +472,9 @@ func (a *Adapter) DeleteMemoryNode(ctx context.Context, userID, nodeID string) e
 	return nil
 }
 
-// UpdateNode implements NodeMutatorPort for the dashboard: updates a Fact by id (content and optional label).
-// userID is not available in the dashboard flow; the adapter matches the Fact by id only.
+// UpdateNode implements NodeMutatorPort for the dashboard: updates a node by id.
+// User nodes are identified by the synthetic "user:<userId>" prefix used when
+// building graph responses. Fact nodes are matched by their UUID id property.
 func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, properties map[string]string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -434,12 +482,42 @@ func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, 
 	session := a.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(ctx)
 
-	// MATCH Fact by id; set content and optionally the label property (display name in GUI).
+	// User nodes use the synthetic "user:<userId>" prefix — strip it to get the real userId.
+	if strings.HasPrefix(id, "user:") {
+		userID := strings.TrimPrefix(id, "user:")
+		cypher := "MERGE (u:User {id: $userID})"
+		params := map[string]interface{}{"userID": userID}
+		if label != "" {
+			cypher += " SET u.displayName = $label"
+			params["label"] = label
+		} else if value != "" {
+			cypher += " SET u.displayName = $value"
+			params["value"] = value
+		}
+		result, err := session.Run(ctx, cypher, params)
+		if err != nil {
+			return err
+		}
+		result.Consume(ctx)
+		return nil
+	}
+
+	// Default: Fact node — MATCH by UUID id, set content and optionally the label property.
 	cypher := "MATCH (f:Fact {id: $id}) SET f.content = $value"
 	params := map[string]interface{}{"id": id, "value": value}
 	if label != "" {
 		cypher += ", f.label = $label"
 		params["label"] = label
+	}
+	// Apply extra properties from the map, skipping reserved/already-handled keys.
+	for k, v := range properties {
+		safe := sanitizePropKey(k)
+		if safe == "" || safe == "id" || safe == "content" || safe == "label" {
+			continue
+		}
+		paramKey := "prop_" + safe
+		cypher += fmt.Sprintf(", f.%s = $%s", safe, paramKey)
+		params[paramKey] = v
 	}
 	cypher += " RETURN f"
 	result, err := session.Run(ctx, cypher, params)
@@ -451,6 +529,18 @@ func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, 
 	}
 	result.Consume(ctx)
 	return nil
+}
+
+// sanitizePropKey returns a safe Cypher property key: starts with a letter, contains only
+// letters, digits, and underscores. Returns empty string if no valid characters remain.
+func sanitizePropKey(key string) string {
+	var b strings.Builder
+	for _, r := range key {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || (b.Len() > 0 && r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // DeleteNode implements NodeMutatorPort for the dashboard: deletes a Fact by id (no userID in flow).
@@ -526,6 +616,32 @@ func (b *Neo4jMemoryBackend) GetRelatedEntities(ctx context.Context, entityID st
 		}
 	}
 	return entities, result.Err()
+}
+
+// neo4jPropsToMap converts the result of Cypher's properties(n) to a
+// map[string]string suitable for GraphNode.Properties, skipping any keys
+// listed in exclude (typically "id" and "displayName" which are already
+// surfaced as dedicated fields on GraphNode).
+func neo4jPropsToMap(raw interface{}, exclude ...string) map[string]string {
+	propsMap, ok := raw.(map[string]interface{})
+	if !ok || len(propsMap) == 0 {
+		return nil
+	}
+	skip := make(map[string]bool, len(exclude))
+	for _, k := range exclude {
+		skip[k] = true
+	}
+	result := make(map[string]string, len(propsMap))
+	for k, v := range propsMap {
+		if skip[k] || v == nil {
+			continue
+		}
+		result[k] = fmt.Sprintf("%v", v)
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 var _ ports.MemoryPort = (*Adapter)(nil)

@@ -123,12 +123,12 @@
 }
 
 .memory-item:hover {
-  background: rgba(37, 37, 37, 0.4);
+  background: var(--color-bg-elevated);
 }
 
 .memory-item--active,
 .memory-item--active:hover {
-  background: rgba(79, 142, 247, 0.1);
+  background: var(--color-accent-bg);
   border-left-color: var(--color-accent);
 }
 
@@ -423,7 +423,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--color-overlay);
   backdrop-filter: blur(8px);
   border-radius: var(--radius-sm);
   z-index: 10;
@@ -436,9 +436,9 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-size: 18px;
   cursor: pointer;
@@ -446,8 +446,8 @@
 }
 
 .minimap-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: rgb(255, 255, 255);
+  background: var(--color-bg-selected);
+  color: var(--color-text-primary);
   border-color: var(--color-accent);
   transform: scale(1.05);
 }
@@ -458,10 +458,10 @@
 
 .minimap-zoom-level {
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--color-text-secondary);
   font-weight: var(--weight-medium);
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-bg-elevated);
   border-radius: var(--radius-xs);
   min-width: 42px;
   text-align: center;
@@ -544,9 +544,9 @@
 /* ── Action button variant ──────────────────────────────────── */
 
 .action-btn--danger:hover {
-  background: rgba(220, 53, 69, 0.15);
-  color: #dc3545;
-  border-color: rgba(220, 53, 69, 0.4);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  border-color: var(--color-error);
 }
 
 /* ── Memory modals ──────────────────────────────────────────── */
@@ -572,8 +572,8 @@
 }
 
 .memory-modal-field input {
-  background: #2a2a2a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-bg-selected);
+  border: 1px solid var(--color-bg-elevated);
   border-radius: var(--radius-sm, 6px);
   color: var(--color-text-primary);
   font-size: var(--text-sm);
@@ -587,7 +587,7 @@
 
 .memory-modal-field input:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.14);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 /* ── Properties section ─────────────────────────────────────── */
@@ -630,7 +630,7 @@
 }
 
 .memory-modal-add-prop:hover {
-  background: rgba(79, 142, 247, 0.1);
+  background: var(--color-accent-bg);
 }
 
 .memory-modal-add-prop .material-symbols-outlined {
@@ -651,8 +651,8 @@
 
 .memory-modal-prop-row input {
   flex: 1;
-  background: #2a2a2a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-bg-selected);
+  border: 1px solid var(--color-bg-elevated);
   border-radius: var(--radius-sm, 6px);
   color: var(--color-text-primary);
   font-family: inherit;
@@ -688,8 +688,8 @@
 }
 
 .prop-row-remove:hover {
-  background: rgba(220, 53, 69, 0.12);
-  color: #dc3545;
+  background: var(--color-error-bg);
+  color: var(--color-error);
 }
 
 .prop-row-remove .material-symbols-outlined {
@@ -748,7 +748,7 @@
 
 .modal-btn--primary {
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-color);
 }
 
 .modal-btn--primary:hover:not(:disabled) {
@@ -765,8 +765,8 @@
 }
 
 .modal-btn--danger {
-  background: #dc3545;
-  color: #fff;
+  background: var(--color-error);
+  color: var(--color-on-color);
 }
 
 .modal-btn--danger:hover:not(:disabled) {

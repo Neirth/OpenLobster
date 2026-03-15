@@ -276,10 +276,12 @@ const TasksView: Component = () => {
                 />
               ) : (
                 <input
-                  type="text"
-                  placeholder="2026-04-01T09:00:00Z"
-                  value={newSchedule()}
-                  onInput={(e) => setNewSchedule(e.currentTarget.value)}
+                  type="datetime-local"
+                  value={newSchedule().replace('Z', '')}
+                  onInput={(e) => {
+                    const v = e.currentTarget.value;
+                    setNewSchedule(v ? `${v}:00Z` : '');
+                  }}
                 />
               )}
               <small class="form-hint">
@@ -351,10 +353,12 @@ const TasksView: Component = () => {
                 />
               ) : (
                 <input
-                  type="text"
-                  placeholder="2026-04-01T09:00:00Z"
-                  value={editSchedule()}
-                  onInput={(e) => setEditSchedule(e.currentTarget.value)}
+                  type="datetime-local"
+                  value={editSchedule().replace('Z', '')}
+                  onInput={(e) => {
+                    const v = e.currentTarget.value;
+                    setEditSchedule(v ? `${v}:00Z` : '');
+                  }}
                 />
               )}
               <small class="form-hint">

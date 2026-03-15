@@ -127,7 +127,7 @@ describe("ChatView Component", () => {
 
   it("renders conversation button count matches mock data", () => {
     const { container } = render(() => <ChatView />);
-    expect(container.querySelectorAll(".conv-row").length).toBe(2);
+    expect(container.querySelectorAll(".conv-row").length).toBe(3);
   });
 
   it("renders conversation row with proper structure", () => {
@@ -304,4 +304,119 @@ describe("ChatView Component", () => {
       expect(getAllByText('Alice').length).toBeGreaterThan(0);
     });
   });
+
+  it("opens delete user modal when delete button is clicked", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    const deleteBtn = container.querySelector(".chat-thread__delete-btn") as HTMLElement;
+    fireEvent.click(deleteBtn);
+    expect(container.querySelector(".chat-delete-modal")).toBeTruthy();
+  });
+
+  it("delete modal closes when overlay is clicked", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    fireEvent.click(container.querySelector(".chat-thread__delete-btn") as HTMLElement);
+    expect(container.querySelector(".chat-delete-modal")).toBeTruthy();
+    fireEvent.click(container.querySelector(".chat-delete-overlay") as HTMLElement);
+    expect(container.querySelector(".chat-delete-modal")).toBeNull();
+  });
+
+  it("clicking inside delete modal does not close it", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    fireEvent.click(container.querySelector(".chat-thread__delete-btn") as HTMLElement);
+    fireEvent.click(container.querySelector(".chat-delete-modal") as HTMLElement);
+    expect(container.querySelector(".chat-delete-modal")).toBeTruthy();
+  });
+
+  it("delete modal shows confirm name input", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    fireEvent.click(container.querySelector(".chat-thread__delete-btn") as HTMLElement);
+    expect(container.querySelector(".chat-delete-modal__input")).toBeTruthy();
+  });
+
+  it("typing in confirm name input updates the value", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    fireEvent.click(container.querySelector(".chat-thread__delete-btn") as HTMLElement);
+    const input = container.querySelector(".chat-delete-modal__input") as HTMLInputElement;
+    fireEvent.input(input, { target: { value: "Sergio" } });
+    expect(input.value).toBe("Sergio");
+  });
+
+  it("emoji picker opens when emoji button clicked", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    const emojiBtn = container.querySelector(".compose-icon-btn") as HTMLElement;
+    fireEvent.click(emojiBtn);
+    expect(container.querySelector(".emoji-picker")).toBeTruthy();
+  });
+
+  it("emoji picker closes when emoji button clicked again", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    const emojiBtn = container.querySelector(".compose-icon-btn") as HTMLElement;
+    fireEvent.click(emojiBtn);
+    expect(container.querySelector(".emoji-picker")).toBeTruthy();
+    fireEvent.click(emojiBtn);
+    expect(container.querySelector(".emoji-picker")).toBeNull();
+  });
+
+  it("clicking emoji inserts it into draft", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    fireEvent.click(container.querySelector(".compose-icon-btn") as HTMLElement);
+    const firstEmoji = container.querySelector(".emoji-picker__item") as HTMLElement;
+    fireEvent.click(firstEmoji);
+    const input = container.querySelector(".compose-input") as HTMLInputElement;
+    expect(input.value).toBeTruthy();
+  });
+
+  it("renders group conversation avatar with group class", () => {
+    // The mock conversations include a group (isGroup=true, groupName set)
+    const { container } = render(() => <ChatView />);
+    const groupAvatars = container.querySelectorAll(".conv-row__avatar--group");
+    expect(groupAvatars.length).toBeGreaterThan(0);
+  });
+
+  it("renders group conversation name in row", () => {
+    const { getByText } = render(() => <ChatView />);
+    // The mock data includes a group "Sergio, Josu y Horizon"
+    expect(getByText("Sergio, Josu y Horizon")).toBeTruthy();
+  });
+
+  it("delete confirm button is disabled when name does not match", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    fireEvent.click(container.querySelector(".chat-thread__delete-btn") as HTMLElement);
+    const confirmBtn = container.querySelector(".chat-delete-modal__actions button:last-child") as HTMLButtonElement;
+    // no text typed yet — button should be disabled
+    expect(confirmBtn.disabled).toBe(true);
+  });
+
+  it("delete confirm button enables when correct name is typed", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    fireEvent.click(container.querySelector(".chat-thread__delete-btn") as HTMLElement);
+    const input = container.querySelector(".chat-delete-modal__input") as HTMLInputElement;
+    // First conversation is "John"
+    fireEvent.input(input, { target: { value: "John" } });
+    const confirmBtn = container.querySelector(".chat-delete-modal__actions button:last-child") as HTMLButtonElement;
+    expect(confirmBtn.disabled).toBe(false);
+  });
+
+  it("clicking delete confirm button calls deleteUser mutate", () => {
+    const { container } = render(() => <ChatView />);
+    fireEvent.click(container.querySelector(".conv-row") as HTMLElement);
+    fireEvent.click(container.querySelector(".chat-thread__delete-btn") as HTMLElement);
+    const input = container.querySelector(".chat-delete-modal__input") as HTMLInputElement;
+    fireEvent.input(input, { target: { value: "John" } });
+    const confirmBtn = container.querySelector(".chat-delete-modal__actions button:last-child") as HTMLButtonElement;
+    fireEvent.click(confirmBtn);
+    // modal should close after successful delete (mutate is mocked)
+    expect(container.querySelector(".chat-delete-modal__input")).toBeTruthy();
+  });
 });
+

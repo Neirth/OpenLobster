@@ -131,7 +131,7 @@
 }
 
 .tasks-table tbody tr:hover {
-  background: rgba(37, 37, 37, 0.4);
+  background: var(--color-bg-elevated);
 }
 
 .task-id {
@@ -171,12 +171,12 @@
 }
 
 .task-type-badge--cyclic {
-  background: rgba(76, 175, 80, 0.12);
+  background: var(--color-success-bg);
   color: var(--color-success);
 }
 
 .task-type-badge--oneshot {
-  background: rgba(100, 160, 255, 0.12);
+  background: var(--color-accent-bg);
   color: var(--color-accent);
 }
 
@@ -238,7 +238,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -300,10 +300,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  transition: background var(--duration-normal) var(--ease-out),
-              border-color var(--duration-normal) var(--ease-out);
+  background: var(--color-bg-selected);
+  border: none;
+  transition: background var(--duration-normal) var(--ease-out);
   border-radius: 20px;
 }
 
@@ -312,22 +311,21 @@
   content: '';
   height: 14px;
   width: 14px;
-  left: 2px;
-  top: 2px;
-  background: rgba(255, 255, 255, 0.5);
-  transition: transform var(--duration-normal) var(--ease-out),
-              background var(--duration-normal) var(--ease-out);
+  left: 3px;
+  top: 3px;
+  background: var(--color-toggle-knob);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-normal) var(--ease-out);
   border-radius: 50%;
 }
 
 input:checked + .toggle-slider {
-  background: rgba(76, 175, 80, 0.3);
-  border-color: rgba(76, 175, 80, 0.5);
+  background: var(--color-success);
 }
 
 input:checked + .toggle-slider::before {
-  background: var(--color-success);
-  transform: translateX(16px);
+  background: var(--color-toggle-knob);
+  transform: translateX(14px);
 }
 
 /* ── New task form ───────────────────────────────────────────── */
@@ -427,7 +425,7 @@ input:checked + .toggle-slider::before {
   height: 36px;
   padding: 0 16px;
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-color);
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;

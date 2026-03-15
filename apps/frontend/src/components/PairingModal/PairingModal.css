@@ -46,7 +46,7 @@
 .pm-channel-icon {
   font-size: 16px;
   line-height: 1;
-  color: var(--color-primary);
+  color: var(--color-accent);
   vertical-align: middle;
 }
 
@@ -117,12 +117,12 @@
 }
 
 .pm-tab:hover:not(.pm-tab--active) {
-  background: var(--color-bg-hover, rgba(255,255,255,0.05));
+  background: var(--color-bg-elevated);
 }
 
 .pm-tab--active {
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--color-on-color);
 }
 
 /* ---- Select ---- */
@@ -132,7 +132,7 @@
   padding: 0 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-bg-input, var(--color-bg-secondary));
+  background: var(--color-bg-selected);
   color: var(--color-text-primary);
   font-size: var(--text-sm);
   cursor: pointer;
@@ -141,7 +141,7 @@
 
 .pm-select:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
 }
 
 /* ---- Hint ---- */
@@ -172,7 +172,7 @@
   padding: 0 10px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  background: var(--color-bg-input, var(--color-bg-selected));
+  background: var(--color-bg-selected);
   font-size: var(--text-sm);
   color: var(--color-text-primary);
   width: 100%;
@@ -181,7 +181,7 @@
 
 .pm-input:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
 }
 
 .pm-field-hint {
@@ -216,12 +216,12 @@
 
 .pm-btn--deny:hover {
   background: var(--color-error);
-  color: #fff;
+  color: var(--color-on-color);
 }
 
 .pm-btn--approve {
   background: var(--color-success);
-  color: #fff;
+  color: var(--color-on-color);
 }
 
 .pm-btn--approve:hover:not(:disabled) {
@@ -271,7 +271,7 @@
 
 .pairing-channel-icon {
   font-size: 16px;
-  color: var(--color-primary);
+  color: var(--color-accent);
 }
 
 .pairing-display-name {
@@ -304,7 +304,7 @@
   padding: 0 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-bg-input, var(--color-bg-secondary));
+  background: var(--color-bg-selected);
   color: var(--color-text-primary);
   font-size: var(--text-sm);
   cursor: pointer;
@@ -312,7 +312,7 @@
 
 .pairing-select:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
 }
 
 .pairing-btn-link {
@@ -323,7 +323,7 @@
   background: none;
   border: none;
   font-size: var(--text-sm);
-  color: var(--color-primary);
+  color: var(--color-accent);
   cursor: pointer;
   width: fit-content;
 }
@@ -368,16 +368,16 @@
 
 .pairing-btn--deny:hover {
   background: var(--color-error);
-  color: #fff;
+  color: var(--color-on-color);
 }
 
 .pairing-btn--approve {
   background: var(--color-success);
-  color: #fff;
+  color: var(--color-on-color);
 }
 
 .pairing-btn--approve:hover:not(:disabled) {
-  background: #43a047;
+  filter: brightness(1.1);
 }
 
 .pairing-btn--approve:disabled {

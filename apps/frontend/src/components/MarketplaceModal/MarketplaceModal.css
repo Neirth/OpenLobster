@@ -6,7 +6,7 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.72);
+  background: var(--color-overlay);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   display: flex;
@@ -18,14 +18,14 @@
 /* ── Modal box ───────────────────────────────────────────────── */
 
 .marketplace-box {
-  background: var(--color-bg-elevated, #1a1b1e);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   width: min(760px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-lg);
   animation: slideUp 0.2s ease-out;
   overflow: hidden;
 }
@@ -38,7 +38,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 20px 24px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -107,7 +107,7 @@
 }
 
 .marketplace-close-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--color-bg-elevated);
   color: var(--color-text-primary);
 }
 
@@ -120,7 +120,7 @@
 .marketplace-search-wrap {
   position: relative;
   padding: 14px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -140,7 +140,7 @@
   height: 36px;
   padding: 0 12px 0 38px;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -205,7 +205,7 @@
   gap: 10px;
   padding: 16px;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
@@ -215,7 +215,7 @@
 }
 
 .marketplace-card:hover {
-  background: #2e2e2e;
+  background: var(--color-bg-elevated);
   border-color: var(--color-accent);
 }
 
@@ -275,7 +275,7 @@
   font-weight: var(--weight-medium);
   color: var(--color-text-muted);
   background: var(--color-bg-elevated);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 1px 6px;
   letter-spacing: 0.04em;
@@ -335,7 +335,7 @@
   align-items: center;
   justify-content: center;
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   flex-shrink: 0;
 }
@@ -389,7 +389,7 @@
   font-weight: var(--weight-medium);
   color: var(--color-text-muted);
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 2px 8px;
   letter-spacing: 0.04em;
@@ -422,7 +422,7 @@
   font-size: var(--text-xs);
   color: var(--color-text-secondary);
   background: var(--color-bg-selected);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   word-break: break-all;
@@ -441,7 +441,7 @@
   height: 38px;
   padding: 0 20px;
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-color);
   border: none;
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
@@ -462,7 +462,7 @@
 /* ── Modal box ───────────────────────────────────────────────── */
 
 .marketplace-box {
-  background: var(--color-bg-secondary, var(--color-bg-elevated, #1a1b1e));
+  background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   width: min(760px, calc(100vw - 32px));
@@ -883,7 +883,7 @@
   height: 38px;
   padding: 0 20px;
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-color);
   border: none;
   border-radius: var(--radius-md);
   font-family: var(--font-sans);

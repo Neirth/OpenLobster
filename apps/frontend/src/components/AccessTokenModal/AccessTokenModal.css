@@ -17,7 +17,7 @@
   background: var(--color-bg-elevated);
   border-radius: var(--radius-lg);
   padding: var(--space-2xl);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -126,7 +126,7 @@
   width: 100%;
   padding: var(--space-md) var(--space-lg);
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-color);
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--font-size-base);

@@ -120,10 +120,10 @@
 
 .skills-import-error {
   font-size: var(--text-xs);
-  color: var(--color-error, #f87171);
+  color: var(--color-error);
   margin: 0;
   padding: 6px 10px;
-  background: rgba(248, 113, 113, 0.08);
+  background: var(--color-error-bg);
   border-radius: var(--radius-sm);
 }
 
@@ -148,7 +148,7 @@
 }
 
 .premium-label {
-  background: rgba(79, 142, 247, 0.15);
+  background: var(--color-accent-bg);
   color: var(--color-accent);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
@@ -157,7 +157,7 @@
 }
 
 .enterprise-label {
-  background: rgba(255, 152, 0, 0.1);
+  background: var(--color-warning-bg);
   color: var(--color-warning);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
@@ -187,7 +187,7 @@
 }
 
 .skill-card:hover {
-  background: rgba(37, 37, 37, 0.4);
+  background: var(--color-bg-elevated);
 }
 
 .skill-header {
@@ -256,8 +256,8 @@
 }
 
 .skill-delete-btn:hover {
-  color: var(--color-error, #f87171);
-  background: rgba(248, 113, 113, 0.08);
+  color: var(--color-error);
+  background: var(--color-error-bg);
 }
 
 .skill-delete-btn .material-symbols-outlined {
@@ -293,12 +293,13 @@
 }
 
 .skill-delete-confirm-yes {
-  background: rgba(248, 113, 113, 0.15);
-  color: var(--color-error, #f87171);
+  background: var(--color-error-bg);
+  color: var(--color-error);
 }
 
 .skill-delete-confirm-yes:hover {
-  background: rgba(248, 113, 113, 0.25);
+  background: var(--color-error-bg);
+  filter: brightness(1.3);
 }
 
 .skill-delete-confirm-no {

@@ -56,7 +56,7 @@
 }
 
 .conv-row:hover {
-  background: rgba(37, 37, 37, 0.4);
+  background: var(--color-bg-elevated);
 }
 
 .conv-row--active {
@@ -83,7 +83,7 @@
 }
 
 .conv-row--active .conv-row__avatar {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-bg-overlay);
 }
 
 /* ── Group avatar: two overlapping circles ────────────────────── */
@@ -132,12 +132,12 @@
 }
 
 .conv-row--active .conv-row__avatar-back {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--color-bg-selected);
   opacity: 1;
 }
 
 .conv-row--active .conv-row__avatar-front {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--color-bg-overlay);
   color: var(--color-text-primary);
   border-color: var(--color-bg-elevated);
 }
@@ -257,9 +257,9 @@
 }
 
 .chat-thread__delete-btn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.25);
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border-color: var(--color-error);
 }
 
 .chat-thread__delete-btn .material-symbols-outlined {
@@ -353,7 +353,7 @@
 
 /* Add a gentle shadow to lift bubbles */
 .msg__body {
-  box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Preserve original casing for agent names */
@@ -390,16 +390,16 @@
 .msg__body :not(pre) > code {
   font-family: var(--font-mono);
   font-size: 0.9em;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--color-bg-sunken);
   padding: 3px 6px;
   border-radius: 4px;
   color: var(--color-text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border);
 }
 
 .msg__body pre {
   font-family: var(--font-mono);
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--color-bg-sunken);
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   overflow-x: auto;
@@ -476,12 +476,12 @@
 }
 
 .msg__body th {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--color-bg-elevated);
   font-weight: 600;
 }
 
 .msg__body tr:nth-child(even) td {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--color-bg-base);
 }
 
 /* Headings (h1–h6) */
@@ -496,7 +496,7 @@
 .msg__body h3 { font-size: 0.95em; }
 
 .msg--user .msg__body {
-  background: rgba(79, 142, 247, 0.1);
+  background: var(--color-accent-bg);
 }
 
 .msg--system .msg__body {
@@ -512,8 +512,8 @@
 }
 
 .msg--tool .msg__body {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -523,7 +523,8 @@
 }
 
 .msg--tool .msg__sender {
-  color: rgba(255, 200, 80, 0.7);
+  color: var(--color-warning);
+  opacity: 0.7;
 }
 
 /* Compose */
@@ -633,7 +634,7 @@
   height: 34px;
   padding: 0 16px;
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-color);
   border: none;
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
@@ -700,7 +701,7 @@
 .chat-delete-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -718,7 +719,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-lg);
   animation: slideUp 0.2s ease-out;
 }
 
@@ -730,7 +731,7 @@
 
 .chat-delete-modal__icon {
   font-size: 22px;
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 .chat-delete-modal__title {
@@ -777,7 +778,7 @@
 }
 
 .chat-delete-modal__input:focus {
-  border-color: #ef4444;
+  border-color: var(--color-error);
 }
 
 .chat-delete-modal__actions {
@@ -808,9 +809,9 @@
   gap: 5px;
   padding: 7px 16px;
   border-radius: 6px;
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  border: 1px solid var(--color-error);
+  background: var(--color-error-bg);
+  color: var(--color-error);
   font-size: 13px;
   font-weight: var(--weight-medium);
   cursor: pointer;
@@ -818,7 +819,7 @@
 }
 
 .btn-modal-confirm:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.2);
+  background: var(--color-error-bg);
 }
 
 .btn-modal-confirm:disabled {
@@ -847,7 +848,7 @@
   background: var(--color-bg-elevated);
   border-radius: var(--radius-md);
   padding: 8px 12px;
-  box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-sm);
 }
 
 .msg__attachment-image {
@@ -877,7 +878,7 @@
   color: var(--color-text-primary);
   text-decoration: none;
   max-width: 480px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 .msg__attachment-file:hover {

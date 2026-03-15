@@ -66,18 +66,18 @@
 
 /* mirrors .msg__body bubble */
 .msg-skeleton__body {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   gap: 5px;
   padding: 8px 12px;
   border-radius: 8px;
-  /* override the shimmer border-radius from __block */
-  border-radius: 8px;
+  max-width: 480px;
+  min-width: 120px;
 }
 
 /* mirrors .msg--user .msg__body tint */
 .msg-skeleton--user .msg-skeleton__body {
-  background: rgba(79, 142, 247, 0.08);
+  background: var(--color-accent-bg);
 }
 
 /* text lines inside body — no extra shimmer (inherited from parent) */

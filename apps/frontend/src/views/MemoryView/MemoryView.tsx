@@ -12,7 +12,7 @@
  */
 
 import type { Component } from 'solid-js';
-import { For, createMemo, createSignal, Show } from 'solid-js';
+import { For, Index, createMemo, createSignal, Show } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
 import { useMemory } from '@openlobster/ui/hooks';
 import type { MemoryNode } from '@openlobster/ui/types';
@@ -360,33 +360,33 @@ const MemoryView: Component = () => {
             </div>
             <Show when={editProperties().length > 0}>
               <div class="memory-modal-props-list">
-                <For each={editProperties()}>
+                <Index each={editProperties()}>
                   {(prop, i) => (
                     <div class="memory-modal-prop-row">
                       <input
                         type="text"
                         placeholder={t('memory.key')}
-                        value={prop.key}
-                        onInput={(e) => updatePropertyKey(i(), e.currentTarget.value)}
+                        value={prop().key}
+                        onInput={(e) => updatePropertyKey(i, e.currentTarget.value)}
                       />
                       <span class="prop-row-sep">:</span>
                       <input
                         type="text"
                         placeholder={t('memory.value')}
-                        value={prop.value}
-                        onInput={(e) => updatePropertyValue(i(), e.currentTarget.value)}
+                        value={prop().value}
+                        onInput={(e) => updatePropertyValue(i, e.currentTarget.value)}
                       />
                       <button
                         type="button"
                         class="prop-row-remove"
-                        onClick={() => removeProperty(i())}
+                        onClick={() => removeProperty(i)}
                         title={t('memory.remove')}
                       >
                         <span class="material-symbols-outlined">close</span>
                       </button>
                     </div>
                   )}
-                </For>
+                </Index>
               </div>
             </Show>
             <Show when={editProperties().length === 0}>
