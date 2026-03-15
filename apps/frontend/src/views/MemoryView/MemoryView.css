@@ -572,8 +572,8 @@
 }
 
 .memory-modal-field input {
-  background: #2a2a2a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-bg-selected);
+  border: 1px solid var(--color-bg-elevated);
   border-radius: var(--radius-sm, 6px);
   color: var(--color-text-primary);
   font-size: var(--text-sm);
@@ -651,8 +651,8 @@
 
 .memory-modal-prop-row input {
   flex: 1;
-  background: #2a2a2a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-bg-selected);
+  border: 1px solid var(--color-bg-elevated);
   border-radius: var(--radius-sm, 6px);
   color: var(--color-text-primary);
   font-family: inherit;
