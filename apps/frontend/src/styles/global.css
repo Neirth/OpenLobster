@@ -1,6 +1,8 @@
 /* Copyright (c) OpenLobster contributors. See LICENSE for details. */
 
 :root {
+  color-scheme: dark;
+
   /* Backgrounds — exact values from design guide */
   --color-bg-sunken:   #0a0a0a;  /* Header bar, deepest chrome */
   --color-bg-surface:  #0d0d0d;  /* Secondary panels */
@@ -99,6 +101,8 @@
 
 /* Light theme — overrides when data-theme="light" */
 [data-theme="light"] {
+  color-scheme: light;
+
   --color-bg-sunken:   #e8e8e8;
   --color-bg-surface:  #eeeeee;
   --color-bg-base:     #f5f5f5;

@@ -48,7 +48,14 @@ func (a *Adapter) AddKnowledge(ctx context.Context, userID string, content strin
 	defer session.Close(context.Background())
 
 	if label == "" {
-		label = uuid.New().String()
+		words := strings.Fields(content)
+		if len(words) > 4 {
+			words = words[:4]
+		}
+		label = strings.Join(words, "_")
+		if label == "" {
+			label = uuid.New().String()
+		}
 	}
 	rel := relation
 	if rel == "" {
@@ -168,7 +175,7 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 	}
 
 	result, err := session.Run(ctx,
-		"MATCH (u:User {id: $userID})-[r]-(n) RETURN labels(n) AS labels, n.id AS id, n.content AS content, n.name AS name, n.label AS nodeLabel, type(r) AS relType",
+		"MATCH (u:User {id: $userID})-[r]-(n) RETURN labels(n) AS labels, n.id AS id, n.content AS content, n.name AS name, n.label AS nodeLabel, type(r) AS relType, properties(u) AS userProps, properties(n) AS nodeProps",
 		map[string]interface{}{"userID": userID},
 	)
 	if err != nil {
@@ -179,13 +186,21 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 	edges := make([]ports.GraphEdge, 0)
 
 	userNodeID := fmt.Sprintf("user:%s", userID)
-	nodes[userNodeID] = ports.GraphNode{ID: userNodeID, Label: userLabel, Type: "user", Value: userVal}
+	userNode := ports.GraphNode{ID: userNodeID, Label: userLabel, Type: "user", Value: userVal}
 
 	for result.Next(ctx) {
 		record := result.Record()
 		labels, _ := record.Get("labels")
 		id, _ := record.Get("id")
 		relType, _ := record.Get("relType")
+
+		// Populate user node properties from the first row that has them.
+		if _, exists := nodes[userNodeID]; !exists {
+			if up, ok := record.Get("userProps"); ok {
+				userNode.Properties = neo4jPropsToMap(up, "id", "displayName")
+			}
+			nodes[userNodeID] = userNode
+		}
 
 		if idVal, ok := id.(string); ok && idVal != "" {
 			typeStr := "Node"
@@ -205,10 +220,15 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 			} else if n, ok := record.Get("name"); ok && n != nil {
 				value = fmt.Sprintf("%v", n)
 			}
+			np, _ := record.Get("nodeProps")
 			// Use real Neo4j node id so GUI delete/update work.
-			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value}
+			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value, Properties: neo4jPropsToMap(np, "id", "displayName")}
 			edges = append(edges, ports.GraphEdge{Source: userNodeID, Target: idVal, Label: fmt.Sprintf("%v", relType)})
 		}
+	}
+	// Ensure user node is present even when there are no connected nodes.
+	if _, exists := nodes[userNodeID]; !exists {
+		nodes[userNodeID] = userNode
 	}
 
 	graphNodes := make([]ports.GraphNode, 0, len(nodes))
@@ -222,7 +242,7 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 // getFullGraph returns all User and Fact nodes with their relationships (dashboard full memory view).
 func (a *Adapter) getFullGraph(ctx context.Context, session neo4j.SessionWithContext) (ports.Graph, error) {
 	result, err := session.Run(ctx,
-		"MATCH (u:User)-[r]->(n) RETURN u.id AS userId, u.displayName AS userDisplayName, labels(n) AS labels, n.id AS id, n.content AS content, n.name AS name, n.label AS nodeLabel, n.displayName AS targetDisplayName, type(r) AS relType",
+		"MATCH (u:User)-[r]->(n) RETURN u.id AS userId, u.displayName AS userDisplayName, labels(n) AS labels, n.id AS id, n.content AS content, n.name AS name, n.label AS nodeLabel, n.displayName AS targetDisplayName, type(r) AS relType, properties(u) AS userProps, properties(n) AS nodeProps",
 		nil,
 	)
 	if err != nil {
@@ -251,7 +271,8 @@ func (a *Adapter) getFullGraph(ctx context.Context, session neo4j.SessionWithCon
 				userLabel = fmt.Sprintf("%v", dn)
 				userVal = userLabel
 			}
-			nodes[userNodeID] = ports.GraphNode{ID: userNodeID, Label: userLabel, Type: "user", Value: userVal}
+			up, _ := record.Get("userProps")
+			nodes[userNodeID] = ports.GraphNode{ID: userNodeID, Label: userLabel, Type: "user", Value: userVal, Properties: neo4jPropsToMap(up, "id", "displayName")}
 		}
 
 		if idVal, ok := id.(string); ok && idVal != "" {
@@ -277,8 +298,9 @@ func (a *Adapter) getFullGraph(ctx context.Context, session neo4j.SessionWithCon
 			} else if n, ok := record.Get("name"); ok && n != nil {
 				value = fmt.Sprintf("%v", n)
 			}
+			np, _ := record.Get("nodeProps")
 			// Use real Neo4j node id so GUI delete/update work.
-			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value}
+			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value, Properties: neo4jPropsToMap(np, "id", "displayName")}
 			edges = append(edges, ports.GraphEdge{Source: userNodeID, Target: idVal, Label: fmt.Sprintf("%v", relType)})
 		}
 	}
@@ -526,6 +548,32 @@ func (b *Neo4jMemoryBackend) GetRelatedEntities(ctx context.Context, entityID st
 		}
 	}
 	return entities, result.Err()
+}
+
+// neo4jPropsToMap converts the result of Cypher's properties(n) to a
+// map[string]string suitable for GraphNode.Properties, skipping any keys
+// listed in exclude (typically "id" and "displayName" which are already
+// surfaced as dedicated fields on GraphNode).
+func neo4jPropsToMap(raw interface{}, exclude ...string) map[string]string {
+	propsMap, ok := raw.(map[string]interface{})
+	if !ok || len(propsMap) == 0 {
+		return nil
+	}
+	skip := make(map[string]bool, len(exclude))
+	for _, k := range exclude {
+		skip[k] = true
+	}
+	result := make(map[string]string, len(propsMap))
+	for k, v := range propsMap {
+		if skip[k] || v == nil {
+			continue
+		}
+		result[k] = fmt.Sprintf("%v", v)
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 var _ ports.MemoryPort = (*Adapter)(nil)
