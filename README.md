@@ -18,6 +18,9 @@
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge" alt="GPLv3 License"></a>
 </p>
 
+> [!NOTE]
+> **Migrating from OpenClaw?** A step-by-step migration guide is available in [Discussions #44](https://github.com/Neirth/OpenLobster/discussions/44).
+
 An opinionated fork of OpenClaw that actually addresses the things people have been complaining about since the project blew up.
 
 OpenClaw had a moment — self-hosted AI agent, lots of hype, fast growth. Then the security community took a look and it got ugly fast: a CVE batch that filled a whole page on RedPacket, and a skills marketplace (ClawHub) where 26% of skills had at least one vulnerability. The memory system was a MEMORY.md file that blew up with concurrent sessions. The "scheduler" was a heartbeat daemon that woke up every 30 minutes to read a HEARTBEAT.md checklist. Multi-user support was basically non-existent — the docs literally said "only the main session writes to MEMORY.md, preventing conflicts from parallel sessions" as if that was a feature.
@@ -57,13 +60,20 @@ This fork started as a personal fix for all of that and grew from there.
 ## Quick start
 
 ```bash
-# Build everything
-make backend
-make frontend
+# Install dependencies
+pnpm install
+
+# Build frontend + backend (frontend embedded into the binary)
+pnpm build --filter=@openlobster/backend
+
+# Build only the frontend
+pnpm build --filter=@openlobster/frontend
+
+# Build both
+pnpm build
 
 # Run
-cd ~/.local/share/openlobster
-/path/to/dist/openlobsterd
+./dist/openlobsterd
 ```
 
 The web dashboard will be at `http://127.0.0.1:8080`. On first launch the setup wizard walks you through the essential config.
