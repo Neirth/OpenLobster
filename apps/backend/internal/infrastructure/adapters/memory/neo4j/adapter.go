@@ -241,7 +241,8 @@ func (a *Adapter) GetUserGraph(ctx context.Context, userID string) (ports.Graph,
 			}
 			np, _ := record.Get("nodeProps")
 			// Use real Neo4j node id so GUI delete/update work.
-			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value, Properties: neo4jPropsToMap(np, "id", "displayName")}
+			// Exclude "label" since it is already surfaced as the Label field on GraphNode.
+			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value, Properties: neo4jPropsToMap(np, "id", "displayName", "label")}
 			edges = append(edges, ports.GraphEdge{Source: userNodeID, Target: idVal, Label: fmt.Sprintf("%v", relType)})
 		}
 	}
@@ -319,7 +320,8 @@ func (a *Adapter) getFullGraph(ctx context.Context, session neo4j.SessionWithCon
 			}
 			np, _ := record.Get("nodeProps")
 			// Use real Neo4j node id so GUI delete/update work.
-			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value, Properties: neo4jPropsToMap(np, "id", "displayName")}
+			// Exclude "label" since it is already surfaced as the Label field on GraphNode.
+			nodes[idVal] = ports.GraphNode{ID: idVal, Label: displayLabel, Type: strings.ToLower(typeStr), Value: value, Properties: neo4jPropsToMap(np, "id", "displayName", "label")}
 			edges = append(edges, ports.GraphEdge{Source: userNodeID, Target: idVal, Label: fmt.Sprintf("%v", relType)})
 		}
 	}
@@ -410,11 +412,15 @@ func (a *Adapter) SetUserProperty(ctx context.Context, userID, key, value string
 	defer session.Close(ctx)
 
 	cypher := fmt.Sprintf(`MERGE (u:User {id: $userID}) SET u.%s = $value`, key)
-	_, err := session.Run(ctx, cypher, map[string]interface{}{
+	result, err := session.Run(ctx, cypher, map[string]interface{}{
 		"userID": userID,
 		"value":  value,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	result.Consume(ctx)
+	return nil
 }
 
 // EditMemoryNode updates the content (and optionally label) of a Fact node.
@@ -466,7 +472,7 @@ func (a *Adapter) DeleteMemoryNode(ctx context.Context, userID, nodeID string) e
 	return nil
 }
 
-// UpdateNode implements NodeMutatorPort for the dashboard: updates a Fact by id (content and optional label).
+// UpdateNode implements NodeMutatorPort for the dashboard: updates a Fact by id (content, optional label, and extra properties).
 // userID is not available in the dashboard flow; the adapter matches the Fact by id only.
 func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, properties map[string]string) error {
 	a.mu.Lock()
@@ -482,6 +488,16 @@ func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, 
 		cypher += ", f.label = $label"
 		params["label"] = label
 	}
+	// Apply extra properties from the map, skipping reserved/already-handled keys.
+	for k, v := range properties {
+		safe := sanitizePropKey(k)
+		if safe == "" || safe == "id" || safe == "content" || safe == "label" {
+			continue
+		}
+		paramKey := "prop_" + safe
+		cypher += fmt.Sprintf(", f.%s = $%s", safe, paramKey)
+		params[paramKey] = v
+	}
 	cypher += " RETURN f"
 	result, err := session.Run(ctx, cypher, params)
 	if err != nil {
@@ -492,6 +508,18 @@ func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, 
 	}
 	result.Consume(ctx)
 	return nil
+}
+
+// sanitizePropKey returns a safe Cypher property key: starts with a letter, contains only
+// letters, digits, and underscores. Returns empty string if no valid characters remain.
+func sanitizePropKey(key string) string {
+	var b strings.Builder
+	for _, r := range key {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || (b.Len() > 0 && r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // DeleteNode implements NodeMutatorPort for the dashboard: deletes a Fact by id (no userID in flow).
