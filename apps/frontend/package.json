@@ -37,7 +37,7 @@
     "@testing-library/user-event": "^14.5.1",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^25.3.5",
-    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^6.13.0",
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",
