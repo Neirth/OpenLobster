@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@turbo/gen": "^2.0.4",
-    "@types/eslint": "^8.56.10",
+    "@types/eslint": "^9.6.1",
     "@types/node": "^25.3.5",
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^10.0.3",
