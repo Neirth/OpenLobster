@@ -16,7 +16,7 @@
     "@graphql-codegen/typescript-graphql-request": "^6.4.0",
     "@graphql-codegen/typescript-operations": "^5.0.9",
     "prettier": "^3.2.5",
-    "turbo": "^2.0.4"
+    "turbo": "^2.8.17"
   },
   "packageManager": "pnpm@9.1.0",
   "dependencies": {
