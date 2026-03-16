@@ -11,6 +11,7 @@
   <strong>Personal, self-hosted AI assistant — runs where you want, connects to the channels you use.</strong>
 </p>
 
+
 <p align="center">
   <a href="https://github.com/Neirth/OpenLobster/actions/workflows/release.docker-images.yaml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/Neirth/OpenLobster/release.docker-images.yaml?branch=master&style=for-the-badge" alt="CI status"></a>
   <a href="https://github.com/Neirth/OpenLobster/releases"><img src="https://img.shields.io/github/v/release/Neirth/OpenLobster?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
@@ -20,6 +21,7 @@
 
 > [!NOTE]
 > **Migrating from OpenClaw?** A step-by-step migration guide is available in [Discussions #44](https://github.com/Neirth/OpenLobster/discussions/44).
+
 
 An opinionated fork of OpenClaw that actually addresses the things people have been complaining about since the project blew up.
 
@@ -44,6 +46,9 @@ This fork started as a personal fix for all of that and grew from there.
 * **Backend** — OpenClaw was Node.js/TypeScript. The entire backend has been rewritten in Go. That means a single static binary with no runtime dependency, faster startup, lower memory footprint, and a proper GraphQL API via gqlgen. It also makes deployment significantly simpler — no npm, no Node version pinning, no `node_modules` to worry about.
 
 * **UI** — The web interface was built with actual usability in mind. First launch drops you into a setup wizard that gets you from zero to a running agent without touching a config file. Settings are a dynamic form that adjusts based on what you enable — you only see the fields that matter for your setup. Everything you'd otherwise need to edit YAML for is accessible from the browser.
+
+> [!NOTE]
+> **Contributors needed** I'm thinking about adding maintainers to this repository. I'm discussing it on [Discussions #68](https://github.com/Neirth/OpenLobster/discussions/68).
 
 ## Stack
 
