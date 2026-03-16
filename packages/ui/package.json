@@ -35,7 +35,7 @@
     "@tanstack/solid-query": "^5.0.0"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.0.4",
+    "@turbo/gen": "^2.8.17",
     "@types/eslint": "^8.56.10",
     "@types/node": "^25.3.5",
     "@vitest/coverage-v8": "^4.0.18",
