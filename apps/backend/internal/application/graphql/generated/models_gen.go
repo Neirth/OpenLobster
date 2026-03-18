@@ -39,6 +39,8 @@ type AgentConfig struct {
 	AnthropicAPIKey           *string `json:"anthropicApiKey,omitempty"`
 	DockerModelRunnerEndpoint *string `json:"dockerModelRunnerEndpoint,omitempty"`
 	DockerModelRunnerModel    *string `json:"dockerModelRunnerModel,omitempty"`
+	AuthMode                  *string `json:"authMode,omitempty"`
+	OauthProvider             *string `json:"oauthProvider,omitempty"`
 }
 
 type AppConfig struct {
@@ -197,6 +199,11 @@ type ImportSkillResult struct {
 	Error   *string `json:"error,omitempty"`
 }
 
+type InitiateProviderOAuthResult struct {
+	AuthorizationURL string  `json:"authorizationURL"`
+	Instructions     *string `json:"instructions,omitempty"`
+}
+
 type KillSubAgentResult struct {
 	Success bool    `json:"success"`
 	Error   *string `json:"error,omitempty"`
@@ -339,6 +346,19 @@ type OAuthInitiateResult struct {
 	Error   *string `json:"error,omitempty"`
 }
 
+type OAuthProfile struct {
+	ID            string  `json:"id"`
+	Name          string  `json:"name"`
+	ProviderID    string  `json:"providerID"`
+	Authenticated bool    `json:"authenticated"`
+	AccountID     *string `json:"accountID,omitempty"`
+}
+
+type OAuthProviderInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type OpenbaoSecretsConfig struct {
 	URL   *string `json:"url,omitempty"`
 	Token *string `json:"token,omitempty"`
@@ -357,6 +377,12 @@ type PendingPairing struct {
 	Status           string  `json:"status"`
 	ExpiresAt        *string `json:"expiresAt,omitempty"`
 	CreatedAt        *string `json:"createdAt,omitempty"`
+}
+
+type ProviderOAuthStatus struct {
+	Provider     string  `json:"provider"`
+	Status       string  `json:"status"`
+	ErrorMessage *string `json:"errorMessage,omitempty"`
 }
 
 type Query struct {
@@ -507,6 +533,9 @@ type UpdateConfigInput struct {
 	ChannelSlackEnabled       *bool              `json:"channelSlackEnabled,omitempty"`
 	ChannelSlackBotToken      *string            `json:"channelSlackBotToken,omitempty"`
 	ChannelSlackAppToken      *string            `json:"channelSlackAppToken,omitempty"`
+	AuthMode                  *string            `json:"authMode,omitempty"`
+	OauthProvider             *string            `json:"oauthProvider,omitempty"`
+	OauthProfile              *string            `json:"oauthProfile,omitempty"`
 	WizardCompleted           *bool              `json:"wizardCompleted,omitempty"`
 }
 

@@ -209,6 +209,64 @@ export const DELETE_USER_MUTATION = /* GraphQL */ `
   }
 `;
 
+// ─── Provider OAuth ─────────────────────────────────────────────────────────────
+
+export const PROVIDER_OAUTH_PROVIDERS_QUERY = /* GraphQL */ `
+  query {
+    providerOAuthProviders {
+      id
+      name
+    }
+  }
+`;
+
+export const PROVIDER_OAUTH_STATUS_QUERY = /* GraphQL */ `
+  query ProviderOAuthStatus($provider: String!) {
+    providerOAuthStatus(provider: $provider) {
+      provider
+      status
+      errorMessage
+    }
+  }
+`;
+
+export const PROVIDER_OAUTH_PROFILES_QUERY = /* GraphQL */ `
+  query ProviderOAuthProfiles($provider: String!) {
+    providerOAuthProfiles(provider: $provider) {
+      name
+      authenticated
+      accountID
+    }
+  }
+`;
+
+export const INITIATE_PROVIDER_OAUTH_MUTATION = /* GraphQL */ `
+  mutation InitiateProviderOAuth($provider: String!, $profileName: String) {
+    initiateProviderOAuth(provider: $provider, profileName: $profileName) {
+      authorizationURL
+      instructions
+    }
+  }
+`;
+
+export const LOGOUT_PROVIDER_OAUTH_MUTATION = /* GraphQL */ `
+  mutation LogoutProviderOAuth($provider: String!) {
+    logoutProviderOAuth(provider: $provider)
+  }
+`;
+
+export const SET_ACTIVE_OAUTH_PROFILE_MUTATION = /* GraphQL */ `
+  mutation SetActiveOAuthProfile($provider: String!, $profileName: String!) {
+    setActiveOAuthProfile(provider: $provider, profileName: $profileName)
+  }
+`;
+
+export const DELETE_OAUTH_PROFILE_MUTATION = /* GraphQL */ `
+  mutation DeleteOAuthProfile($provider: String!, $profileName: String!) {
+    deleteOAuthProfile(provider: $provider, profileName: $profileName)
+  }
+`;
+
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
 export const UPDATE_CONFIG_MUTATION = /* GraphQL */ `

@@ -12,6 +12,8 @@ type AgentConfig {
   anthropicApiKey:           String
   dockerModelRunnerEndpoint: String
   dockerModelRunnerModel:    String
+  authMode:                  String  # "api_key" or "oauth"
+  oauthProvider:             String  # OAuth provider ID (e.g. "openai-codex", "github-copilot")
 }
 
 type CapabilitiesConfig {
@@ -194,13 +196,56 @@ input UpdateConfigInput {
   channelSlackEnabled:     Boolean
   channelSlackBotToken:    String
   channelSlackAppToken:     String
+  authMode:                String  # "api_key" or "oauth"
+  oauthProvider:           String  # OAuth provider ID
+  oauthProfile:            String  # OAuth profile name (for multi-account)
   wizardCompleted:         Boolean
+}
+
+# ─── Provider OAuth ──────────────────────────────────────────────────────────
+
+type OAuthProviderInfo {
+  id:   String!
+  name: String!
+}
+
+type ProviderOAuthStatus {
+  provider:    String!
+  status:      String!  # "authenticated", "not_authenticated", "error"
+  errorMessage: String
+}
+
+type OAuthProfile {
+  id:            String!
+  name:          String!
+  providerID:    String!
+  authenticated: Boolean!
+  accountID:     String
+}
+
+type InitiateProviderOAuthResult {
+  authorizationURL: String!
+  instructions:     String
 }
 
 extend type Query {
   config: AppConfig
+  """List available OAuth providers for AI authentication."""
+  providerOAuthProviders: [OAuthProviderInfo!]!
+  """Check OAuth status for a specific provider."""
+  providerOAuthStatus(provider: String!): ProviderOAuthStatus!
+  """List OAuth profiles for a specific provider."""
+  providerOAuthProfiles(provider: String!): [OAuthProfile!]!
 }
 
 extend type Mutation {
   updateConfig(input: UpdateConfigInput!): UpdateConfigResult!
+  """Initiate OAuth login for an AI provider. Returns URL to open in browser."""
+  initiateProviderOAuth(provider: String!, profileName: String): InitiateProviderOAuthResult!
+  """Log out from an OAuth provider."""
+  logoutProviderOAuth(provider: String!): Boolean!
+  """Set the active OAuth profile for a provider."""
+  setActiveOAuthProfile(provider: String!, profileName: String!): Boolean!
+  """Delete an OAuth profile for a provider."""
+  deleteOAuthProfile(provider: String!, profileName: String!): Boolean!
 }

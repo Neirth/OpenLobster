@@ -13,6 +13,7 @@ import (
 	"github.com/neirth/openlobster/internal/domain/ports"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
+	"github.com/neirth/openlobster/internal/domain/services/provideroauth"
 )
 
 // MessageDispatcherPort processes messages through the unified handler.
@@ -45,6 +46,7 @@ type Deps struct {
 	MessageDispatcher MessageDispatcherPort
 	EventBus          dto.EventBusPort
 	AIProvider        ports.AIProviderPort
+	ProviderOAuthMgr  *provideroauth.Manager
 	ConfigSnapshot    *dto.AppConfigSnapshot
 	ConfigPath        string
 	ConfigWriter      dto.ConfigUpdatePort

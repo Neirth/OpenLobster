@@ -14,6 +14,7 @@ import {
 import { WRITE_SYSTEM_FILE_MUTATION } from "@openlobster/ui/graphql/mutations";
 import { GRAPHQL_ENDPOINT } from "../../graphql/client";
 import AppShell from "../../components/AppShell";
+import ProviderOAuth from "../../components/ProviderOAuth/ProviderOAuth";
 import "./SettingsView.css";
 
 /**
@@ -479,6 +480,12 @@ const SettingsView: Component = () => {
         </div>
 
         <Show when={!isLoading()}>
+          {/* Authentication section */}
+          <section class="settings-section">
+            <h2 class="section-title">{t("settings.group.authentication" as "settings.group.general")}</h2>
+            <ProviderOAuth />
+          </section>
+
           {/* Render each configuration group */}
           <For each={configGroups}>
             {(group) => (

@@ -60,6 +60,7 @@ import (
 	"github.com/neirth/openlobster/internal/application/registry"
 	"github.com/neirth/openlobster/internal/application/webhooks"
 	"github.com/neirth/openlobster/internal/domain/repositories"
+	"github.com/neirth/openlobster/internal/domain/services/provideroauth"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 	"github.com/neirth/openlobster/internal/infrastructure/logging"
 	"github.com/neirth/openlobster/internal/infrastructure/persistence"
@@ -2131,6 +2132,11 @@ This signals that initialization is done and you should no longer treat bootstra
 	// Wire McpOAuthPort so initiateOAuth and mcpOAuthStatus work.
 	deps.McpOAuthPort = &mcpOAuthAdapter{oauth: oauthMgr}
 
+	// Wire ProviderOAuthMgr so provider OAuth login/logout/status work.
+	providerOAuthMgr := provideroauth.NewManager(secretsProvider)
+	providerOAuthMgr.StartAutoRefresh(context.Background())
+	deps.ProviderOAuthMgr = providerOAuthMgr
+
 	// -----------------------------------------------------------------------
 	// HTTP mux: GraphQL + static frontend
 	// -----------------------------------------------------------------------
@@ -2515,7 +2521,62 @@ const maxOutputTokens = 500
 
 // buildAIProviderFromConfig creates an AIProviderPort from config (used at startup and on soft reboot).
 func buildAIProviderFromConfig(cfg *config.Config) ports.AIProviderPort {
+	return buildAIProviderFromConfigWithOAuth(cfg, nil)
+}
+
+func buildAIProviderFromConfigWithOAuth(cfg *config.Config, oauthMgr *provideroauth.Manager) ports.AIProviderPort {
 	var p ports.AIProviderPort
+
+	// Try OAuth-based provider first if configured.
+	if oauthMgr != nil && cfg.Providers.OAuthProvider != "" {
+		ctx := context.Background()
+		apiKey, err := oauthMgr.GetAPIKey(ctx, cfg.Providers.OAuthProvider)
+		if err == nil && apiKey != "" {
+			providerID := cfg.Providers.OAuthProvider
+			switch {
+			case providerID == "openai-codex":
+				model := cfg.Providers.OpenAI.Model
+				if model == "" {
+					model = "gpt-4o"
+				}
+				p = aiopenai.NewAdapter(apiKey, model, maxOutputTokens)
+			case providerID == "anthropic":
+				model := cfg.Providers.Anthropic.Model
+				if model == "" {
+					model = "claude-sonnet-4-6"
+				}
+				p = aianthropicadapter.NewAdapter(apiKey, model, maxOutputTokens)
+			case providerID == "github-copilot":
+				creds, _ := oauthMgr.GetCredentials(ctx, providerID)
+				domain := ""
+				if creds != nil && creds.Extra != nil {
+					domain = creds.Extra["enterprise_domain"]
+				}
+				baseURL := provideroauth.GetCopilotBaseURL(apiKey, domain)
+				model := cfg.Providers.OpenAI.Model
+				if model == "" {
+					model = "gpt-4o"
+				}
+				p = aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxOutputTokens)
+			case providerID == "google-gemini-cli" || providerID == "google-antigravity":
+				model := cfg.Providers.OpenAI.Model
+				if model == "" {
+					model = "gemini-2.0-flash"
+				}
+				p = aiopenaicompat.NewAdapter(
+					"https://cloudcode-pa.googleapis.com/v1",
+					apiKey,
+					model,
+					maxOutputTokens,
+				)
+			}
+			if p != nil {
+				return p
+			}
+		}
+		log.Printf("oauth: provider %q configured but no valid credentials (falling back to API key)", cfg.Providers.OAuthProvider)
+	}
+
 	switch {
 	case cfg.Providers.OpenAI.APIKey != "" && cfg.Providers.OpenAI.APIKey != "YOUR_API_KEY_HERE":
 		model := cfg.Providers.OpenAI.Model
@@ -2577,6 +2638,9 @@ func buildAIProviderFromConfig(cfg *config.Config) ports.AIProviderPort {
 
 // providerName returns a human-readable AI provider label from the config.
 func providerName(cfg *config.Config) string {
+	if cfg.Providers.OAuthProvider != "" {
+		return cfg.Providers.OAuthProvider + " (oauth)"
+	}
 	switch {
 	case cfg.Providers.OpenAI.APIKey != "" && cfg.Providers.OpenAI.APIKey != "YOUR_API_KEY_HERE":
 		return "openai"

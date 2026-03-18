@@ -125,16 +125,17 @@ func (c *Config) Validate() error {
 		errs = append(errs, fmt.Sprintf("memory.backend %q is not supported; use \"file\" or \"neo4j\"", c.Memory.Backend))
 	}
 
-	// AI provider: at least one must be configured.
-	hasOpenAI := !isPlaceholder(c.Providers.OpenAI.APIKey)
+	// AI provider: at least one must be configured (API key or OAuth).
+	hasOpenAI := !isPlaceholder(c.Providers.OpenAI.APIKey) || c.Providers.OpenAI.AuthMode == "oauth"
 	hasOpenRouter := !isPlaceholder(c.Providers.OpenRouter.APIKey)
 	hasOllama := c.Providers.Ollama.Endpoint != ""
 	hasOpenAICompat := !isPlaceholder(c.Providers.OpenAICompat.APIKey) && c.Providers.OpenAICompat.BaseURL != ""
-	hasAnthropic := !isPlaceholder(c.Providers.Anthropic.APIKey)
+	hasAnthropic := !isPlaceholder(c.Providers.Anthropic.APIKey) || c.Providers.Anthropic.AuthMode == "oauth"
 	hasDockerModelRunner := c.Providers.DockerModelRunner.Endpoint != ""
 	hasOpenCode := !isPlaceholder(c.Providers.OpenCode.APIKey)
-	if !hasOpenAI && !hasOpenRouter && !hasOllama && !hasOpenAICompat && !hasAnthropic && !hasDockerModelRunner && !hasOpenCode {
-		errs = append(errs, "at least one AI provider must be configured: providers.openai.api_key, providers.openrouter.api_key, providers.ollama.endpoint, providers.openaicompat (api_key + base_url), providers.anthropic.api_key, providers.docker_model_runner.endpoint, or providers.opencode.api_key")
+	hasOAuth := c.Providers.OAuthProvider != ""
+	if !hasOpenAI && !hasOpenRouter && !hasOllama && !hasOpenAICompat && !hasAnthropic && !hasDockerModelRunner && !hasOpenCode && !hasOAuth {
+		errs = append(errs, "at least one AI provider must be configured: providers.openai.api_key, providers.openrouter.api_key, providers.ollama.endpoint, providers.openaicompat (api_key + base_url), providers.anthropic.api_key, providers.docker_model_runner.endpoint, providers.opencode.api_key, or providers.oauth_provider")
 	}
 
 	// Telegram: if a token is set it must not be a placeholder.
@@ -240,6 +241,14 @@ type ProvidersConfig struct {
 	OpenAICompat      OpenAICompatConfig      `mapstructure:"openaicompat"`
 	Anthropic         AnthropicConfig         `mapstructure:"anthropic"`
 	DockerModelRunner DockerModelRunnerConfig `mapstructure:"docker_model_runner"`
+	// OAuthProvider specifies the OAuth provider ID to use for authentication
+	// (e.g. "openai-codex", "anthropic", "github-copilot", "google-gemini-cli",
+	// "google-antigravity"). When set alongside a provider's auth_mode="oauth",
+	// credentials are loaded from the secrets backend instead of using an API key.
+	OAuthProvider string `mapstructure:"oauth_provider"`
+	// OAuthProfile specifies the named profile to use for OAuth authentication.
+	// Allows multiple accounts per provider. Defaults to "default" if empty.
+	OAuthProfile string `mapstructure:"oauth_profile"`
 }
 
 type OpenRouterConfig struct {
@@ -261,9 +270,10 @@ type OpenCodeConfig struct {
 }
 
 type OpenAIConfig struct {
-	APIKey  string `mapstructure:"api_key"`
-	Model   string `mapstructure:"model"`
-	BaseURL string `mapstructure:"base_url"`
+	APIKey   string `mapstructure:"api_key"`
+	Model    string `mapstructure:"model"`
+	BaseURL  string `mapstructure:"base_url"`
+	AuthMode string `mapstructure:"auth_mode"` // "api_key" (default) or "oauth"
 }
 
 // OpenAICompatConfig holds settings for a generic OpenAI-compatible provider.
@@ -275,8 +285,9 @@ type OpenAICompatConfig struct {
 
 // AnthropicConfig holds settings for the Anthropic Messages API.
 type AnthropicConfig struct {
-	APIKey string `mapstructure:"api_key"`
-	Model  string `mapstructure:"model"`
+	APIKey   string `mapstructure:"api_key"`
+	Model    string `mapstructure:"model"`
+	AuthMode string `mapstructure:"auth_mode"` // "api_key" (default) or "oauth"
 }
 
 // DockerModelRunnerConfig holds settings for Docker Desktop's Model Runner.

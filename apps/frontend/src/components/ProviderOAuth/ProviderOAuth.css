@@ -1,0 +1,358 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+/* ── Container ────────────────────────────────────────────────── */
+.provider-oauth {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.provider-oauth__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 0;
+  color: var(--color-text-muted);
+}
+
+.provider-oauth__loading .material-symbols-outlined {
+  font-size: 32px;
+  opacity: 0.5;
+  animation: provider-oauth-spin 1.5s linear infinite;
+}
+
+@keyframes provider-oauth-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.provider-oauth__empty {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* ── Provider Card ────────────────────────────────────────────── */
+.provider-oauth-card {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.provider-oauth-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.provider-oauth-card__name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.provider-oauth-card__name .material-symbols-outlined {
+  font-size: 20px;
+  color: var(--color-accent);
+}
+
+.provider-oauth-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Status Badge ─────────────────────────────────────────────── */
+.provider-oauth-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+}
+
+.provider-oauth-badge--authenticated {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success);
+}
+
+.provider-oauth-badge--expired {
+  background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+  color: var(--color-warning, #f59e0b);
+}
+
+.provider-oauth-badge--disconnected {
+  background: var(--color-bg-selected);
+  color: var(--color-text-muted);
+}
+
+.provider-oauth-badge .material-symbols-outlined {
+  font-size: 14px;
+}
+
+/* ── Profile List ─────────────────────────────────────────────── */
+.provider-oauth-profiles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.provider-oauth-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--color-bg-selected);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: border-color var(--duration-micro) var(--ease-out);
+}
+
+.provider-oauth-profile--active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg, color-mix(in srgb, var(--color-accent) 8%, transparent));
+}
+
+.provider-oauth-profile__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.provider-oauth-profile__name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+}
+
+.provider-oauth-profile__account {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-oauth-profile__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.provider-oauth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity var(--duration-micro) var(--ease-out),
+              background var(--duration-micro) var(--ease-out);
+  border: none;
+}
+
+.provider-oauth-btn .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.provider-oauth-btn--primary {
+  background: var(--color-accent);
+  color: var(--color-on-color);
+}
+
+.provider-oauth-btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.provider-oauth-btn--secondary {
+  background: var(--color-bg-selected);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.provider-oauth-btn--secondary:hover:not(:disabled) {
+  background: var(--color-bg-elevated);
+}
+
+.provider-oauth-btn--danger {
+  background: transparent;
+  color: var(--color-error);
+}
+
+.provider-oauth-btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+}
+
+.provider-oauth-btn--icon {
+  padding: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.provider-oauth-btn--icon:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+.provider-oauth-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Add Account Row ──────────────────────────────────────────── */
+.provider-oauth-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.provider-oauth-add input {
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--color-bg-selected);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  outline: none;
+  transition: border-color var(--duration-micro) var(--ease-out);
+}
+
+.provider-oauth-add input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.provider-oauth-add input:focus {
+  border-color: var(--color-accent);
+}
+
+/* ── Waiting/Polling State ────────────────────────────────────── */
+.provider-oauth-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.provider-oauth-waiting .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--color-accent);
+  animation: provider-oauth-spin 1.5s linear infinite;
+}
+
+/* ── Error ────────────────────────────────────────────────────── */
+.provider-oauth-error {
+  font-size: var(--text-sm);
+  color: var(--color-error);
+  padding: 4px 0;
+}
+
+/* ── Instructions ─────────────────────────────────────────────── */
+.provider-oauth-instructions {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  padding: 8px 12px;
+  background: var(--color-bg-selected);
+  border-radius: var(--radius-sm);
+  line-height: 1.5;
+}
+
+/* ── Wizard-specific compact layout ──────────────────────────── */
+.wizard-oauth-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.wizard-oauth-section h3 {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  margin: 0 0 12px 0;
+}
+
+.wizard-oauth-providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wizard-oauth-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--color-bg-selected);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: border-color var(--duration-micro) var(--ease-out),
+              background var(--duration-micro) var(--ease-out);
+}
+
+.wizard-oauth-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-bg-elevated);
+}
+
+.wizard-oauth-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wizard-oauth-btn .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--color-accent);
+}
+
+.wizard-oauth-btn--active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg, color-mix(in srgb, var(--color-accent) 8%, transparent));
+}
+
+.wizard-oauth-success {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--color-success);
+}
+
+.wizard-oauth-success .material-symbols-outlined {
+  font-size: 18px;
+}

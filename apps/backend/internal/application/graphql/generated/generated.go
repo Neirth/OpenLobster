@@ -63,11 +63,13 @@ type ComplexityRoot struct {
 	AgentConfig struct {
 		APIKey                    func(childComplexity int) int
 		AnthropicAPIKey           func(childComplexity int) int
+		AuthMode                  func(childComplexity int) int
 		BaseURL                   func(childComplexity int) int
 		DockerModelRunnerEndpoint func(childComplexity int) int
 		DockerModelRunnerModel    func(childComplexity int) int
 		Model                     func(childComplexity int) int
 		Name                      func(childComplexity int) int
+		OauthProvider             func(childComplexity int) int
 		OllamaAPIKey              func(childComplexity int) int
 		OllamaHost                func(childComplexity int) int
 		Provider                  func(childComplexity int) int
@@ -220,6 +222,11 @@ type ComplexityRoot struct {
 		Success func(childComplexity int) int
 	}
 
+	InitiateProviderOAuthResult struct {
+		AuthorizationURL func(childComplexity int) int
+		Instructions     func(childComplexity int) int
+	}
+
 	KillSubAgentResult struct {
 		Error   func(childComplexity int) int
 		Success func(childComplexity int) int
@@ -351,6 +358,7 @@ type ComplexityRoot struct {
 		CompleteTask          func(childComplexity int, taskID string) int
 		ConnectMcp            func(childComplexity int, name string, transport string, url string, clientID *string) int
 		DeleteMemoryNode      func(childComplexity int, id string) int
+		DeleteOAuthProfile    func(childComplexity int, provider string, profileName string) int
 		DeleteSkill           func(childComplexity int, name string) int
 		DeleteToolPermission  func(childComplexity int, userID string, toolName string) int
 		DeleteUser            func(childComplexity int, conversationID string) int
@@ -361,9 +369,12 @@ type ComplexityRoot struct {
 		ExecuteCypher         func(childComplexity int, cypher string) int
 		ImportSkill           func(childComplexity int, data string) int
 		InitiateOAuth         func(childComplexity int, name string, url string) int
+		InitiateProviderOAuth func(childComplexity int, provider string, profileName *string) int
 		KillSubAgent          func(childComplexity int, id string) int
+		LogoutProviderOAuth   func(childComplexity int, provider string) int
 		RemoveTask            func(childComplexity int, taskID string) int
 		SendMessage           func(childComplexity int, conversationID *string, channelID *string, content string) int
+		SetActiveOAuthProfile func(childComplexity int, provider string, profileName string) int
 		SetAllToolPermissions func(childComplexity int, userID string, mode string) int
 		SetToolPermission     func(childComplexity int, userID string, toolName string, mode string) int
 		SpawnSubAgent         func(childComplexity int, name string, model string, task *string) int
@@ -391,6 +402,19 @@ type ComplexityRoot struct {
 		Success func(childComplexity int) int
 	}
 
+	OAuthProfile struct {
+		AccountID     func(childComplexity int) int
+		Authenticated func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Name          func(childComplexity int) int
+		ProviderID    func(childComplexity int) int
+	}
+
+	OAuthProviderInfo struct {
+		ID   func(childComplexity int) int
+		Name func(childComplexity int) int
+	}
+
 	OpenbaoSecretsConfig struct {
 		Token func(childComplexity int) int
 		URL   func(childComplexity int) int
@@ -411,31 +435,40 @@ type ComplexityRoot struct {
 		Status           func(childComplexity int) int
 	}
 
+	ProviderOAuthStatus struct {
+		ErrorMessage func(childComplexity int) int
+		Provider     func(childComplexity int) int
+		Status       func(childComplexity int) int
+	}
+
 	Query struct {
-		Agent           func(childComplexity int) int
-		Channels        func(childComplexity int) int
-		Config          func(childComplexity int) int
-		Conversations   func(childComplexity int) int
-		Heartbeat       func(childComplexity int) int
-		McpOAuthStatus  func(childComplexity int, name string) int
-		McpServers      func(childComplexity int) int
-		McpTools        func(childComplexity int) int
-		McpUsers        func(childComplexity int) int
-		Mcps            func(childComplexity int) int
-		Memory          func(childComplexity int) int
-		Messages        func(childComplexity int, conversationID string, before *string, limit *int) int
-		Metrics         func(childComplexity int) int
-		PendingPairings func(childComplexity int) int
-		SearchMemory    func(childComplexity int, query string) int
-		Skills          func(childComplexity int) int
-		Status          func(childComplexity int) int
-		SubAgents       func(childComplexity int) int
-		SystemFiles     func(childComplexity int) int
-		Tasks           func(childComplexity int) int
-		ToolPermissions func(childComplexity int, userID string) int
-		Tools           func(childComplexity int) int
-		UserGraph       func(childComplexity int, userID *string) int
-		Users           func(childComplexity int) int
+		Agent                  func(childComplexity int) int
+		Channels               func(childComplexity int) int
+		Config                 func(childComplexity int) int
+		Conversations          func(childComplexity int) int
+		Heartbeat              func(childComplexity int) int
+		McpOAuthStatus         func(childComplexity int, name string) int
+		McpServers             func(childComplexity int) int
+		McpTools               func(childComplexity int) int
+		McpUsers               func(childComplexity int) int
+		Mcps                   func(childComplexity int) int
+		Memory                 func(childComplexity int) int
+		Messages               func(childComplexity int, conversationID string, before *string, limit *int) int
+		Metrics                func(childComplexity int) int
+		PendingPairings        func(childComplexity int) int
+		ProviderOAuthProfiles  func(childComplexity int, provider string) int
+		ProviderOAuthProviders func(childComplexity int) int
+		ProviderOAuthStatus    func(childComplexity int, provider string) int
+		SearchMemory           func(childComplexity int, query string) int
+		Skills                 func(childComplexity int) int
+		Status                 func(childComplexity int) int
+		SubAgents              func(childComplexity int) int
+		SystemFiles            func(childComplexity int) int
+		Tasks                  func(childComplexity int) int
+		ToolPermissions        func(childComplexity int, userID string) int
+		Tools                  func(childComplexity int) int
+		UserGraph              func(childComplexity int, userID *string) int
+		Users                  func(childComplexity int) int
 	}
 
 	SchedulerConfig struct {
@@ -576,6 +609,10 @@ type MutationResolver interface {
 	SpawnSubAgent(ctx context.Context, name string, model string, task *string) (*SpawnSubAgentResult, error)
 	KillSubAgent(ctx context.Context, id string) (*KillSubAgentResult, error)
 	UpdateConfig(ctx context.Context, input UpdateConfigInput) (*UpdateConfigResult, error)
+	InitiateProviderOAuth(ctx context.Context, provider string, profileName *string) (*InitiateProviderOAuthResult, error)
+	LogoutProviderOAuth(ctx context.Context, provider string) (bool, error)
+	SetActiveOAuthProfile(ctx context.Context, provider string, profileName string) (bool, error)
+	DeleteOAuthProfile(ctx context.Context, provider string, profileName string) (bool, error)
 	DeleteUser(ctx context.Context, conversationID string) (*MutationResult, error)
 	SendMessage(ctx context.Context, conversationID *string, channelID *string, content string) (*MessageSentResult, error)
 	AddMemory(ctx context.Context, content string) (*MutationResult, error)
@@ -612,6 +649,9 @@ type QueryResolver interface {
 	Status(ctx context.Context) (*Status, error)
 	Metrics(ctx context.Context) (*Metrics, error)
 	Config(ctx context.Context) (*AppConfig, error)
+	ProviderOAuthProviders(ctx context.Context) ([]*OAuthProviderInfo, error)
+	ProviderOAuthStatus(ctx context.Context, provider string) (*ProviderOAuthStatus, error)
+	ProviderOAuthProfiles(ctx context.Context, provider string) ([]*OAuthProfile, error)
 	Conversations(ctx context.Context) ([]*Conversation, error)
 	Messages(ctx context.Context, conversationID string, before *string, limit *int) ([]*Message, error)
 	SearchMemory(ctx context.Context, query string) (*SearchMemoryResult, error)
@@ -776,6 +816,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AgentConfig.AnthropicAPIKey(childComplexity), true
+	case "AgentConfig.authMode":
+		if e.ComplexityRoot.AgentConfig.AuthMode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfig.AuthMode(childComplexity), true
 	case "AgentConfig.baseURL":
 		if e.ComplexityRoot.AgentConfig.BaseURL == nil {
 			break
@@ -806,6 +852,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AgentConfig.Name(childComplexity), true
+	case "AgentConfig.oauthProvider":
+		if e.ComplexityRoot.AgentConfig.OauthProvider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfig.OauthProvider(childComplexity), true
 	case "AgentConfig.ollamaApiKey":
 		if e.ComplexityRoot.AgentConfig.OllamaAPIKey == nil {
 			break
@@ -1401,6 +1453,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.ImportSkillResult.Success(childComplexity), true
 
+	case "InitiateProviderOAuthResult.authorizationURL":
+		if e.ComplexityRoot.InitiateProviderOAuthResult.AuthorizationURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiateProviderOAuthResult.AuthorizationURL(childComplexity), true
+	case "InitiateProviderOAuthResult.instructions":
+		if e.ComplexityRoot.InitiateProviderOAuthResult.Instructions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InitiateProviderOAuthResult.Instructions(childComplexity), true
+
 	case "KillSubAgentResult.error":
 		if e.ComplexityRoot.KillSubAgentResult.Error == nil {
 			break
@@ -1949,6 +2014,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteMemoryNode(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteOAuthProfile":
+		if e.ComplexityRoot.Mutation.DeleteOAuthProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteOAuthProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteOAuthProfile(childComplexity, args["provider"].(string), args["profileName"].(string)), true
 	case "Mutation.deleteSkill":
 		if e.ComplexityRoot.Mutation.DeleteSkill == nil {
 			break
@@ -2059,6 +2135,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.InitiateOAuth(childComplexity, args["name"].(string), args["url"].(string)), true
+	case "Mutation.initiateProviderOAuth":
+		if e.ComplexityRoot.Mutation.InitiateProviderOAuth == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_initiateProviderOAuth_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.InitiateProviderOAuth(childComplexity, args["provider"].(string), args["profileName"].(*string)), true
 	case "Mutation.killSubAgent":
 		if e.ComplexityRoot.Mutation.KillSubAgent == nil {
 			break
@@ -2070,6 +2157,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.KillSubAgent(childComplexity, args["id"].(string)), true
+	case "Mutation.logoutProviderOAuth":
+		if e.ComplexityRoot.Mutation.LogoutProviderOAuth == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_logoutProviderOAuth_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.LogoutProviderOAuth(childComplexity, args["provider"].(string)), true
 	case "Mutation.removeTask":
 		if e.ComplexityRoot.Mutation.RemoveTask == nil {
 			break
@@ -2092,6 +2190,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SendMessage(childComplexity, args["conversationId"].(*string), args["channelId"].(*string), args["content"].(string)), true
+	case "Mutation.setActiveOAuthProfile":
+		if e.ComplexityRoot.Mutation.SetActiveOAuthProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setActiveOAuthProfile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetActiveOAuthProfile(childComplexity, args["provider"].(string), args["profileName"].(string)), true
 	case "Mutation.setAllToolPermissions":
 		if e.ComplexityRoot.Mutation.SetAllToolPermissions == nil {
 			break
@@ -2232,6 +2341,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.OAuthInitiateResult.Success(childComplexity), true
 
+	case "OAuthProfile.accountID":
+		if e.ComplexityRoot.OAuthProfile.AccountID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthProfile.AccountID(childComplexity), true
+	case "OAuthProfile.authenticated":
+		if e.ComplexityRoot.OAuthProfile.Authenticated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthProfile.Authenticated(childComplexity), true
+	case "OAuthProfile.id":
+		if e.ComplexityRoot.OAuthProfile.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthProfile.ID(childComplexity), true
+	case "OAuthProfile.name":
+		if e.ComplexityRoot.OAuthProfile.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthProfile.Name(childComplexity), true
+	case "OAuthProfile.providerID":
+		if e.ComplexityRoot.OAuthProfile.ProviderID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthProfile.ProviderID(childComplexity), true
+
+	case "OAuthProviderInfo.id":
+		if e.ComplexityRoot.OAuthProviderInfo.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthProviderInfo.ID(childComplexity), true
+	case "OAuthProviderInfo.name":
+		if e.ComplexityRoot.OAuthProviderInfo.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthProviderInfo.Name(childComplexity), true
+
 	case "OpenbaoSecretsConfig.token":
 		if e.ComplexityRoot.OpenbaoSecretsConfig.Token == nil {
 			break
@@ -2300,6 +2453,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PendingPairing.Status(childComplexity), true
+
+	case "ProviderOAuthStatus.errorMessage":
+		if e.ComplexityRoot.ProviderOAuthStatus.ErrorMessage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProviderOAuthStatus.ErrorMessage(childComplexity), true
+	case "ProviderOAuthStatus.provider":
+		if e.ComplexityRoot.ProviderOAuthStatus.Provider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProviderOAuthStatus.Provider(childComplexity), true
+	case "ProviderOAuthStatus.status":
+		if e.ComplexityRoot.ProviderOAuthStatus.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProviderOAuthStatus.Status(childComplexity), true
 
 	case "Query.agent":
 		if e.ComplexityRoot.Query.Agent == nil {
@@ -2396,6 +2568,34 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PendingPairings(childComplexity), true
+	case "Query.providerOAuthProfiles":
+		if e.ComplexityRoot.Query.ProviderOAuthProfiles == nil {
+			break
+		}
+
+		args, err := ec.field_Query_providerOAuthProfiles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProviderOAuthProfiles(childComplexity, args["provider"].(string)), true
+	case "Query.providerOAuthProviders":
+		if e.ComplexityRoot.Query.ProviderOAuthProviders == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.ProviderOAuthProviders(childComplexity), true
+	case "Query.providerOAuthStatus":
+		if e.ComplexityRoot.Query.ProviderOAuthStatus == nil {
+			break
+		}
+
+		args, err := ec.field_Query_providerOAuthStatus_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ProviderOAuthStatus(childComplexity, args["provider"].(string)), true
 	case "Query.searchMemory":
 		if e.ComplexityRoot.Query.SearchMemory == nil {
 			break
@@ -3229,6 +3429,8 @@ type AgentConfig {
   anthropicApiKey:           String
   dockerModelRunnerEndpoint: String
   dockerModelRunnerModel:    String
+  authMode:                  String  # "api_key" or "oauth"
+  oauthProvider:             String  # OAuth provider ID (e.g. "openai-codex", "github-copilot")
 }
 
 type CapabilitiesConfig {
@@ -3411,15 +3613,58 @@ input UpdateConfigInput {
   channelSlackEnabled:     Boolean
   channelSlackBotToken:    String
   channelSlackAppToken:     String
+  authMode:                String  # "api_key" or "oauth"
+  oauthProvider:           String  # OAuth provider ID
+  oauthProfile:            String  # OAuth profile name (for multi-account)
   wizardCompleted:         Boolean
+}
+
+# ─── Provider OAuth ──────────────────────────────────────────────────────────
+
+type OAuthProviderInfo {
+  id:   String!
+  name: String!
+}
+
+type ProviderOAuthStatus {
+  provider:    String!
+  status:      String!  # "authenticated", "not_authenticated", "error"
+  errorMessage: String
+}
+
+type OAuthProfile {
+  id:            String!
+  name:          String!
+  providerID:    String!
+  authenticated: Boolean!
+  accountID:     String
+}
+
+type InitiateProviderOAuthResult {
+  authorizationURL: String!
+  instructions:     String
 }
 
 extend type Query {
   config: AppConfig
+  """List available OAuth providers for AI authentication."""
+  providerOAuthProviders: [OAuthProviderInfo!]!
+  """Check OAuth status for a specific provider."""
+  providerOAuthStatus(provider: String!): ProviderOAuthStatus!
+  """List OAuth profiles for a specific provider."""
+  providerOAuthProfiles(provider: String!): [OAuthProfile!]!
 }
 
 extend type Mutation {
   updateConfig(input: UpdateConfigInput!): UpdateConfigResult!
+  """Initiate OAuth login for an AI provider. Returns URL to open in browser."""
+  initiateProviderOAuth(provider: String!, profileName: String): InitiateProviderOAuthResult!
+  """Log out from an OAuth provider."""
+  logoutProviderOAuth(provider: String!): Boolean!
+  """Set the active OAuth profile for a provider."""
+  setActiveOAuthProfile(provider: String!, profileName: String!): Boolean!
+  """Delete an OAuth profile for a provider."""
+  deleteOAuthProfile(provider: String!, profileName: String!): Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../../../../../../schema/conversations.graphql", Input: `# ─── Conversations / Messages ─────────────────────────────────────────────────
@@ -3965,6 +4210,22 @@ func (ec *executionContext) field_Mutation_deleteMemoryNode_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteOAuthProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "provider", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["provider"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "profileName", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["profileName"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteSkill_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4090,6 +4351,22 @@ func (ec *executionContext) field_Mutation_initiateOAuth_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_initiateProviderOAuth_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "provider", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["provider"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "profileName", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["profileName"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_killSubAgent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4098,6 +4375,17 @@ func (ec *executionContext) field_Mutation_killSubAgent_args(ctx context.Context
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_logoutProviderOAuth_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "provider", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["provider"] = arg0
 	return args, nil
 }
 
@@ -4130,6 +4418,22 @@ func (ec *executionContext) field_Mutation_sendMessage_args(ctx context.Context,
 		return nil, err
 	}
 	args["content"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setActiveOAuthProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "provider", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["provider"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "profileName", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["profileName"] = arg1
 	return args, nil
 }
 
@@ -4326,6 +4630,28 @@ func (ec *executionContext) field_Query_messages_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["limit"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_providerOAuthProfiles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "provider", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["provider"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_providerOAuthStatus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "provider", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["provider"] = arg0
 	return args, nil
 }
 
@@ -5226,6 +5552,64 @@ func (ec *executionContext) fieldContext_AgentConfig_dockerModelRunnerModel(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _AgentConfig_authMode(ctx context.Context, field graphql.CollectedField, obj *AgentConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentConfig_authMode,
+		func(ctx context.Context) (any, error) {
+			return obj.AuthMode, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentConfig_authMode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentConfig_oauthProvider(ctx context.Context, field graphql.CollectedField, obj *AgentConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentConfig_oauthProvider,
+		func(ctx context.Context) (any, error) {
+			return obj.OauthProvider, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentConfig_oauthProvider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AppConfig_agent(ctx context.Context, field graphql.CollectedField, obj *AppConfig) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5272,6 +5656,10 @@ func (ec *executionContext) fieldContext_AppConfig_agent(_ context.Context, fiel
 				return ec.fieldContext_AgentConfig_dockerModelRunnerEndpoint(ctx, field)
 			case "dockerModelRunnerModel":
 				return ec.fieldContext_AgentConfig_dockerModelRunnerModel(ctx, field)
+			case "authMode":
+				return ec.fieldContext_AgentConfig_authMode(ctx, field)
+			case "oauthProvider":
+				return ec.fieldContext_AgentConfig_oauthProvider(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentConfig", field.Name)
 		},
@@ -8056,6 +8444,64 @@ func (ec *executionContext) fieldContext_ImportSkillResult_error(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _InitiateProviderOAuthResult_authorizationURL(ctx context.Context, field graphql.CollectedField, obj *InitiateProviderOAuthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InitiateProviderOAuthResult_authorizationURL,
+		func(ctx context.Context) (any, error) {
+			return obj.AuthorizationURL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_InitiateProviderOAuthResult_authorizationURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiateProviderOAuthResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InitiateProviderOAuthResult_instructions(ctx context.Context, field graphql.CollectedField, obj *InitiateProviderOAuthResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_InitiateProviderOAuthResult_instructions,
+		func(ctx context.Context) (any, error) {
+			return obj.Instructions, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_InitiateProviderOAuthResult_instructions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InitiateProviderOAuthResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _KillSubAgentResult_success(ctx context.Context, field graphql.CollectedField, obj *KillSubAgentResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10399,6 +10845,176 @@ func (ec *executionContext) fieldContext_Mutation_updateConfig(ctx context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_initiateProviderOAuth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_initiateProviderOAuth,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().InitiateProviderOAuth(ctx, fc.Args["provider"].(string), fc.Args["profileName"].(*string))
+		},
+		nil,
+		ec.marshalNInitiateProviderOAuthResult2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐInitiateProviderOAuthResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_initiateProviderOAuth(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "authorizationURL":
+				return ec.fieldContext_InitiateProviderOAuthResult_authorizationURL(ctx, field)
+			case "instructions":
+				return ec.fieldContext_InitiateProviderOAuthResult_instructions(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type InitiateProviderOAuthResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_initiateProviderOAuth_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_logoutProviderOAuth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_logoutProviderOAuth,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().LogoutProviderOAuth(ctx, fc.Args["provider"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_logoutProviderOAuth(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_logoutProviderOAuth_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setActiveOAuthProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_setActiveOAuthProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetActiveOAuthProfile(ctx, fc.Args["provider"].(string), fc.Args["profileName"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_setActiveOAuthProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setActiveOAuthProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteOAuthProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteOAuthProfile,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteOAuthProfile(ctx, fc.Args["provider"].(string), fc.Args["profileName"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteOAuthProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteOAuthProfile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_deleteUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11895,6 +12511,209 @@ func (ec *executionContext) fieldContext_OAuthInitiateResult_error(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _OAuthProfile_id(ctx context.Context, field graphql.CollectedField, obj *OAuthProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OAuthProfile_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OAuthProfile_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthProfile_name(ctx context.Context, field graphql.CollectedField, obj *OAuthProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OAuthProfile_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OAuthProfile_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthProfile_providerID(ctx context.Context, field graphql.CollectedField, obj *OAuthProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OAuthProfile_providerID,
+		func(ctx context.Context) (any, error) {
+			return obj.ProviderID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OAuthProfile_providerID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthProfile_authenticated(ctx context.Context, field graphql.CollectedField, obj *OAuthProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OAuthProfile_authenticated,
+		func(ctx context.Context) (any, error) {
+			return obj.Authenticated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OAuthProfile_authenticated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthProfile_accountID(ctx context.Context, field graphql.CollectedField, obj *OAuthProfile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OAuthProfile_accountID,
+		func(ctx context.Context) (any, error) {
+			return obj.AccountID, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OAuthProfile_accountID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthProviderInfo_id(ctx context.Context, field graphql.CollectedField, obj *OAuthProviderInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OAuthProviderInfo_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OAuthProviderInfo_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthProviderInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthProviderInfo_name(ctx context.Context, field graphql.CollectedField, obj *OAuthProviderInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OAuthProviderInfo_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OAuthProviderInfo_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthProviderInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OpenbaoSecretsConfig_url(ctx context.Context, field graphql.CollectedField, obj *OpenbaoSecretsConfig) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -12204,6 +13023,93 @@ func (ec *executionContext) _PendingPairing_createdAt(ctx context.Context, field
 func (ec *executionContext) fieldContext_PendingPairing_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "PendingPairing",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProviderOAuthStatus_provider(ctx context.Context, field graphql.CollectedField, obj *ProviderOAuthStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProviderOAuthStatus_provider,
+		func(ctx context.Context) (any, error) {
+			return obj.Provider, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProviderOAuthStatus_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProviderOAuthStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProviderOAuthStatus_status(ctx context.Context, field graphql.CollectedField, obj *ProviderOAuthStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProviderOAuthStatus_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProviderOAuthStatus_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProviderOAuthStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProviderOAuthStatus_errorMessage(ctx context.Context, field graphql.CollectedField, obj *ProviderOAuthStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ProviderOAuthStatus_errorMessage,
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorMessage, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ProviderOAuthStatus_errorMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProviderOAuthStatus",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -12572,6 +13478,143 @@ func (ec *executionContext) fieldContext_Query_config(_ context.Context, field g
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AppConfig", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_providerOAuthProviders(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_providerOAuthProviders,
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().ProviderOAuthProviders(ctx)
+		},
+		nil,
+		ec.marshalNOAuthProviderInfo2ᚕᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐOAuthProviderInfoᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_providerOAuthProviders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_OAuthProviderInfo_id(ctx, field)
+			case "name":
+				return ec.fieldContext_OAuthProviderInfo_name(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OAuthProviderInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_providerOAuthStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_providerOAuthStatus,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProviderOAuthStatus(ctx, fc.Args["provider"].(string))
+		},
+		nil,
+		ec.marshalNProviderOAuthStatus2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐProviderOAuthStatus,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_providerOAuthStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "provider":
+				return ec.fieldContext_ProviderOAuthStatus_provider(ctx, field)
+			case "status":
+				return ec.fieldContext_ProviderOAuthStatus_status(ctx, field)
+			case "errorMessage":
+				return ec.fieldContext_ProviderOAuthStatus_errorMessage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ProviderOAuthStatus", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_providerOAuthStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_providerOAuthProfiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_providerOAuthProfiles,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ProviderOAuthProfiles(ctx, fc.Args["provider"].(string))
+		},
+		nil,
+		ec.marshalNOAuthProfile2ᚕᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐOAuthProfileᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_providerOAuthProfiles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_OAuthProfile_id(ctx, field)
+			case "name":
+				return ec.fieldContext_OAuthProfile_name(ctx, field)
+			case "providerID":
+				return ec.fieldContext_OAuthProfile_providerID(ctx, field)
+			case "authenticated":
+				return ec.fieldContext_OAuthProfile_authenticated(ctx, field)
+			case "accountID":
+				return ec.fieldContext_OAuthProfile_accountID(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OAuthProfile", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_providerOAuthProfiles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -17510,6 +18553,10 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 func (ec *executionContext) unmarshalInputCapabilitiesInput(ctx context.Context, obj any) (CapabilitiesInput, error) {
 	var it CapabilitiesInput
+	if obj == nil {
+		return it, nil
+	}
+
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
@@ -17578,12 +18625,16 @@ func (ec *executionContext) unmarshalInputCapabilitiesInput(ctx context.Context,
 
 func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context, obj any) (UpdateConfigInput, error) {
 	var it UpdateConfigInput
+	if obj == nil {
+		return it, nil
+	}
+
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"agentName", "systemPrompt", "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey", "anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel", "capabilities", "databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns", "memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword", "subagentsMaxConcurrent", "subagentsDefaultTimeout", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "loggingLevel", "loggingPath", "secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken", "schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "channelTelegramEnabled", "channelTelegramToken", "channelDiscordEnabled", "channelDiscordToken", "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken", "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber", "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken", "wizardCompleted"}
+	fieldsInOrder := [...]string{"agentName", "systemPrompt", "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey", "anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel", "capabilities", "databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns", "memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword", "subagentsMaxConcurrent", "subagentsDefaultTimeout", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "loggingLevel", "loggingPath", "secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken", "schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "channelTelegramEnabled", "channelTelegramToken", "channelDiscordEnabled", "channelDiscordToken", "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken", "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber", "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken", "authMode", "oauthProvider", "oauthProfile", "wizardCompleted"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -17940,6 +18991,27 @@ func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context,
 				return it, err
 			}
 			it.ChannelSlackAppToken = data
+		case "authMode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authMode"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AuthMode = data
+		case "oauthProvider":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("oauthProvider"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OauthProvider = data
+		case "oauthProfile":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("oauthProfile"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OauthProfile = data
 		case "wizardCompleted":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("wizardCompleted"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -18151,6 +19223,10 @@ func (ec *executionContext) _AgentConfig(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = ec._AgentConfig_dockerModelRunnerEndpoint(ctx, field, obj)
 		case "dockerModelRunnerModel":
 			out.Values[i] = ec._AgentConfig_dockerModelRunnerModel(ctx, field, obj)
+		case "authMode":
+			out.Values[i] = ec._AgentConfig_authMode(ctx, field, obj)
+		case "oauthProvider":
+			out.Values[i] = ec._AgentConfig_oauthProvider(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -19051,6 +20127,47 @@ func (ec *executionContext) _ImportSkillResult(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var initiateProviderOAuthResultImplementors = []string{"InitiateProviderOAuthResult"}
+
+func (ec *executionContext) _InitiateProviderOAuthResult(ctx context.Context, sel ast.SelectionSet, obj *InitiateProviderOAuthResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, initiateProviderOAuthResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InitiateProviderOAuthResult")
+		case "authorizationURL":
+			out.Values[i] = ec._InitiateProviderOAuthResult_authorizationURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "instructions":
+			out.Values[i] = ec._InitiateProviderOAuthResult_instructions(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var killSubAgentResultImplementors = []string{"KillSubAgentResult"}
 
 func (ec *executionContext) _KillSubAgentResult(ctx context.Context, sel ast.SelectionSet, obj *KillSubAgentResult) graphql.Marshaler {
@@ -19882,6 +20999,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "initiateProviderOAuth":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_initiateProviderOAuth(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "logoutProviderOAuth":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_logoutProviderOAuth(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setActiveOAuthProfile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setActiveOAuthProfile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteOAuthProfile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteOAuthProfile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteUser":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteUser(ctx, field)
@@ -20208,6 +21353,106 @@ func (ec *executionContext) _OAuthInitiateResult(ctx context.Context, sel ast.Se
 	return out
 }
 
+var oAuthProfileImplementors = []string{"OAuthProfile"}
+
+func (ec *executionContext) _OAuthProfile(ctx context.Context, sel ast.SelectionSet, obj *OAuthProfile) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oAuthProfileImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OAuthProfile")
+		case "id":
+			out.Values[i] = ec._OAuthProfile_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._OAuthProfile_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "providerID":
+			out.Values[i] = ec._OAuthProfile_providerID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "authenticated":
+			out.Values[i] = ec._OAuthProfile_authenticated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "accountID":
+			out.Values[i] = ec._OAuthProfile_accountID(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var oAuthProviderInfoImplementors = []string{"OAuthProviderInfo"}
+
+func (ec *executionContext) _OAuthProviderInfo(ctx context.Context, sel ast.SelectionSet, obj *OAuthProviderInfo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oAuthProviderInfoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OAuthProviderInfo")
+		case "id":
+			out.Values[i] = ec._OAuthProviderInfo_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._OAuthProviderInfo_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var openbaoSecretsConfigImplementors = []string{"OpenbaoSecretsConfig"}
 
 func (ec *executionContext) _OpenbaoSecretsConfig(ctx context.Context, sel ast.SelectionSet, obj *OpenbaoSecretsConfig) graphql.Marshaler {
@@ -20321,6 +21566,52 @@ func (ec *executionContext) _PendingPairing(ctx context.Context, sel ast.Selecti
 			out.Values[i] = ec._PendingPairing_expiresAt(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._PendingPairing_createdAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var providerOAuthStatusImplementors = []string{"ProviderOAuthStatus"}
+
+func (ec *executionContext) _ProviderOAuthStatus(ctx context.Context, sel ast.SelectionSet, obj *ProviderOAuthStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, providerOAuthStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProviderOAuthStatus")
+		case "provider":
+			out.Values[i] = ec._ProviderOAuthStatus_provider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._ProviderOAuthStatus_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorMessage":
+			out.Values[i] = ec._ProviderOAuthStatus_errorMessage(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -20515,6 +21806,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_config(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "providerOAuthProviders":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_providerOAuthProviders(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "providerOAuthStatus":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_providerOAuthStatus(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "providerOAuthProfiles":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_providerOAuthProfiles(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
 				return res
 			}
 
@@ -22238,6 +23595,20 @@ func (ec *executionContext) marshalNImportSkillResult2ᚖgithubᚗcomᚋneirth�
 	return ec._ImportSkillResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNInitiateProviderOAuthResult2githubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐInitiateProviderOAuthResult(ctx context.Context, sel ast.SelectionSet, v InitiateProviderOAuthResult) graphql.Marshaler {
+	return ec._InitiateProviderOAuthResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInitiateProviderOAuthResult2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐInitiateProviderOAuthResult(ctx context.Context, sel ast.SelectionSet, v *InitiateProviderOAuthResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InitiateProviderOAuthResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v any) (int, error) {
 	res, err := graphql.UnmarshalInt(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -22520,6 +23891,58 @@ func (ec *executionContext) marshalNOAuthInitiateResult2ᚖgithubᚗcomᚋneirth
 	return ec._OAuthInitiateResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNOAuthProfile2ᚕᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐOAuthProfileᚄ(ctx context.Context, sel ast.SelectionSet, v []*OAuthProfile) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOAuthProfile2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐOAuthProfile(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOAuthProfile2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐOAuthProfile(ctx context.Context, sel ast.SelectionSet, v *OAuthProfile) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OAuthProfile(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOAuthProviderInfo2ᚕᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐOAuthProviderInfoᚄ(ctx context.Context, sel ast.SelectionSet, v []*OAuthProviderInfo) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOAuthProviderInfo2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐOAuthProviderInfo(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOAuthProviderInfo2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐOAuthProviderInfo(ctx context.Context, sel ast.SelectionSet, v *OAuthProviderInfo) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OAuthProviderInfo(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNPendingPairing2ᚕᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐPendingPairingᚄ(ctx context.Context, sel ast.SelectionSet, v []*PendingPairing) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -22544,6 +23967,20 @@ func (ec *executionContext) marshalNPendingPairing2ᚖgithubᚗcomᚋneirthᚋop
 		return graphql.Null
 	}
 	return ec._PendingPairing(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProviderOAuthStatus2githubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐProviderOAuthStatus(ctx context.Context, sel ast.SelectionSet, v ProviderOAuthStatus) graphql.Marshaler {
+	return ec._ProviderOAuthStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProviderOAuthStatus2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐProviderOAuthStatus(ctx context.Context, sel ast.SelectionSet, v *ProviderOAuthStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProviderOAuthStatus(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNSkill2ᚕᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐSkillᚄ(ctx context.Context, sel ast.SelectionSet, v []*Skill) graphql.Marshaler {

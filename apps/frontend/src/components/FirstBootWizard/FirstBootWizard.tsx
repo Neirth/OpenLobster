@@ -22,8 +22,14 @@ import { UPDATE_CONFIG_MUTATION } from "@openlobster/ui/graphql/mutations";
 import { GRAPHQL_ENDPOINT } from "../../graphql/client";
 import { client } from "../../graphql/client";
 import { Input } from "../Input/Input";
+import {
+  PROVIDER_OAUTH_PROVIDERS_QUERY,
+  PROVIDER_OAUTH_STATUS_QUERY,
+  INITIATE_PROVIDER_OAUTH_MUTATION,
+} from "@openlobster/ui/graphql/mutations";
 import "./FirstBootWizard.css";
 import "../SchemaForm/SchemaForm.css";
+import "../ProviderOAuth/ProviderOAuth.css";
 
 interface MarketplaceServer {
   id: string;
@@ -160,6 +166,13 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
   const [marketplaceError, setMarketplaceError] = createSignal<string | null>(null);
   const [detailName, setDetailName] = createSignal("");
   const [detailUrl, setDetailUrl] = createSignal("");
+
+  // OAuth provider state
+  const [oauthProviders, setOauthProviders] = createSignal<{ id: string; name: string }[]>([]);
+  const [oauthPolling, setOauthPolling] = createSignal<string | null>(null);
+  const [oauthSuccess, setOauthSuccess] = createSignal<string | null>(null);
+  const [oauthError, setOauthError] = createSignal<string | null>(null);
+  let oauthPollInterval: ReturnType<typeof setInterval> | null = null;
 
   createEffect(() => {
     const s = marketplaceSelected();
@@ -305,12 +318,93 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
           channelTwilioFromNumber: config.channelSecrets?.twilioFromNumber ?? "",
         });
       }
+      // Fetch OAuth providers
+      try {
+        const oauthRes = await fetch(GRAPHQL_ENDPOINT, {
+          method: "POST",
+          headers: graphqlHeaders(),
+          body: JSON.stringify({ query: PROVIDER_OAUTH_PROVIDERS_QUERY }),
+        });
+        if (oauthRes.ok) {
+          const oauthData = await oauthRes.json();
+          setOauthProviders(oauthData?.data?.providerOAuthProviders ?? []);
+        }
+      } catch {
+        // OAuth providers are optional, don't block wizard
+      }
     } catch {
       // Keep defaults on error
     } finally {
       setIsLoading(false);
     }
   });
+
+  const handleProviderOAuth = async (providerId: string) => {
+    try {
+      setOauthError(null);
+      setOauthSuccess(null);
+      setOauthPolling(providerId);
+
+      const res = await fetch(GRAPHQL_ENDPOINT, {
+        method: "POST",
+        headers: graphqlHeaders(),
+        body: JSON.stringify({
+          query: INITIATE_PROVIDER_OAUTH_MUTATION,
+          variables: { provider: providerId },
+        }),
+      });
+      if (res.status === 401) {
+        setNeedsAuth(true);
+        setOauthPolling(null);
+        return;
+      }
+      const data = await res.json();
+      if (data.errors?.length) {
+        setOauthError(data.errors[0]?.message ?? "OAuth initiation failed");
+        setOauthPolling(null);
+        return;
+      }
+      const result = data.data?.initiateProviderOAuth;
+      if (result?.authorizationURL) {
+        window.open(result.authorizationURL, "oauth_popup", "width=600,height=700");
+        // Start polling for authentication
+        if (oauthPollInterval) clearInterval(oauthPollInterval);
+        oauthPollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(GRAPHQL_ENDPOINT, {
+              method: "POST",
+              headers: graphqlHeaders(),
+              body: JSON.stringify({
+                query: PROVIDER_OAUTH_STATUS_QUERY,
+                variables: { provider: providerId },
+              }),
+            });
+            if (!statusRes.ok) return;
+            const statusData = await statusRes.json();
+            const status = statusData?.data?.providerOAuthStatus;
+            if (status?.status === "authenticated") {
+              if (oauthPollInterval) clearInterval(oauthPollInterval);
+              oauthPollInterval = null;
+              setOauthPolling(null);
+              setOauthSuccess(providerId);
+              // Auto-select the provider in the form
+              handleFieldChange("provider", providerId);
+            } else if (status?.errorMessage) {
+              if (oauthPollInterval) clearInterval(oauthPollInterval);
+              oauthPollInterval = null;
+              setOauthPolling(null);
+              setOauthError(status.errorMessage);
+            }
+          } catch {
+            // Continue polling on transient errors
+          }
+        }, 2000);
+      }
+    } catch (err) {
+      setOauthError(err instanceof Error ? err.message : "OAuth initiation failed");
+      setOauthPolling(null);
+    }
+  };
 
   const handleSaveAndFinish = async () => {
     setSaveError(null);
@@ -549,6 +643,49 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                     />
                   </Show>
                 </div>
+
+                {/* OAuth provider sign-in section */}
+                <Show when={oauthProviders().length > 0}>
+                  <div class="wizard-oauth-section">
+                    <h3>Or sign in with OAuth</h3>
+
+                    <Show when={oauthError()}>
+                      <p class="wizard-error">{oauthError()}</p>
+                    </Show>
+
+                    <Show when={oauthSuccess()}>
+                      <div class="wizard-oauth-success">
+                        <span class="material-symbols-outlined">check_circle</span>
+                        Authenticated with {oauthProviders().find((p) => p.id === oauthSuccess())?.name ?? oauthSuccess()}
+                      </div>
+                    </Show>
+
+                    <Show when={oauthPolling()}>
+                      <div class="provider-oauth-waiting">
+                        <span class="material-symbols-outlined">rotate_right</span>
+                        Waiting for authentication to complete...
+                      </div>
+                    </Show>
+
+                    <Show when={!oauthPolling()}>
+                      <div class="wizard-oauth-providers">
+                        <For each={oauthProviders()}>
+                          {(provider) => (
+                            <button
+                              class="wizard-oauth-btn"
+                              classList={{ "wizard-oauth-btn--active": oauthSuccess() === provider.id }}
+                              onClick={() => handleProviderOAuth(provider.id)}
+                              disabled={!!oauthPolling()}
+                            >
+                              <span class="material-symbols-outlined">key</span>
+                              {provider.name}
+                            </button>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </div>
+                </Show>
               </div>
             </Show>
 
