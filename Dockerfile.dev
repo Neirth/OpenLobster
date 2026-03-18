@@ -1,0 +1,46 @@
+# Development Dockerfile for building OpenLobster from source
+FROM golang:1.25rc1-bookworm AS backend-build
+
+# Install Node.js 22 and pnpm
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates jq && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g pnpm@9.1.0
+
+ENV GOTOOLCHAIN=auto
+
+COPY . /build
+WORKDIR /build
+
+# Install JS dependencies
+RUN pnpm install --ignore-scripts
+
+# Build frontend first (backend embeds it)
+RUN pnpm --filter @openlobster/frontend build
+
+# Build Go backend
+WORKDIR /build/apps/backend
+RUN go mod download
+WORKDIR /build
+RUN cd apps/backend && CGO_ENABLED=0 go build -buildvcs=false -ldflags="-s -w" -o /build/dist/openlobsterd ./cmd/openlobster
+
+# Create app structure
+RUN mkdir -p /app/bin /app/config /app/data /app/logs /app/workspace && \
+    cp /build/dist/openlobsterd /app/bin/openlobsterd
+
+# Runtime
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl git && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -r -m -u 65532 nonroot
+COPY --chown=nonroot:nonroot --from=backend-build /app /app
+USER nonroot
+WORKDIR /app
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["/app/bin/openlobsterd"]

@@ -85,7 +85,7 @@ func startCallbackServer(port int, path string, expectedState string) (*callback
 	})
 
 	var err error
-	cs.listener, err = net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	cs.listener, err = net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
 		return nil, fmt.Errorf("bind callback server on port %d: %w", port, err)
 	}
