@@ -494,7 +494,7 @@ func (a *Adapter) DeleteMemoryNode(ctx context.Context, userID, nodeID string) e
 
 // UpdateNode implements NodeMutatorPort for the dashboard: updates a node by id.
 // User nodes are identified by the synthetic "user:<userId>" prefix used when
-// building graph responses. Fact nodes are matched by their UUID id property.
+// building graph responses.
 func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, properties map[string]string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -522,14 +522,68 @@ func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, 
 		return nil
 	}
 
-	// Default: memory entity node — MATCH by UUID id, set content and optionally
-	// the label property.
-	cypher := "MATCH (n {id: $id}) SET n.content = $value"
+	// Default: memory entity node — MATCH by UUID id and update content/label.
+	// If typ is provided, also update the Neo4j node label (Person/Place/Thing/Story/Fact).
+	typNormalized := strings.ToLower(strings.TrimSpace(typ))
+	desiredLabel := ""
+	switch typNormalized {
+	case "person":
+		desiredLabel = "Person"
+	case "place":
+		desiredLabel = "Place"
+	case "thing":
+		desiredLabel = "Thing"
+	case "story":
+		desiredLabel = "Story"
+	case "fact", "entity":
+		desiredLabel = "Fact"
+	default:
+		// Unknown node types are mapped to Fact for safety.
+		desiredLabel = "Fact"
+	}
+
 	params := map[string]interface{}{"id": id, "value": value}
+	cypher := "MATCH (n {id: $id}) "
+
+	// Decide whether we need to change node labels.
+	currentLabel := ""
+	if typNormalized != "" {
+		labelsRes, err := session.Run(ctx,
+			"MATCH (n {id: $id}) RETURN labels(n) AS lbls",
+			map[string]interface{}{"id": id},
+		)
+		if err != nil {
+			return err
+		}
+		if labelsRes.Next(ctx) {
+			if raw, ok := labelsRes.Record().Get("lbls"); ok && raw != nil {
+				if lbls, ok := raw.([]interface{}); ok {
+					for _, v := range lbls {
+						s := strings.TrimSpace(fmt.Sprintf("%v", v))
+						switch s {
+						case "Person", "Place", "Thing", "Story", "Fact":
+							currentLabel = s
+						}
+					}
+				}
+			}
+		}
+		_, _ = labelsRes.Consume(ctx)
+
+		if desiredLabel != "" && currentLabel != "" && desiredLabel != currentLabel {
+			cypher += fmt.Sprintf("REMOVE n:%s SET n:%s ", currentLabel, desiredLabel)
+		} else if desiredLabel != "" && currentLabel == "" {
+			cypher += fmt.Sprintf("SET n:%s ", desiredLabel)
+		}
+	}
+
+	// Apply content/label/properties updates.
+	cypher += "SET n.content = $value"
 	if label != "" {
 		cypher += ", n.label = $label"
 		params["label"] = label
 	}
+
 	// Apply extra properties from the map, skipping reserved/already-handled keys.
 	for k, v := range properties {
 		safe := sanitizePropKey(k)

@@ -78,7 +78,21 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest, fn func(ChatRespons
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("ollama: server %d: %s", resp.StatusCode, string(b))
+		// Ollama always wraps errors as {"error":"<human-readable message>"}.
+		// Parse that field so logs show something useful instead of raw JSON.
+		var errBody struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(b, &errBody) == nil && errBody.Error != "" {
+			return fmt.Errorf("ollama: %s (HTTP %d)", errBody.Error, resp.StatusCode)
+		}
+		// Fallback: body is not valid JSON (e.g. an HTML proxy page).
+		// Truncate to avoid flooding logs with kilobytes of HTML.
+		raw := string(b)
+		if len(raw) > 200 {
+			raw = raw[:200] + "…"
+		}
+		return fmt.Errorf("ollama: server error %d: %s", resp.StatusCode, raw)
 	}
 
 	var chatResp ChatResponse
