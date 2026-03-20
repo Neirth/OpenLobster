@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -152,7 +153,8 @@ type MemoryService interface {
 	// AddKnowledge stores a new fact for a user.
 	// label is a short descriptive keyword (e.g. "Electronica").
 	// relation is the semantic edge label (e.g. "LIKES"). Both have sensible defaults.
-	AddKnowledge(ctx context.Context, userID, content, label, relation string) error
+	// entityType is the semantic category of the saved node (e.g. "fact", "person", "place", "thing", "story").
+	AddKnowledge(ctx context.Context, userID, content, label, relation, entityType string) error
 	SearchMemory(ctx context.Context, userID, query string) (string, error)
 	SetUserProperty(ctx context.Context, userID, key, value string) error
 	EditMemoryNode(ctx context.Context, userID, nodeID, newValue string) error
@@ -718,6 +720,7 @@ func (t *AddMemoryTool) Definition() ToolDefinition {
 				"content":  {"type": "string", "description": "Full sentence describing what to remember (e.g. 'User lives in Valencia', 'User loves electronic music')"},
 				"label":    {"type": "string", "description": "Short keyword for the fact (e.g. 'Valencia', 'Electronica', 'Software Engineer'). Defaults to first words of content."},
 				"relation": {"type": "string", "description": "Edge from user to this fact: LIVES_IN, LIKES, IS, WORKS_AT, WORKS_AS, PREFERS, HAS_FACT, etc. Defaults to HAS_FACT."},
+				"entity_type": {"type": "string", "description": "Semantic category for the node: fact, person, place, thing, story. Defaults to 'fact' (or inferred from relation)."},
 				"for_user": {"type": "string", "description": "Name of the user this memory belongs to. Only for memory consolidation agents processing multiple users — omit for normal per-user interactions."}
 			},
 			"required": ["content"]
@@ -732,6 +735,7 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 	}
 	label, _ := params["label"].(string)
 	relation, _ := params["relation"].(string)
+	entityType, _ := params["entity_type"].(string)
 
 	// for_user allows consolidation agents to store facts for a specific user
 	// rather than the ambient context user (which is empty in loopback runs).
@@ -745,6 +749,37 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 		userKey = u
 	}
 
+	if userKey == "" {
+		// In memory consolidation loopback runs, ambient user may be empty and
+		// callers must provide `for_user`. For other flows (including unit tests),
+		// preserve backward compatibility.
+		if ct, _ := ctx.Value(ContextKeyChannelType).(string); ct == "loopback" {
+			return nil, fmt.Errorf("add_memory: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
+		}
+		if cid, _ := ctx.Value(ContextKeyChannelID).(string); cid == "loopback" {
+			return nil, fmt.Errorf("add_memory: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
+		}
+	}
+
+	// Infer a reasonable entity type when the caller doesn't provide it.
+	// We keep this lightweight to preserve backward compatibility.
+	et := strings.ToLower(strings.TrimSpace(entityType))
+	if et == "" {
+		relUpper := strings.ToUpper(strings.TrimSpace(relation))
+		switch relUpper {
+		case "LIVES_IN", "LIVES_AT", "BORN_IN", "DIED_IN", "LOCATED_IN":
+			et = "place"
+		case "FRIEND_OF", "KNOWS", "COLLEAGUE_OF", "FAMILY_OF":
+			et = "person"
+		case "LIKES", "LOVES", "PREFERS", "HATES", "WORKS_AT", "WORKS_AS", "EMBODIES":
+			et = "thing"
+		case "HAS_FACT", "IS":
+			et = "fact"
+		default:
+			et = "fact"
+		}
+	}
+
 	// Keep the user node label in sync with the display name whenever we add memory.
 	if t.Tools.Memory != nil {
 		if displayName, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && displayName != "" {
@@ -752,7 +787,7 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 		}
 	}
 
-	err := t.Tools.Memory.AddKnowledge(ctx, userKey, content, label, relation)
+	err := t.Tools.Memory.AddKnowledge(ctx, userKey, content, label, relation, et)
 	if err != nil {
 		return nil, err
 	}
@@ -822,13 +857,13 @@ func (t *AddUserRelationTool) Execute(ctx context.Context, params map[string]int
 		// Persist the purpose as a user-scoped fact so it is searchable and
 		// visible in the UI; use the markerLabel so future calls detect it.
 		if purpose != "" {
-			if err := t.Tools.Memory.AddKnowledge(ctx, from, purpose, markerLabel, "RELATION_PURPOSE"); err != nil {
+			if err := t.Tools.Memory.AddKnowledge(ctx, from, purpose, markerLabel, "RELATION_PURPOSE", "fact"); err != nil {
 				// best-effort: relation was created, but recording purpose failed
 				return json.RawMessage(`{"status": "created_with_purpose_failed"}`), nil
 			}
 		} else {
 			// create an empty marker fact to record existence
-			_ = t.Tools.Memory.AddKnowledge(ctx, from, "", markerLabel, "RELATION_MARKER")
+			_ = t.Tools.Memory.AddKnowledge(ctx, from, "", markerLabel, "RELATION_MARKER", "fact")
 		}
 	}
 
@@ -878,6 +913,15 @@ func (t *SetUserPropertyTool) Execute(ctx context.Context, params map[string]int
 		userKey = u
 	}
 
+	if userKey == "" {
+		if ct, _ := ctx.Value(ContextKeyChannelType).(string); ct == "loopback" {
+			return nil, fmt.Errorf("set_user_property: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
+		}
+		if cid, _ := ctx.Value(ContextKeyChannelID).(string); cid == "loopback" {
+			return nil, fmt.Errorf("set_user_property: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
+		}
+	}
+
 	if err := t.Tools.Memory.SetUserProperty(ctx, userKey, key, value); err != nil {
 		return nil, err
 	}
@@ -922,6 +966,15 @@ func (t *SearchMemoryTool) Execute(ctx context.Context, params map[string]interf
 		userKey = dn
 	} else if u, ok := ctx.Value(contextKeyUserID).(string); ok {
 		userKey = u
+	}
+
+	if userKey == "" {
+		if ct, _ := ctx.Value(ContextKeyChannelType).(string); ct == "loopback" {
+			return nil, fmt.Errorf("search_memory: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
+		}
+		if cid, _ := ctx.Value(ContextKeyChannelID).(string); cid == "loopback" {
+			return nil, fmt.Errorf("search_memory: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
+		}
 	}
 
 	result, err := t.Tools.Memory.SearchMemory(ctx, userKey, query)
@@ -1218,22 +1271,52 @@ func (t *TaskAddTool) Definition() ToolDefinition {
 func (t *TaskAddTool) Execute(ctx context.Context, params map[string]interface{}) (json.RawMessage, error) {
 	prompt, _ := params["prompt"].(string)
 	schedule, _ := params["schedule"].(string)
+	notifyUsername, _ := params["notify_username"].(string)
+	notifyChannelType, _ := params["notify_channel_type"].(string)
+
+	// Backward/alias compatibility: some callers may still use the older name.
+	// If present, it maps to send_message.username_platform.
+	if strings.TrimSpace(notifyChannelType) == "" {
+		notifyChannelType, _ = params["notify_username_platform"].(string)
+	}
 
 	if prompt == "" {
 		return nil, fmt.Errorf("prompt is required")
 	}
 
 	recipientInstruction := ""
-	if t.Tools.LastChannelResolver != nil {
+	notifyUsername = strings.TrimSpace(notifyUsername)
+	notifyChannelType = strings.TrimSpace(notifyChannelType)
+
+	// Prefer explicit notification recipient fields.
+	if notifyUsername != "" {
+		if notifyChannelType != "" {
+			recipientInstruction = fmt.Sprintf(
+				"When you send the final result, use the tool `send_message` with username=%q and username_platform=%q (and no other recipient fields).",
+				notifyUsername, notifyChannelType,
+			)
+		} else {
+			recipientInstruction = fmt.Sprintf(
+				"When you send the final result, use the tool `send_message` with username=%q (and no other recipient fields).",
+				notifyUsername,
+			)
+		}
+	} else if t.Tools.LastChannelResolver != nil {
+		// Fallback: route to the creator's last channel (only if we can resolve it).
 		if uid, ok := ctx.Value(ContextKeyUserID).(string); ok && uid != "" {
 			ct, cid, err := t.Tools.LastChannelResolver.GetLastChannelForUser(ctx, uid)
 			if err == nil && ct != "" && cid != "" {
-				recipientInstruction = fmt.Sprintf("When you send the final result, use the tool `send_message` with channel=%q and channel_type=%q (and no other recipient fields).", cid, ct)
+				recipientInstruction = fmt.Sprintf(
+					"When you send the final result, use the tool `send_message` with channel=%q and channel_type=%q (and no other recipient fields).",
+					cid, ct,
+				)
 			}
 		}
 	}
 
 	if recipientInstruction != "" {
+		log.Printf("task_add: appending notification instruction (schedule=%q notify_username=%q notify_channel_type=%q)",
+			schedule, notifyUsername, notifyChannelType)
 		prompt = prompt + "\n\n" +
 			recipientInstruction +
 			"\nNever infer the recipient from who is asking; the recipient is defined above."

@@ -11,7 +11,7 @@ import (
 
 type testMemoryPort struct{}
 
-func (m *testMemoryPort) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, embedding []float64) error {
+func (m *testMemoryPort) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, entityType string, embedding []float64) error {
 	return nil
 }
 func (m *testMemoryPort) UpdateUserLabel(ctx context.Context, userID, displayName string) error {
@@ -190,7 +190,7 @@ type testMemoryPortWithGraph struct {
 	graph ports.Graph
 }
 
-func (m *testMemoryPortWithGraph) AddKnowledge(context.Context, string, string, string, string, []float64) error {
+func (m *testMemoryPortWithGraph) AddKnowledge(context.Context, string, string, string, string, string, []float64) error {
 	return nil
 }
 func (m *testMemoryPortWithGraph) UpdateUserLabel(context.Context, string, string) error { return nil }
@@ -217,7 +217,7 @@ func (m *testMemoryPortWithGraph) DeleteMemoryNode(context.Context, string, stri
 
 type testMemoryPortErr struct{}
 
-func (m *testMemoryPortErr) AddKnowledge(context.Context, string, string, string, string, []float64) error {
+func (m *testMemoryPortErr) AddKnowledge(context.Context, string, string, string, string, string, []float64) error {
 	return nil
 }
 func (m *testMemoryPortErr) UpdateUserLabel(context.Context, string, string) error { return nil }

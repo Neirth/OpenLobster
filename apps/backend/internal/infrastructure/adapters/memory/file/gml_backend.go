@@ -156,7 +156,7 @@ func (b *GMLBackend) Load() error {
 	return err
 }
 
-func (b *GMLBackend) AddKnowledge(_ context.Context, userID string, content string, label string, relation string, _ []float64) error {
+func (b *GMLBackend) AddKnowledge(_ context.Context, userID string, content string, label string, relation string, entityType string, _ []float64) error {
 	b.mu.Lock()
 
 	graphCopy := b.graph.Copy()
@@ -179,48 +179,54 @@ func (b *GMLBackend) AddKnowledge(_ context.Context, userID string, content stri
 
 	userNode := b.findOrCreateUserInGraph(graphCopy, userID)
 
-	// Step 1: search for an existing concept node globally (shared across users).
+	// Normalize entityType for GML node typing.
+	etype := strings.ToLower(strings.TrimSpace(entityType))
+	switch etype {
+	case "person":
+		entityType = "person"
+	case "place":
+		entityType = "place"
+	case "thing":
+		entityType = "thing"
+	case "story":
+		entityType = "story"
+	case "", "fact":
+		entityType = "fact"
+	default:
+		entityType = "fact"
+	}
+
+	// Step 1: find an existing node owned by this user.
+	// We dedupe by (userID, nodeType, factLabel, edgeLabel) so that:
+	// - cross-user overwrites do not happen (no global concept nodes)
+	// - "permanent" relations are not destroyed (no edge label replacement)
 	existingFactID := -1
-	for id, node := range graphCopy.Nodes {
-		if node.Type == "fact" && strings.EqualFold(node.Label, factLabel) {
-			existingFactID = id
-			node.Value = content // update content in-place
-			break
+	for _, edge := range graphCopy.Edges {
+		if edge.Source != userNode.ID || edge.Label != edgeLabel {
+			continue
+		}
+		if tgt, ok := graphCopy.Nodes[edge.Target]; ok && tgt != nil {
+			if tgt.Type == entityType &&
+				strings.EqualFold(tgt.Label, factLabel) {
+				existingFactID = tgt.ID
+				break
+			}
 		}
 	}
 
 	if existingFactID >= 0 {
-		// Concept already exists: upsert this user's relation without touching
-		// other users' relations to the same node.
-		userRelated := false
-		for _, edge := range graphCopy.Edges {
-			if edge.Source == userNode.ID && edge.Target == existingFactID {
-				edge.Label = edgeLabel
-				userRelated = true
-				break
-			}
-		}
-		if !userRelated {
-			graphCopy.Edges = append(graphCopy.Edges, &Edge{
-				Source: userNode.ID,
-				Target: existingFactID,
-				Label:  edgeLabel,
-			})
-		}
-		b.graph = graphCopy
-		b.dirty = true
+		// Relation already exists for this exact fact evidence.
 		b.mu.Unlock()
-		b.schedulePersist(graphCopy.Copy())
 		return nil
 	}
 
-	// No existing concept — create a new node and edge.
+	// No existing fact for this user+relation+evidence — create a new node and edge.
 	factID := graphCopy.NextID
 	graphCopy.NextID++
 	graphCopy.Nodes[factID] = &Node{
 		ID:    factID,
 		Label: factLabel,
-		Type:  "fact",
+		Type:  entityType,
 		Value: content,
 	}
 	graphCopy.Edges = append(graphCopy.Edges, &Edge{
@@ -246,7 +252,7 @@ func (b *GMLBackend) SearchSimilar(_ context.Context, query string, limit int) (
 	var results []ports.Knowledge
 
 	for id, node := range b.graph.Nodes {
-		if node.Type == "fact" && strings.Contains(node.Value, query) {
+		if node.Type != "user" && strings.Contains(node.Value, query) {
 			results = append(results, ports.Knowledge{
 				ID:      strconv.Itoa(id),
 				Content: node.Value,
@@ -712,7 +718,8 @@ func (b *GMLBackend) EditMemoryNode(ctx context.Context, userID, nodeID, newValu
 	if !owned {
 		return fmt.Errorf("node %s is not a fact belonging to this user", nodeID)
 	}
-	return b.UpdateNode(ctx, nodeID, "", "fact", newValue, nil)
+	// Preserve the existing node type; only update the textual content.
+	return b.UpdateNode(ctx, nodeID, "", "", newValue, nil)
 }
 
 // DeleteMemoryNode removes a fact node, verifying it belongs to userID.

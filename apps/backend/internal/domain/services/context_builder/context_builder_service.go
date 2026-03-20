@@ -154,7 +154,7 @@ func (s *MemoryDigestService) summarizeGraph(graph ports.Graph) string {
 	sb.WriteString("User knowledge graph:\n")
 
 	for _, node := range graph.Nodes {
-		if node.Type == "fact" {
+		if node.Type != "user" {
 			sb.WriteString("- ")
 			sb.WriteString(node.Value)
 			sb.WriteString("\n")

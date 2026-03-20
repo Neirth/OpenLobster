@@ -284,7 +284,7 @@ func formatGraphAsText(graph *ports.Graph) string {
 			continue
 		}
 
-		if source.Type == "user" && target.Type == "fact" {
+		if source.Type == "user" && target.Type != "user" {
 			fmt.Fprintf(&b, "- [node_id:%s] %s\n", target.ID, target.Value)
 		}
 	}

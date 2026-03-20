@@ -222,7 +222,7 @@ func (s *CommandService) AddMemory(ctx context.Context, userID, content string) 
 	if s.memoryRepo == nil {
 		return nil
 	}
-	return s.memoryRepo.AddKnowledge(ctx, userID, content, "", "", nil)
+	return s.memoryRepo.AddKnowledge(ctx, userID, content, "", "", "fact", nil)
 }
 
 // AddRelation adds a relation in the graph.

@@ -107,10 +107,10 @@ func TestGMLBackend_QueryGraph_Integration(t *testing.T) {
 	defer b.Close()
 
 	ctx := context.Background()
-	if err := b.AddKnowledge(ctx, "user1", "User lives in Madrid", "Madrid", "LIVES_IN", nil); err != nil {
+	if err := b.AddKnowledge(ctx, "user1", "User lives in Madrid", "Madrid", "LIVES_IN", "place", nil); err != nil {
 		t.Fatalf("AddKnowledge failed: %v", err)
 	}
-	if err := b.AddKnowledge(ctx, "user1", "User likes music", "Music", "LIKES", nil); err != nil {
+	if err := b.AddKnowledge(ctx, "user1", "User likes music", "Music", "LIKES", "thing", nil); err != nil {
 		t.Fatalf("AddKnowledge failed: %v", err)
 	}
 

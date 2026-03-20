@@ -115,7 +115,7 @@ type mockMemoryPort struct {
 	err   error
 }
 
-func (m *mockMemoryPort) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, embedding []float64) error {
+func (m *mockMemoryPort) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, entityType string, embedding []float64) error {
 	return m.err
 }
 func (m *mockMemoryPort) UpdateUserLabel(ctx context.Context, userID, displayName string) error {
@@ -378,7 +378,7 @@ func (m *mockMemoryPortPartial) GetUserGraph(_ context.Context, userID string) (
 	}
 	return m.user1Graph, nil
 }
-func (m *mockMemoryPortPartial) AddKnowledge(context.Context, string, string, string, string, []float64) error {
+func (m *mockMemoryPortPartial) AddKnowledge(context.Context, string, string, string, string, string, []float64) error {
 	return nil
 }
 func (m *mockMemoryPortPartial) UpdateUserLabel(context.Context, string, string) error { return nil }

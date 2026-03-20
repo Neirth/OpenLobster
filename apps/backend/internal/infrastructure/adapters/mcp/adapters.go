@@ -110,11 +110,11 @@ func (a *OutboundMessageLogAdapter) SaveOutbound(ctx context.Context, channelTyp
 // MemoryAdapter wraps a ports.MemoryPort and exposes the mcp.MemoryService interface.
 type MemoryAdapter struct{ Port ports.MemoryPort }
 
-func (m *MemoryAdapter) AddKnowledge(ctx context.Context, userID, content, label, relation string) error {
+func (m *MemoryAdapter) AddKnowledge(ctx context.Context, userID, content, label, relation, entityType string) error {
 	if m.Port == nil {
 		return fmt.Errorf("memory: no adapter configured")
 	}
-	return m.Port.AddKnowledge(ctx, userID, content, label, relation, nil)
+	return m.Port.AddKnowledge(ctx, userID, content, label, relation, entityType, nil)
 }
 
 func (m *MemoryAdapter) UpdateUserLabel(ctx context.Context, userID, displayName string) error {
@@ -140,7 +140,7 @@ func (m *MemoryAdapter) SearchMemory(ctx context.Context, userID, query string) 
 	var sb strings.Builder
 	count := 0
 	for _, node := range graph.Nodes {
-		if node.Type != "fact" {
+		if node.Type == "user" {
 			continue
 		}
 		valueLower := strings.ToLower(node.Value)
@@ -164,7 +164,7 @@ func (m *MemoryAdapter) SearchMemory(ctx context.Context, userID, query string) 
 
 	if sb.Len() == 0 && len(graph.Nodes) > 0 {
 		for _, node := range graph.Nodes {
-			if node.Type == "fact" {
+			if node.Type != "user" {
 				fmt.Fprintf(&sb, "[node_id:%s] %s\n", node.ID, node.Value)
 				count++
 				if count >= 10 {

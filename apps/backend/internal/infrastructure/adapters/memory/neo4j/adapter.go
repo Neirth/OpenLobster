@@ -40,7 +40,7 @@ func NewAdapter(config Config) (*Adapter, error) {
 	}, nil
 }
 
-func (a *Adapter) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, embedding []float64) error {
+func (a *Adapter) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, entityType string, embedding []float64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -61,12 +61,34 @@ func (a *Adapter) AddKnowledge(ctx context.Context, userID string, content strin
 	if rel == "" {
 		rel = "HAS_FACT"
 	}
+	rel = sanitizeRelType(rel)
 
-	// Step 1: search for an existing concept node globally (shared across users).
+	// Normalize entityType for Neo4j node labels. Only a small curated set is
+	// supported; unknown values fall back to Fact.
+	etype := strings.ToLower(strings.TrimSpace(entityType))
+	switch etype {
+	case "person":
+		entityType = "Person"
+	case "place":
+		entityType = "Place"
+	case "thing":
+		entityType = "Thing"
+	case "story":
+		entityType = "Story"
+	default:
+		entityType = "Fact"
+	}
+
+	// Step 1: search for an existing node owned by this user.
+	// We dedupe by (userID, label, relation type) to prevent:
+	// - Cross-user overwrites (shared Fact nodes were being updated by others)
+	// - Destroying "permanent" relations (we used to delete/replace old edges)
 	var existingFactID string
 	searchResult, searchErr := session.Run(ctx,
-		"MATCH (f:Fact) WHERE toLower(f.label) = toLower($label) RETURN f.id AS id LIMIT 1",
-		map[string]interface{}{"label": label},
+		"MATCH (u:User {id: $userID})-[r]->(f:"+entityType+") "+
+			"WHERE toLower(f.label) = toLower($label) AND type(r) = $rel "+
+			"RETURN f.id AS id LIMIT 1",
+		map[string]interface{}{"userID": userID, "label": label, "rel": rel},
 	)
 	if searchErr == nil {
 		if rec, recErr := searchResult.Single(ctx); recErr == nil && rec != nil {
@@ -77,28 +99,25 @@ func (a *Adapter) AddKnowledge(ctx context.Context, userID string, content strin
 	}
 
 	if existingFactID != "" {
-		// Concept already exists: update its content, then upsert this user's
-		// relation without touching other users' relations to the same node.
-		upsertResult, err := session.Run(ctx,
-			"MATCH (f:Fact {id: $factID}) SET f.content = $content "+
-				"WITH f MERGE (u:User {id: $userID}) "+
-				"OPTIONAL MATCH (u)-[oldRel]->(f) DELETE oldRel "+
-				"WITH u, f CREATE (u)-[r:"+rel+"]->(f)",
-			map[string]interface{}{"factID": existingFactID, "content": content, "userID": userID},
+		// Relation already exists: do not mutate the Fact node content or remove
+		// any existing relations.
+		mergeResult, err := session.Run(ctx,
+			fmt.Sprintf("MERGE (u:User {id: $userID}) MERGE (f:%s {id: $factID}) MERGE (u)-[r:%s]->(f)", entityType, rel),
+			map[string]interface{}{"userID": userID, "factID": existingFactID},
 		)
 		if err != nil {
 			return err
 		}
-		upsertResult.Consume(ctx)
+		mergeResult.Consume(ctx)
 		return nil
 	}
 
-	// No existing concept — create a new Fact node shared across users and
-	// attach this user's relation.
+	// No existing node for this user+label+relation — create a new node and
+	// attach the relation without touching anything else.
 	factID := uuid.New().String()
 	createResult, err := session.Run(ctx,
 		"MERGE (u:User {id: $userID}) "+
-			"CREATE (f:Fact {id: $factID, label: $label, content: $content, createdAt: timestamp()}) "+
+			"CREATE (f:"+entityType+" {id: $factID, label: $label, content: $content, createdAt: timestamp()}) "+
 			"CREATE (u)-[r:"+rel+"]->(f)",
 		map[string]interface{}{"userID": userID, "factID": factID, "label": label, "content": content},
 	)
@@ -142,7 +161,8 @@ func (a *Adapter) SearchSimilar(ctx context.Context, query string, limit int) ([
 	}
 
 	result, err := session.Run(ctx,
-		"MATCH (f:Fact) WHERE f.content CONTAINS $query RETURN f.id AS id, f.content AS content LIMIT $limit",
+		"MATCH (n) WHERE exists(n.content) AND n.content CONTAINS $query "+
+			"RETURN n.id AS id, n.content AS content LIMIT $limit",
 		map[string]interface{}{"query": query, "limit": limit},
 	)
 	if err != nil {
@@ -435,10 +455,10 @@ func (a *Adapter) EditMemoryNode(ctx context.Context, userID, nodeID, newValue s
 	var cypher string
 	params := map[string]interface{}{"nodeID": nodeID, "newValue": newValue}
 	if userID != "" {
-		cypher = "MATCH (u:User {id: $userID})-[]->(f:Fact {id: $nodeID}) SET f.content = $newValue RETURN f"
+		cypher = "MATCH (u:User {id: $userID})-[]->(n {id: $nodeID}) SET n.content = $newValue RETURN n"
 		params["userID"] = userID
 	} else {
-		cypher = "MATCH (f:Fact {id: $nodeID}) SET f.content = $newValue RETURN f"
+		cypher = "MATCH (n {id: $nodeID}) SET n.content = $newValue RETURN n"
 	}
 	result, err := session.Run(ctx, cypher, params)
 	if err != nil {
@@ -459,10 +479,10 @@ func (a *Adapter) DeleteMemoryNode(ctx context.Context, userID, nodeID string) e
 	var cypher string
 	params := map[string]interface{}{"nodeID": nodeID}
 	if userID != "" {
-		cypher = "MATCH (u:User {id: $userID})-[]->(f:Fact {id: $nodeID}) DETACH DELETE f"
+		cypher = "MATCH (u:User {id: $userID})-[]->(n {id: $nodeID}) DETACH DELETE n"
 		params["userID"] = userID
 	} else {
-		cypher = "MATCH (f:Fact {id: $nodeID}) DETACH DELETE f"
+		cypher = "MATCH (n {id: $nodeID}) DETACH DELETE n"
 	}
 	result, err := session.Run(ctx, cypher, params)
 	if err != nil {
@@ -502,11 +522,12 @@ func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, 
 		return nil
 	}
 
-	// Default: Fact node — MATCH by UUID id, set content and optionally the label property.
-	cypher := "MATCH (f:Fact {id: $id}) SET f.content = $value"
+	// Default: memory entity node — MATCH by UUID id, set content and optionally
+	// the label property.
+	cypher := "MATCH (n {id: $id}) SET n.content = $value"
 	params := map[string]interface{}{"id": id, "value": value}
 	if label != "" {
-		cypher += ", f.label = $label"
+		cypher += ", n.label = $label"
 		params["label"] = label
 	}
 	// Apply extra properties from the map, skipping reserved/already-handled keys.
@@ -516,10 +537,10 @@ func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, 
 			continue
 		}
 		paramKey := "prop_" + safe
-		cypher += fmt.Sprintf(", f.%s = $%s", safe, paramKey)
+		cypher += fmt.Sprintf(", n.%s = $%s", safe, paramKey)
 		params[paramKey] = v
 	}
-	cypher += " RETURN f"
+	cypher += " RETURN n"
 	result, err := session.Run(ctx, cypher, params)
 	if err != nil {
 		return err

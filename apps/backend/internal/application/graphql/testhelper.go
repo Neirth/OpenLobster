@@ -82,7 +82,7 @@ type TestMemoryRepo struct {
 	store map[string][]string // userID -> contents for SearchSimilar
 }
 
-func (t *TestMemoryRepo) AddKnowledge(ctx context.Context, userID, content, label, relation string, embedding []float64) error {
+func (t *TestMemoryRepo) AddKnowledge(ctx context.Context, userID, content, label, relation, entityType string, embedding []float64) error {
 	if t.store == nil {
 		t.store = make(map[string][]string)
 	}

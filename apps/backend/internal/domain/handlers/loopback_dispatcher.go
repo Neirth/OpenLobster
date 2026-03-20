@@ -45,6 +45,12 @@ BEFORE making ANY memory modification:
 
 5. When storing new facts:
    - Always pass for_user=<participant_name> (from the conversation's participantName field) to every add_memory, search_memory, and set_user_property call so that facts are stored under the correct user and not under a shared loopback user.
+   - When calling add_memory, also pass entity_type=<person|place|thing|story|fact> based on the entity referenced by label:
+     - people mentioned (even if they don't exist as users) => person
+     - locations => place
+     - interests/objects/organizations/other non-person entities => thing
+     - narrative events => story
+     - if uncertain => fact
    - Call set_user_property(..., for_user=<participant_name>) for the user's own attributes (real name, phone, birthday, language, timezone, occupation)
    - Call add_memory(..., for_user=<participant_name>) for facts that link the user to things or places (e.g. lives in Valencia → label='Valencia', relation='LIVES_IN'; likes X → relation='LIKES')
    - Call add_user_relation when two users are related (e.g. friends → from_user, to_user, relation='FRIEND_OF')

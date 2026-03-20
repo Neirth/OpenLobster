@@ -14,8 +14,9 @@ type MemoryPort interface {
 	// AddKnowledge stores a new fact for a user.
 	// label is a short meaningful name for the fact node (e.g. "Electronica").
 	// relation is the edge label from the user node to this fact (e.g. "LIKES").
+	// entityType is the semantic category of the node (e.g. "fact", "person", "place", "thing", "story").
 	// Both default to sensible values when empty.
-	AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, embedding []float64) error
+	AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, entityType string, embedding []float64) error
 	SearchSimilar(ctx context.Context, query string, limit int) ([]Knowledge, error)
 	GetUserGraph(ctx context.Context, userID string) (Graph, error)
 	AddRelation(ctx context.Context, from, to string, relType string) error

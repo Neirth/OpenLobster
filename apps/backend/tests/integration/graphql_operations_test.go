@@ -590,7 +590,7 @@ func TestIntegration_Query_Tasks_WithData(t *testing.T) {
 
 func TestIntegration_Query_SearchMemory(t *testing.T) {
 	memRepo := &graphql.TestMemoryRepo{}
-	_ = memRepo.AddKnowledge(context.Background(), "user1", "Go is great", "fact", "KNOWS", nil)
+	_ = memRepo.AddKnowledge(context.Background(), "user1", "Go is great", "fact", "KNOWS", "fact", nil)
 	qs := svcdashboard.NewQueryService(nil, memRepo, nil, nil, nil)
 	deps := graphql.NewTestDeps(graphql.TestDepsOpts{
 		Agent:      &dto.AgentSnapshot{Name: "Bot", Status: "ok"},

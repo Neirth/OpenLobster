@@ -1249,7 +1249,7 @@ func (m *mockMsgRepo) CountMessages(ctx context.Context) (int64, int64, error) {
 
 type mockMemoryPort struct{}
 
-func (m *mockMemoryPort) AddKnowledge(ctx context.Context, userID, content, label, relation string, embedding []float64) error {
+func (m *mockMemoryPort) AddKnowledge(ctx context.Context, userID, content, label, relation, entityType string, embedding []float64) error {
 	return nil
 }
 func (m *mockMemoryPort) SearchSimilar(ctx context.Context, query string, limit int) ([]ports.Knowledge, error) {

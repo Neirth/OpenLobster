@@ -165,7 +165,7 @@ func (s *MemoryDigestService) summarizeGraph(ctx context.Context, graph *ports.G
 			continue
 		}
 
-		if source.Type == "user" && target.Type == "fact" {
+		if source.Type == "user" && target.Type != "user" {
 			b.WriteString("- ")
 			b.WriteString(target.Value)
 			b.WriteString("\n")

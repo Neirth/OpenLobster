@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
@@ -38,8 +39,8 @@ type MockMemoryService struct {
 	mock.Mock
 }
 
-func (m *MockMemoryService) AddKnowledge(ctx context.Context, userID, content, label, relation string) error {
-	args := m.Called(ctx, userID, content, label, relation)
+func (m *MockMemoryService) AddKnowledge(ctx context.Context, userID, content, label, relation, entityType string) error {
+	args := m.Called(ctx, userID, content, label, relation, entityType)
 	return args.Error(0)
 }
 func (m *MockMemoryService) UpdateUserLabel(ctx context.Context, userID, displayName string) error {
@@ -1040,7 +1041,7 @@ func TestAddMemoryTool_Definition(t *testing.T) {
 
 func TestAddMemoryTool_Execute_Success(t *testing.T) {
 	mockMem := new(MockMemoryService)
-	mockMem.On("AddKnowledge", mock.Anything, "", "Important info", mock.Anything, mock.Anything).Return(nil)
+	mockMem.On("AddKnowledge", mock.Anything, "", "Important info", mock.Anything, mock.Anything, "fact").Return(nil)
 
 	tool := &AddMemoryTool{
 		Tools: InternalTools{
@@ -1067,7 +1068,7 @@ func TestAddMemoryTool_Execute_MissingContent(t *testing.T) {
 
 func TestAddMemoryTool_Execute_Error(t *testing.T) {
 	mockMem := new(MockMemoryService)
-	mockMem.On("AddKnowledge", mock.Anything, "", "Info", mock.Anything, mock.Anything).Return(assert.AnError)
+	mockMem.On("AddKnowledge", mock.Anything, "", "Info", mock.Anything, mock.Anything, "fact").Return(assert.AnError)
 
 	tool := &AddMemoryTool{
 		Tools: InternalTools{
@@ -1502,6 +1503,37 @@ func TestTaskAddTool_Execute_Cyclic(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, string(result), "0 8 * * *")
+	mockTasks.AssertExpectations(t)
+}
+
+func TestTaskAddTool_Execute_NotifyUsernameAppendsInstruction(t *testing.T) {
+	mockTasks := new(MockTaskService)
+
+	notifyUser := "alice"
+	notifyPlatform := "telegram"
+
+	mockTasks.On("Add", mock.Anything, mock.MatchedBy(func(p string) bool {
+		return strings.Contains(p, "When you send the final result") &&
+			strings.Contains(p, "username=\""+notifyUser+"\"") &&
+			strings.Contains(p, "username_platform=\""+notifyPlatform+"\"") &&
+			strings.Contains(p, "Never infer the recipient")
+	}), "").Return("task-123", nil)
+
+	tool := &TaskAddTool{
+		Tools: InternalTools{
+			Tasks: mockTasks,
+		},
+	}
+
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"prompt":               "do something",
+		"schedule":             "",
+		"notify_username":      notifyUser,
+		"notify_channel_type": notifyPlatform,
+	})
+
+	assert.NoError(t, err)
+	assert.Contains(t, string(result), "task-123")
 	mockTasks.AssertExpectations(t)
 }
 

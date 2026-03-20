@@ -92,7 +92,7 @@ func (g *testGraphCommandPort) AddRelation(ctx context.Context, from, to, relTyp
 
 type testMemoryPort struct{}
 
-func (m *testMemoryPort) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, embedding []float64) error {
+func (m *testMemoryPort) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, entityType string, embedding []float64) error {
 	return nil
 }
 func (m *testMemoryPort) UpdateUserLabel(ctx context.Context, userID, displayName string) error {
@@ -328,7 +328,7 @@ type testMemoryPortWithError struct {
 	err error
 }
 
-func (m *testMemoryPortWithError) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, embedding []float64) error {
+func (m *testMemoryPortWithError) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, entityType string, embedding []float64) error {
 	return m.err
 }
 func (m *testMemoryPortWithError) SearchSimilar(ctx context.Context, query string, limit int) ([]ports.Knowledge, error) {
@@ -382,7 +382,7 @@ type testNodeMutator struct {
 	updated, deleted bool
 }
 
-func (t *testNodeMutator) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, embedding []float64) error {
+func (t *testNodeMutator) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, entityType string, embedding []float64) error {
 	return nil
 }
 func (t *testNodeMutator) SearchSimilar(ctx context.Context, query string, limit int) ([]ports.Knowledge, error) {
