@@ -92,6 +92,11 @@ type MessageRepositoryPort interface {
 	GetByConversation(ctx context.Context, conversationID string, limit int) ([]models.Message, error)
 	GetSinceLastCompaction(ctx context.Context, conversationID string) ([]models.Message, error)
 	GetLastCompaction(ctx context.Context, conversationID string) (*models.Message, error)
+	// GetUnvalidated returns up to limit messages that have not yet been
+	// processed by the memory consolidation pipeline (is_validated = false).
+	GetUnvalidated(ctx context.Context, limit int) ([]models.Message, error)
+	// MarkAsValidated sets is_validated = true for the given message IDs.
+	MarkAsValidated(ctx context.Context, ids []string) error
 }
 
 type SessionRepositoryPort interface {

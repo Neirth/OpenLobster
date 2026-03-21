@@ -68,6 +68,13 @@ func (m *mockMessageRepo) GetLastCompaction(ctx context.Context, id string) (*mo
 	}
 	return args.Get(0).(*models.Message), args.Error(1)
 }
+func (m *mockMessageRepo) GetUnvalidated(ctx context.Context, limit int) ([]models.Message, error) {
+	args := m.Called(ctx, limit)
+	return args.Get(0).([]models.Message), args.Error(1)
+}
+func (m *mockMessageRepo) MarkAsValidated(ctx context.Context, ids []string) error {
+	return m.Called(ctx, ids).Error(0)
+}
 
 type mockSessionRepo struct {
 	mock.Mock

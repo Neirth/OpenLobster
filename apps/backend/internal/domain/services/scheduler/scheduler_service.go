@@ -56,8 +56,9 @@ func (h *taskHeap) Pop() interface{} {
 type Scheduler struct {
 	dispatcher  ports.TaskDispatcherPort
 	taskRepo    ports.TaskRepositoryPort
-	memInterval time.Duration
-	memEnabled  bool
+	memInterval   time.Duration
+	memEnabled    bool
+	consolidation ports.MemoryConsolidationPort
 
 	heap         taskHeap
 	notifyCh     chan struct{}
@@ -71,6 +72,7 @@ func NewScheduler(
 	memEnabled bool,
 	dispatcher ports.TaskDispatcherPort,
 	taskRepo ports.TaskRepositoryPort,
+	consolidation ports.MemoryConsolidationPort,
 ) *Scheduler {
 	if memInterval <= 0 {
 		memInterval = 4 * time.Hour
@@ -78,9 +80,10 @@ func NewScheduler(
 	return &Scheduler{
 		dispatcher:   dispatcher,
 		taskRepo:     taskRepo,
-		memInterval:  memInterval,
-		memEnabled:   memEnabled,
-		heap:         make(taskHeap, 0, 16),
+		memInterval:   memInterval,
+		memEnabled:    memEnabled,
+		consolidation: consolidation,
+		heap:          make(taskHeap, 0, 16),
 		notifyCh:     make(chan struct{}, 1),
 		rescheduleCh: make(chan schedulerEntry, 64),
 	}
@@ -237,8 +240,12 @@ func (s *Scheduler) nextSleep() time.Duration {
 }
 
 func (s *Scheduler) consolidateMemory(ctx context.Context) {
-	log.Println("scheduler: running memory consolidation")
-	if err := s.dispatcher.Dispatch(ctx, MemoryConsolidationPrompt); err != nil {
+	log.Println("scheduler: running memory consolidation pipeline")
+	if s.consolidation == nil {
+		log.Println("scheduler: memory consolidation skipped (no service)")
+		return
+	}
+	if err := s.consolidation.Consolidate(ctx); err != nil {
 		log.Printf("scheduler: memory consolidation error: %v", err)
 	}
 }

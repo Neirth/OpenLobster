@@ -118,7 +118,6 @@ func (r *repository) CountMessages(ctx context.Context) (int64, int64, error) {
 		FROM messages WHERE role != 'compaction'`).Scan(&c).Error
 	return c.Recv, c.Sent, err
 }
-
 func (r *repository) GetLastCompaction(ctx context.Context, conversationID string) (*domainmodels.Message, error) {
 	var m domainmodels.MessageModel
 	err := r.db.WithContext(ctx).
@@ -134,6 +133,30 @@ func (r *repository) GetLastCompaction(ctx context.Context, conversationID strin
 	return msgModelToEntity(m), nil
 }
 
+func (r *repository) GetUnvalidated(ctx context.Context, limit int) ([]domainmodels.Message, error) {
+	q := r.db.WithContext(ctx).
+		Where("is_validated = ?", false).
+		Preload("Attachments").
+		Order("created_at ASC")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	var models []domainmodels.MessageModel
+	if err := q.Find(&models).Error; err != nil {
+		return nil, err
+	}
+	return msgModelsToEntities(models), nil
+}
+
+func (r *repository) MarkAsValidated(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Model(&domainmodels.MessageModel{}).
+		Where("id IN ?", ids).
+		Update("is_validated", true).Error
+}
+
 // DashboardMessageRepository wraps MessageRepositoryPort for context-free use.
 type DashboardMessageRepository struct {
 	inner ports.MessageRepositoryPort
@@ -146,6 +169,18 @@ func NewDashboardMessageRepository(repo ports.MessageRepositoryPort) *DashboardM
 
 func (r *DashboardMessageRepository) Save(message *domainmodels.Message) error {
 	return r.inner.Save(context.Background(), message)
+}
+
+func (r *DashboardMessageRepository) GetLastCompaction(ctx context.Context, conversationID string) (*domainmodels.Message, error) {
+	return r.inner.GetLastCompaction(ctx, conversationID)
+}
+
+func (r *DashboardMessageRepository) GetUnvalidated(ctx context.Context, limit int) ([]domainmodels.Message, error) {
+	return r.inner.GetUnvalidated(ctx, limit)
+}
+
+func (r *DashboardMessageRepository) MarkAsValidated(ctx context.Context, ids []string) error {
+	return r.inner.MarkAsValidated(ctx, ids)
 }
 
 func (r *DashboardMessageRepository) GetByConversation(conversationID string, limit int) ([]domainmodels.Message, error) {
@@ -184,6 +219,7 @@ func msgModelToEntity(m domainmodels.MessageModel) *domainmodels.Message {
 		Role:           m.Role,
 		Content:        m.Content,
 		Timestamp:      m.CreatedAt,
+		IsValidated:    m.IsValidated,
 	}
 	if len(m.Attachments) > 0 {
 		atts := make([]domainmodels.Attachment, 0, len(m.Attachments))

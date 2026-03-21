@@ -78,6 +78,12 @@ func (m *mockMessageRepoErr) GetSinceLastCompaction(ctx context.Context, id stri
 func (m *mockMessageRepoErr) GetLastCompaction(ctx context.Context, id string) (*models.Message, error) {
 	return nil, nil
 }
+func (m *mockMessageRepoErr) GetUnvalidated(ctx context.Context, limit int) ([]models.Message, error) {
+	return nil, m.err
+}
+func (m *mockMessageRepoErr) MarkAsValidated(ctx context.Context, ids []string) error {
+	return m.err
+}
 
 func TestMessageProcessorService_Process_WithContent(t *testing.T) {
 	mockRepo := &mockMessageRepo{}
@@ -113,6 +119,12 @@ func (m *mockMessageRepo) GetSinceLastCompaction(ctx context.Context, id string)
 }
 func (m *mockMessageRepo) GetLastCompaction(ctx context.Context, id string) (*models.Message, error) {
 	return nil, nil
+}
+func (m *mockMessageRepo) GetUnvalidated(ctx context.Context, limit int) ([]models.Message, error) {
+	return nil, nil
+}
+func (m *mockMessageRepo) MarkAsValidated(ctx context.Context, ids []string) error {
+	return nil
 }
 
 func TestNewEventBus(t *testing.T) {

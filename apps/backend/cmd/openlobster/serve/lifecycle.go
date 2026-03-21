@@ -11,6 +11,7 @@ import (
 
 	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
+	"github.com/neirth/openlobster/internal/domain/services/memory_consolidation"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/discord"
 	slackadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/slack"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/telegram"
@@ -27,17 +28,40 @@ func (a *App) startAndWait() {
 	a.ChannelStartCtx = ctx
 	defer cancel()
 
+	// Ensure all paths are absolute before potentially changing the working directory.
+	a.Cfg.ResolvePaths()
+
+	// Ensure workspace exists.
+	if err := os.MkdirAll(a.Cfg.Workspace.Path, 0755); err != nil {
+		log.Printf("lifecycle: failed to create workspace: %v", err)
+	}
+
 	// Scheduler
 	if a.Cfg.Scheduler.Enabled {
 		dispatcher := domainhandlers.NewLoopbackDispatcher(a.MsgHandler)
+		consolidationSvc := memory_consolidation.NewService(
+			a.MessageRepo,
+			a.MemoryAdapter,
+			a.AIProvider, // This should be the provider configured for memory
+			a.UserRepo,
+			a.SessionRepo,
+		)
 		sched := domainservices.NewScheduler(
 			a.Cfg.Scheduler.MemoryInterval,
 			a.Cfg.Scheduler.MemoryEnabled,
 			dispatcher,
 			a.TaskRepo,
+			consolidationSvc,
 		)
 		a.SchedulerNotify = sched.Notify
 		go sched.Run(ctx)
+	}
+
+	// Change working directory to workspace so tools (terminal, etc.) operate there.
+	if err := os.Chdir(a.Cfg.Workspace.Path); err != nil {
+		log.Printf("lifecycle: failed to chdir to workspace: %v", err)
+	} else {
+		log.Printf("lifecycle: changed working directory to %s", a.Cfg.Workspace.Path)
 	}
 
 	// Channel listeners (only poll-based adapters — WhatsApp/Twilio are webhook-driven)

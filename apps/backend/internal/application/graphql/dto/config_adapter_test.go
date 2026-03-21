@@ -314,11 +314,10 @@ func TestConfigAdapter_Scheduler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Scheduler fields are stored under the "heartbeat" viper prefix for
-	// backwards compatibility (Config.Scheduler mapstructure:"heartbeat").
-	assert.True(t, viper.GetBool("heartbeat.enabled"))
-	assert.True(t, viper.GetBool("heartbeat.memory_enabled"))
-	assert.Equal(t, "5m", viper.GetString("heartbeat.memory_interval"))
+	// Scheduler fields are now natively stored under "scheduler".
+	assert.True(t, viper.GetBool("scheduler.enabled"))
+	assert.True(t, viper.GetBool("scheduler.memory_enabled"))
+	assert.Equal(t, "5m", viper.GetString("scheduler.memory_interval"))
 }
 
 // TestConfigAdapter_ChannelTelegram verifies Telegram channel fields.

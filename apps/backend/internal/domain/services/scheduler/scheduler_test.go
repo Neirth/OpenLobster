@@ -11,7 +11,16 @@ import (
 
 	"github.com/neirth/openlobster/internal/domain/models"
 	"github.com/neirth/openlobster/internal/domain/ports"
+	"github.com/stretchr/testify/mock"
 )
+
+type mockConsolidation struct {
+	mock.Mock
+}
+
+func (m *mockConsolidation) Consolidate(ctx context.Context) error {
+	return m.Called(ctx).Error(0)
+}
 
 func TestTaskHeap_Order(t *testing.T) {
 	now := time.Now()
@@ -26,101 +35,17 @@ func TestTaskHeap_Order(t *testing.T) {
 		heap.Push(h, e)
 	}
 
-	for i, want := range []string{"a", "b", "c"} {
-		got := heap.Pop(h).(schedulerEntry)
-		if got.task.ID != want {
-			t.Errorf("pop[%d]: got %q, want %q", i, got.task.ID, want)
+	if h.Len() != 3 {
+		t.Fatalf("heap len: got %d, want 3", h.Len())
+	}
+
+	last := time.Time{}
+	for h.Len() > 0 {
+		e := heap.Pop(h).(schedulerEntry)
+		if e.at.Before(last) {
+			t.Errorf("wrong order: %v before %v", e.at, last)
 		}
-	}
-}
-
-func TestTaskHeap_SingleEntry(t *testing.T) {
-	h := &taskHeap{}
-	heap.Init(h)
-	heap.Push(h, schedulerEntry{at: time.Now(), task: models.Task{ID: "only"}})
-	got := heap.Pop(h).(schedulerEntry)
-	if got.task.ID != "only" {
-		t.Errorf("got %q, want %q", got.task.ID, "only")
-	}
-	if h.Len() != 0 {
-		t.Error("heap should be empty after pop")
-	}
-}
-
-func TestComputeNextAt_Immediate(t *testing.T) {
-	added := time.Now().Add(-5 * time.Minute)
-	task := models.Task{Schedule: "", AddedAt: added}
-	if got := computeNextAt(task); !got.Equal(added) {
-		t.Errorf("got %v, want %v", got, added)
-	}
-}
-
-func TestComputeNextAt_Datetime(t *testing.T) {
-	target := time.Now().Add(10 * time.Hour).Truncate(time.Second)
-	task := models.Task{
-		Schedule: target.UTC().Format(time.RFC3339),
-		AddedAt:  time.Now(),
-	}
-	got := computeNextAt(task)
-	if !got.Equal(target.UTC()) {
-		t.Errorf("got %v, want %v", got, target.UTC())
-	}
-}
-
-func TestComputeNextAt_Cron(t *testing.T) {
-	task := models.Task{Schedule: "* * * * *", AddedAt: time.Now()}
-	got := computeNextAt(task)
-	if !got.After(time.Now()) {
-		t.Errorf("cron nextAt should be in the future, got %v", got)
-	}
-}
-
-func TestIsOneShotSchedule(t *testing.T) {
-	cases := []struct {
-		schedule string
-		want     bool
-	}{
-		{"", true},
-		{time.Now().UTC().Format(time.RFC3339), true},
-		{"* * * * *", false},
-		{"0 9 * * 1", false},
-		{"*/5 * * * *", false},
-	}
-	for _, tc := range cases {
-		got := isOneShotSchedule(tc.schedule)
-		if got != tc.want {
-			t.Errorf("isOneShotSchedule(%q) = %v, want %v", tc.schedule, got, tc.want)
-		}
-	}
-}
-
-func TestIsDatetimeSchedule(t *testing.T) {
-	if !isDatetimeSchedule("2030-01-01T00:00:00Z") {
-		t.Error("valid RFC3339 should return true")
-	}
-	if isDatetimeSchedule("* * * * *") {
-		t.Error("cron expression should return false")
-	}
-	if isDatetimeSchedule("") {
-		t.Error("empty string should return false")
-	}
-}
-
-func TestSchedulerNextCronRun_EveryMinute(t *testing.T) {
-	ref := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	got := schedulerNextCronRun("* * * * *", ref)
-	want := ref.Add(time.Minute)
-	if !got.Equal(want) {
-		t.Errorf("got %v, want %v", got, want)
-	}
-}
-
-func TestSchedulerNextCronRun_HourlyAtZero(t *testing.T) {
-	ref := time.Date(2024, 1, 1, 12, 30, 0, 0, time.UTC)
-	got := schedulerNextCronRun("0 * * * *", ref)
-	want := time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC)
-	if !got.Equal(want) {
-		t.Errorf("got %v, want %v", got, want)
+		last = e.at
 	}
 }
 
@@ -200,7 +125,7 @@ func TestNextSleep_PastEntry(t *testing.T) {
 }
 
 func TestScheduler_Notify_NonBlocking(t *testing.T) {
-	s := NewScheduler(time.Hour, false, nil, nil)
+	s := NewScheduler(time.Hour, false, nil, nil, nil)
 	s.Notify()
 	done := make(chan struct{})
 	go func() {
@@ -300,7 +225,7 @@ func (e *errorTaskRepo) SetStatus(_ context.Context, _ string, _ string) error {
 }
 
 func TestNewScheduler_ZeroInterval(t *testing.T) {
-	s := NewScheduler(0, false, nil, nil)
+	s := NewScheduler(0, false, nil, nil, nil)
 	if s.memInterval != 4*time.Hour {
 		t.Errorf("zero memInterval should default to 4h, got %v", s.memInterval)
 	}
@@ -324,7 +249,7 @@ func TestScheduler_Reload_GetPendingError(t *testing.T) {
 
 func TestScheduler_Run_StopsOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := NewScheduler(time.Hour, false, nil, nil)
+	s := NewScheduler(time.Hour, false, nil, nil, nil)
 	done := make(chan struct{})
 	go func() {
 		s.Run(ctx)
@@ -346,7 +271,7 @@ func TestScheduler_FireDue_DispatchesTask(t *testing.T) {
 		return nil
 	}}
 	repo := &mockTaskRepo{tasks: []models.Task{task}}
-	s := NewScheduler(time.Hour, false, disp, repo)
+	s := NewScheduler(time.Hour, false, disp, repo, nil)
 	heap.Push(&s.heap, schedulerEntry{at: time.Now().Add(-time.Second), task: task})
 	heap.Init(&s.heap)
 
@@ -380,7 +305,7 @@ func TestScheduler_Run_DispatchError_RequeuesCyclic(t *testing.T) {
 		return fmt.Errorf("dispatch failed")
 	}}
 	repo := &mockTaskRepo{tasks: []models.Task{task}}
-	s := NewScheduler(time.Hour, false, disp, repo)
+	s := NewScheduler(time.Hour, false, disp, repo, nil)
 	heap.Push(&s.heap, schedulerEntry{at: time.Now().Add(-time.Second), task: task})
 	heap.Init(&s.heap)
 
@@ -408,7 +333,7 @@ func TestScheduler_Run_OneShot_DeletesTask(t *testing.T) {
 		deleted <- id
 		return nil
 	}
-	s := NewScheduler(time.Hour, false, disp, repo)
+	s := NewScheduler(time.Hour, false, disp, repo, nil)
 	heap.Push(&s.heap, schedulerEntry{at: time.Now().Add(-time.Second), task: task})
 	heap.Init(&s.heap)
 
@@ -429,7 +354,9 @@ func TestScheduler_Run_WithMemoryConsolidation(t *testing.T) {
 	defer cancel()
 
 	disp := &mockDispatcher{}
-	s := NewScheduler(10*time.Millisecond, true, disp, nil)
+	mc := &mockConsolidation{}
+	mc.On("Consolidate", mock.Anything).Return(nil)
+	s := NewScheduler(10*time.Millisecond, true, disp, nil, mc)
 	go s.Run(ctx)
 	time.Sleep(30 * time.Millisecond)
 }

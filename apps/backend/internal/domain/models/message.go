@@ -25,6 +25,7 @@ type Message struct {
 	Audio          *AudioContent          `json:"audio,omitempty"`
 	Role           string                 `json:"role"`
 	ConversationID string                 `json:"conversation_id"`
+	IsValidated    bool                   `json:"is_validated"`
 }
 
 type AudioContent struct {

@@ -64,41 +64,49 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest, fn func(ChatRespons
 	}
 
 	endpoint := c.base.String() + "/api/chat"
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("ollama: create request: %w", err)
+		return fmt.Errorf("create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("ollama: http: %w", err)
+		return fmt.Errorf("http: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
 		// Ollama always wraps errors as {"error":"<human-readable message>"}.
-		// Parse that field so logs show something useful instead of raw JSON.
 		var errBody struct {
 			Error string `json:"error"`
 		}
 		if json.Unmarshal(b, &errBody) == nil && errBody.Error != "" {
-			return fmt.Errorf("ollama: %s (HTTP %d)", errBody.Error, resp.StatusCode)
+			return &ollamaStatusError{StatusCode: resp.StatusCode, Message: errBody.Error}
 		}
-		// Fallback: body is not valid JSON (e.g. an HTML proxy page).
-		// Truncate to avoid flooding logs with kilobytes of HTML.
+
 		raw := string(b)
 		if len(raw) > 200 {
 			raw = raw[:200] + "…"
 		}
-		return fmt.Errorf("ollama: server error %d: %s", resp.StatusCode, raw)
+		return &ollamaStatusError{StatusCode: resp.StatusCode, Message: raw}
 	}
 
 	var chatResp ChatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
-		return fmt.Errorf("ollama: decode response: %w", err)
+		return fmt.Errorf("decode response: %w", err)
 	}
 
 	return fn(chatResp)
+}
+
+type ollamaStatusError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *ollamaStatusError) Error() string {
+	return fmt.Sprintf("ollama: %s (HTTP %d)", e.Message, e.StatusCode)
 }

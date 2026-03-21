@@ -148,13 +148,37 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// ResolvePaths converts all relative paths in the configuration into absolute
+// paths, anchored at the BaseDir. This must be called before components are
+// initialized if the process intends to chdir() at runtime.
+func (c *Config) ResolvePaths() {
+	makeAbs := func(p string) string {
+		if p == "" || filepath.IsAbs(p) {
+			return p
+		}
+		return filepath.Join(c.BaseDir, p)
+	}
+
+	// SQLite DSN is special: it might have prefixes like "file:".
+	// We only touch it if it's a simple path.
+	if (c.Database.Driver == "sqlite" || c.Database.Driver == "sqlite3") &&
+		!strings.Contains(c.Database.DSN, ":") {
+		c.Database.DSN = makeAbs(c.Database.DSN)
+	}
+
+	c.Memory.File.Path = makeAbs(c.Memory.File.Path)
+	c.Logging.Path = makeAbs(c.Logging.Path)
+	c.Secrets.File.Path = makeAbs(c.Secrets.File.Path)
+	c.Workspace.Path = makeAbs(c.Workspace.Path)
+}
+
 type Config struct {
 	// BaseDir is the root directory for all runtime data (data/, logs/,
 	// workspace/). Configurable via base_dir in YAML, OPENLOBSTER_BASE_DIR
 	// env var, or the --data-dir CLI flag. Defaults to $HOME/.openlobster.
 	BaseDir     string            `mapstructure:"base_dir"`
 	Agent       AgentConfig       `mapstructure:"agent"`
-	Scheduler   SchedulerConfig   `mapstructure:"heartbeat"` // yaml key kept for backwards compat
+	Scheduler   SchedulerConfig   `mapstructure:"scheduler"` 
 	Database    DatabaseConfig    `mapstructure:"database"`
 	Providers   ProvidersConfig   `mapstructure:"providers"`
 	Channels    ChannelsConfig    `mapstructure:"channels"`
@@ -392,10 +416,10 @@ type WorkspaceConfig struct {
 func setDefaults() {
 	home, _ := os.UserHomeDir()
 	viper.SetDefault("base_dir", filepath.Join(home, ".openlobster"))
-	viper.SetDefault("heartbeat.interval", "30s")
-	viper.SetDefault("heartbeat.enabled", true)
-	viper.SetDefault("heartbeat.memory_interval", "4h")
-	viper.SetDefault("heartbeat.memory_enabled", true)
+	viper.SetDefault("scheduler.interval", "30s")
+	viper.SetDefault("scheduler.enabled", true)
+	viper.SetDefault("scheduler.memory_interval", "4h")
+	viper.SetDefault("scheduler.memory_enabled", true)
 	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.dsn", "./data/persistence.db")
 	// Pool settings default to 0 (use driver's defaults) but are present so
@@ -404,6 +428,9 @@ func setDefaults() {
 	viper.SetDefault("database.max_idle_conns", 0)
 	viper.SetDefault("memory.backend", "file")
 	viper.SetDefault("memory.file.path", "./data/memory.gml")
+	viper.SetDefault("memory.neo4j.uri", "")
+	viper.SetDefault("memory.neo4j.user", "")
+	viper.SetDefault("memory.neo4j.password", "")
 	viper.SetDefault("secrets.backend", "file")
 	viper.SetDefault("secrets.file.path", "./data/secrets.json")
 	viper.SetDefault("secrets.openbao.url", "")
@@ -489,14 +516,17 @@ func bootstrapEncryptedConfig(path string) error {
 	v := viper.New()
 	v.SetConfigFile(absPath)
 	v.SetConfigType("yaml")
-	v.SetDefault("heartbeat.interval", "30s")
-	v.SetDefault("heartbeat.enabled", true)
-	v.SetDefault("heartbeat.memory_interval", "4h")
-	v.SetDefault("heartbeat.memory_enabled", true)
+	v.SetDefault("scheduler.interval", "30s")
+	v.SetDefault("scheduler.enabled", true)
+	v.SetDefault("scheduler.memory_interval", "4h")
+	v.SetDefault("scheduler.memory_enabled", true)
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "./data/openlobster.db")
 	v.SetDefault("memory.backend", "file")
 	v.SetDefault("memory.file.path", "./data/memory.gml")
+	v.SetDefault("memory.neo4j.uri", "")
+	v.SetDefault("memory.neo4j.user", "")
+	v.SetDefault("memory.neo4j.password", "")
 	v.SetDefault("secrets.backend", "file")
 	v.SetDefault("secrets.file.path", "./data/secrets.json")
 	v.SetDefault("workspace.path", "./workspace")

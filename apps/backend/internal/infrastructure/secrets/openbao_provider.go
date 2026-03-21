@@ -12,7 +12,15 @@ import (
 )
 
 const (
-	openbaoTimeout  = 5 * time.Second // short so OAuth/Telegram fail fast if OpenBao is unreachable (e.g. egress blocked)
+	// openbaoTimeout is the per-attempt HTTP deadline for every OpenBao call.
+	// Kept short so individual attempts fail fast; retries handle transient issues.
+	openbaoTimeout = 5 * time.Second
+
+	// Retry knobs for Get: exponential backoff with jitter.
+	// Total worst-case wait before giving up: ~14 s (0 + 2 + 4 + 8 s of sleep).
+	openbaoMaxRetries    = 3
+	openbaoRetryBaseWait = 2 * time.Second
+
 	openbaoValueKey = "value"
 )
 
@@ -114,36 +122,80 @@ func formatOpenbaoError(op, key string, err error) error {
 	return fmt.Errorf("openbao %s %q: %w", op, key, err)
 }
 
-func (p *OpenBAOProvider) Get(ctx context.Context, key string) (string, error) {
-	// Try KV v2 first (path secret/data/key; response has data.data.value).
+// isTransient returns true for errors that are worth retrying: timeouts and
+// context deadline/cancellation caused by network hiccups or cold-start latency.
+// HTTP 4xx/5xx application errors are NOT transient and should not be retried.
+func isTransient(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	// Vault SDK wraps net/url errors for connection-refused / EOF.
+	var respErr *vault.ResponseError
+	if errors.As(err, &respErr) {
+		return false // explicit HTTP response — not transient
+	}
+	return true // unknown wrapping (net.Error, EOF, etc.) — assume transient
+}
+
+// readOnce attempts a single KV v2 → v1 read. Returns (value, found, err).
+func (p *OpenBAOProvider) readOnce(ctx context.Context, key string) (string, bool, error) {
 	pathV2 := p.pathV2(key)
 	secret, err := p.client.Logical().ReadWithContext(ctx, pathV2)
 	if err == nil && secret != nil && secret.Data != nil {
 		if data, ok := secret.Data["data"].(map[string]interface{}); ok {
 			if v, ok := data[openbaoValueKey].(string); ok {
-				return v, nil
+				return v, true, nil
 			}
 		} else {
 			log.Printf("openbao: KV v2 secret at %q is present but missing \"data\" wrapper (malformed response)", pathV2)
 		}
-		return "", nil
+		return "", true, nil
 	}
 	if err != nil && !isNotFound(err) {
-		return "", formatOpenbaoError("read", key, err)
+		return "", false, err
 	}
-	// Fallback: KV v1 (path secret/key; response has data.value).
+	// Fallback: KV v1.
 	pathV1 := p.pathV1(key)
 	secret, err = p.client.Logical().ReadWithContext(ctx, pathV1)
 	if err != nil {
-		return "", formatOpenbaoError("read", key, err)
+		return "", false, err
 	}
 	if secret == nil || secret.Data == nil {
-		return "", nil
+		return "", true, nil
 	}
 	if v, ok := secret.Data[openbaoValueKey].(string); ok {
-		return v, nil
+		return v, true, nil
 	}
-	return "", nil
+	return "", true, nil
+}
+
+// Get reads a secret from OpenBao with exponential-backoff retries for transient
+// errors (e.g. deadline exceeded on cold-start in low-traffic environments).
+// Non-transient errors (HTTP 4xx/5xx) fail immediately without retrying.
+func (p *OpenBAOProvider) Get(ctx context.Context, key string) (string, error) {
+	var lastErr error
+	for attempt := 0; attempt <= openbaoMaxRetries; attempt++ {
+		if attempt > 0 {
+			wait := openbaoRetryBaseWait * (1 << (attempt - 1)) // 2s, 4s, 8s
+			log.Printf("openbao: transient error reading %q (attempt %d/%d), retrying in %s: %v",
+				key, attempt, openbaoMaxRetries, wait, lastErr)
+			select {
+			case <-time.After(wait):
+			case <-ctx.Done():
+				return "", formatOpenbaoError("read", key, ctx.Err())
+			}
+		}
+
+		v, _, err := p.readOnce(ctx, key)
+		if err == nil {
+			return v, nil
+		}
+		if !isTransient(err) {
+			return "", formatOpenbaoError("read", key, err)
+		}
+		lastErr = err
+	}
+	return "", formatOpenbaoError("read", key, lastErr)
 }
 
 func (p *OpenBAOProvider) Set(ctx context.Context, key string, value string) error {

@@ -37,6 +37,12 @@ func (m *testMessageRepo) GetSinceLastCompaction(ctx context.Context, conversati
 func (m *testMessageRepo) GetLastCompaction(ctx context.Context, conversationID string) (*models.Message, error) {
 	return nil, nil
 }
+func (m *testMessageRepo) GetUnvalidated(ctx context.Context, limit int) ([]models.Message, error) {
+	return nil, nil
+}
+func (m *testMessageRepo) MarkAsValidated(ctx context.Context, ids []string) error {
+	return nil
+}
 
 type testAIProviderForCompaction struct{}
 
@@ -138,6 +144,12 @@ func (m *failingMessageRepo) GetSinceLastCompaction(ctx context.Context, convers
 
 func (m *failingMessageRepo) GetLastCompaction(ctx context.Context, conversationID string) (*models.Message, error) {
 	return nil, nil
+}
+func (m *failingMessageRepo) GetUnvalidated(ctx context.Context, limit int) ([]models.Message, error) {
+	return nil, fmt.Errorf("repo error")
+}
+func (m *failingMessageRepo) MarkAsValidated(ctx context.Context, ids []string) error {
+	return fmt.Errorf("repo error")
 }
 
 func TestService_Compact_Error(t *testing.T) {

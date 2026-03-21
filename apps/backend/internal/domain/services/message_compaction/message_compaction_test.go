@@ -199,6 +199,14 @@ func (m *mockMsgRepo) GetByConversation(_ context.Context, _ string, _ int) ([]m
 	return nil, nil
 }
 
+func (m *mockMsgRepo) GetUnvalidated(ctx context.Context, limit int) ([]models.Message, error) {
+	return nil, nil
+}
+
+func (m *mockMsgRepo) MarkAsValidated(ctx context.Context, ids []string) error {
+	return nil
+}
+
 type mockAI struct {
 	content string
 	err     error

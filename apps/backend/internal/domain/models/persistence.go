@@ -92,7 +92,8 @@ type MessageModel struct {
 	Content        string    `gorm:"column:content"`
 	AudioData      []byte    `gorm:"column:audio_data"`
 	IsCompaction   bool      `gorm:"column:is_compaction;default:false"`
-	CreatedAt      time.Time `gorm:"column:created_at;autoCreateTime:false;index:idx_msg_conv_created,priority:2"`
+	IsValidated    bool      `gorm:"column:is_validated;default:false;index:idx_msg_validation"`
+	CreatedAt      time.Time `gorm:"column:created_at;autoCreateTime:false;index:idx_msg_conv_created,priority:2;index:idx_msg_validation,priority:2"`
 	// Attachments associated with this message (metadata only)
 	Attachments []MessageAttachmentModel `gorm:"foreignKey:MessageID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE;" json:"attachments,omitempty"`
 
