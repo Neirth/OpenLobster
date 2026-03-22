@@ -66,7 +66,7 @@ Limitations: Only one OpenLobster instance can write to it at a time. If you try
 
 In the Memory view, you see:
 
-1. **Left panel** — All nodes, indexed by type (PERSON, ORGANIZATION, TOPIC, etc.)
+1. **Left panel** — All nodes, indexed by type (Person, Place, Thing, Story, Fact, etc.)
 2. **Right panel** — When you click a node, its details and connected nodes appear
 3. **Graph visualization** — A visual representation showing how nodes connect
 
@@ -99,6 +99,62 @@ If you see duplicates, it might mean the agent extracted the same entity differe
 - Backups are straightforward (use Neo4j tools)
 
 If memory operations feel slow, check your backend choice. If you've outgrown file-based storage, switching to Neo4j will make things snappier.
+
+## Memory consolidation pipeline
+
+Beyond real-time extraction (step 11 of the message pipeline), OpenLobster runs a separate **consolidation pass** on a configurable schedule. This is a three-phase Map-Reduce pipeline that processes batches of up to 500 unvalidated messages at a time:
+
+### Phase 1 — Extraction (Map)
+
+Each user's messages are broken into chunks that fit within the AI provider's token budget. An LLM pass extracts candidate persistent facts from each chunk: preferences, habits, personal details, significant events. Greetings, questions, and transient content are skipped. Each chunk produces a short bulleted list of candidate facts, or nothing if there's nothing worth remembering.
+
+### Phase 2 — Reduction (Filter)
+
+The candidate facts from all chunks are combined and sent to a second LLM call that has access to the `search_memory` tool. The model cross-checks every candidate against what is already stored in the graph. Only facts that are **genuinely new or meaningfully different** survive. If every candidate already exists, the phase emits `NO_REPLY` and the pipeline stops — no write happens.
+
+### Phase 3 — Synchronization (Reduce)
+
+The surviving facts are sent to a third LLM call with access to `add_memory` and `set_user_property`. The model writes each fact to the graph with the correct entity type and relationship, then marks the source messages as validated so they won't be processed again.
+
+This pipeline runs as an agentic loop (up to five rounds per phase) so the model can call tools multiple times if needed.
+
+**Configuration** — enable and tune it in Settings under [Scheduler Configuration](../settings/configuration.md#scheduler-configuration):
+
+```yaml
+scheduler:
+  memory_enabled: true
+  memory_interval: 4h
+```
+
+### Privacy and logging
+
+User names and identifiers are hashed (SHA-256, first 12 hex chars) in all log lines to avoid PII leakage. By default only a truncated snippet of the prompt is logged at DEBUG level.
+
+Full prompt logging can be enabled for troubleshooting:
+
+```bash
+OPENLOBSTER_MEMORY_VERBOSE=1 openlobster serve
+```
+
+Use this only in controlled environments — it will write raw conversation content to the log.
+
+## Typed memories
+
+Facts stored in the graph carry a semantic **entity type**. The `add_memory` tool accepts an `entity_type` parameter, and Neo4j creates correspondingly-typed nodes:
+
+| Type | When to use | Neo4j node label |
+|------|-------------|-----------------|
+| `person` | A specific person: colleague, friend, family member | `Person` |
+| `place` | A location: city, country, address, venue | `Place` |
+| `thing` | An object, topic, organization, or abstract concept | `Thing` |
+| `story` | A narrative event or diary-style entry | `Story` |
+| `fact` | Generic facts that don't fit the other categories | `Fact` |
+
+The model chooses the type automatically during the Synchronization phase. In the Memory view, the **left panel** groups nodes by these types, making it easier to navigate large knowledge bases. Deduplication is keyed on `(userID, label, relation)` so facts from different users never overwrite each other.
+
+{% hint style="info" %}
+Typed nodes are only created by the consolidation pipeline or via the GraphQL `addMemoryNode` mutation (and updated via `updateMemoryNode`). The File/GML backend stores the type as a node attribute; Neo4j stores it as the node label.
+{% endhint %}
 
 ## How memory affects agent behavior
 

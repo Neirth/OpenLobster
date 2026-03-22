@@ -22,7 +22,7 @@ Permission changes take effect immediately and are persisted. There is no need t
 
 ## Select a user
 
-In the left panel, click the user whose permissions you want to manage. Users appear here once they have been paired with the agent.
+In the left panel, use the **user chip selector** to pick the user whose permissions you want to manage. Start typing to filter by name. Users appear here once they have been paired with the agent. The agent account is auto-selected by default when you open the Permissions tab.
 
 {% endstep %}
 
@@ -46,6 +46,8 @@ Click **Deny** next to a tool to block it for this user. The status changes to *
 ## Bulk operations
 
 Use the **Allow All** or **Deny All** buttons to apply a permission change across all tools at once for the selected user.
+
+You can also apply bulk operations **by group**: select a capability group (e.g. all Browser tools, all tools from a specific MCP server) and use the group-level Allow/Deny buttons to configure that section in one click.
 
 {% hint style="warning" %}
 Use **Deny All** carefully. It will block the user from accessing every tool, including basic built-in capabilities. You can restore access by clicking **Allow All** or by enabling tools individually.
