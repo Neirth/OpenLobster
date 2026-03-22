@@ -140,8 +140,31 @@ func (l *Logger) GetTailLines(n int) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
+func (l *Logger) IsDebugEnabled() bool {
+	if l == nil {
+		return false
+	}
+	return l.level == DEBUG
+}
+
 func GetDefaultLogger() *Logger {
 	return defaultLogger
+}
+
+func IsDebugEnabled() bool {
+	return defaultLogger.IsDebugEnabled()
+}
+
+// Debugf logs a formatted message at DEBUG level. No-op when debug is not enabled.
+func Debugf(format string, args ...any) {
+	if defaultLogger != nil && defaultLogger.level <= DEBUG {
+		log.Printf(format, args...)
+	}
+}
+
+// Printf logs a formatted message unconditionally (INFO level and above).
+func Printf(format string, args ...any) {
+	log.Printf(format, args...)
 }
 
 func Close() error {

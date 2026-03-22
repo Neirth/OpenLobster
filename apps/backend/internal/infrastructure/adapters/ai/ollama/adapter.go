@@ -24,6 +24,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
+	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
 // chatClient is a narrow interface over the SDK client so that tests can inject
@@ -81,13 +82,6 @@ type Adapter struct {
 	model         string
 	maxTokens     int
 	contextWindow int
-	debug         bool
-}
-
-func (a *Adapter) debugf(format string, args ...any) {
-	if a.debug {
-		log.Printf(format, args...)
-	}
 }
 
 // NewAdapter constructs an Adapter pointing at the given Ollama endpoint.
@@ -97,16 +91,6 @@ func NewAdapter(baseURL, model string, maxTokens int) *Adapter {
 
 // NewAdapterWithAuth constructs an Adapter with an optional Bearer token.
 func NewAdapterWithAuth(baseURL, apiKey, model string, maxTokens int) *Adapter {
-	return newAdapter(baseURL, apiKey, model, maxTokens, false)
-}
-
-// NewAdapterWithOptions constructs an Adapter with all options.
-// logLevel "debug" enables verbose request logs.
-func NewAdapterWithOptions(baseURL, apiKey, model string, maxTokens int, logLevel string) *Adapter {
-	return newAdapter(baseURL, apiKey, model, maxTokens, strings.EqualFold(logLevel, "debug"))
-}
-
-func newAdapter(baseURL, apiKey, model string, maxTokens int, debug bool) *Adapter {
 	ensureOllamaPrivateKey()
 
 	u, err := url.Parse(baseURL)
@@ -115,9 +99,9 @@ func newAdapter(baseURL, apiKey, model string, maxTokens int, debug bool) *Adapt
 		c, envErr := ollamaapi.ClientFromEnvironment()
 		if envErr != nil {
 			log.Printf("ollama: ClientFromEnvironment failed: %v", envErr)
-			return &Adapter{initErr: envErr, model: model, maxTokens: maxTokens, debug: debug}
+			return &Adapter{initErr: envErr, model: model, maxTokens: maxTokens}
 		}
-		a := &Adapter{client: c, model: model, maxTokens: maxTokens, debug: debug}
+		a := &Adapter{client: c, model: model, maxTokens: maxTokens}
 		a.probeContextWindow()
 		return a
 	}
@@ -129,9 +113,15 @@ func newAdapter(baseURL, apiKey, model string, maxTokens int, debug bool) *Adapt
 		}
 	}
 	c := ollamaapi.NewClient(u, httpClient)
-	a := &Adapter{client: c, model: model, maxTokens: maxTokens, debug: debug}
+	a := &Adapter{client: c, model: model, maxTokens: maxTokens}
 	a.probeContextWindow()
 	return a
+}
+
+// NewAdapterWithOptions constructs an Adapter with all options.
+// Kept for backwards compatibility; debug verbosity is controlled by the global logging level.
+func NewAdapterWithOptions(baseURL, apiKey, model string, maxTokens int, _ string) *Adapter {
+	return NewAdapterWithAuth(baseURL, apiKey, model, maxTokens)
 }
 
 // probeContextWindow calls Show to determine the model's actual context window.
@@ -174,7 +164,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 	messages := a.convertMessages(sanitizeMessagesForOllama(req.Messages))
 	tools := convertTools(req.Tools)
 
-	a.debugf("ollama: request model=%s msgs=%d tools=%d", a.model, len(messages), len(tools))
+	logging.Debugf("ollama: request model=%s msgs=%d tools=%d", a.model, len(messages), len(tools))
 
 	numPredict := a.maxTokens
 	if req.MaxTokens > 0 {
@@ -191,7 +181,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 			numCtx = 32768
 		}
 		options["num_ctx"] = numCtx
-		a.debugf("ollama: context_limit=%d (max_probed=%d)", numCtx, cw)
+		logging.Debugf("ollama: context_limit=%d (max_probed=%d)", numCtx, cw)
 	}
 
 	ollamaReq := &ollamaapi.ChatRequest{
@@ -211,7 +201,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		return ports.ChatResponse{}, err
 	}
 
-	a.debugf("ollama: done_reason=%q content_len=%d tool_calls=%d",
+	logging.Debugf("ollama: done_reason=%q content_len=%d tool_calls=%d",
 		sdkResp.DoneReason, len(sdkResp.Message.Content), len(sdkResp.Message.ToolCalls))
 
 	result := ports.ChatResponse{
@@ -241,7 +231,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 			})
 		}
 		result.StopReason = "tool_use"
-		a.debugf("ollama: %d tool_calls (SDK), stop_reason=tool_use", len(result.ToolCalls))
+		logging.Debugf("ollama: %d tool_calls (SDK), stop_reason=tool_use", len(result.ToolCalls))
 	}
 
 	// Strip <thought>...</thought> reasoning blocks emitted by DeepSeek-R1 etc.
@@ -249,7 +239,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		matches := thoughtBlockRe.FindAllStringSubmatch(result.Content, -1)
 		if len(matches) > 0 {
 			result.Content = strings.TrimSpace(thoughtBlockRe.ReplaceAllString(result.Content, ""))
-			a.debugf("ollama: stripped %d reasoning blocks", len(matches))
+			logging.Debugf("ollama: stripped %d reasoning blocks", len(matches))
 		}
 	}
 
@@ -260,7 +250,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 			result.ToolCalls = parsed
 			result.StopReason = "tool_use"
 			result.Content = strings.TrimSpace(toolBlockRe.ReplaceAllString(result.Content, ""))
-			a.debugf("ollama: %d tool_calls (<tool> blocks), stop_reason=tool_use", len(result.ToolCalls))
+			logging.Debugf("ollama: %d tool_calls (<tool> blocks), stop_reason=tool_use", len(result.ToolCalls))
 		}
 	}
 
@@ -345,7 +335,7 @@ func (a *Adapter) convertMessages(messages []ports.ChatMessage) []ollamaapi.Mess
 		}
 		if msg.Role == "user" && len(msg.Blocks) > 0 {
 			m.Images = collectImageBlocks(msg.Blocks)
-			a.debugf("ollama: user msg has %d blocks → %d images", len(msg.Blocks), len(m.Images))
+			logging.Debugf("ollama: user msg has %d blocks → %d images", len(msg.Blocks), len(m.Images))
 			if len(m.Images) > 0 && strings.TrimSpace(m.Content) == "" {
 				m.Content = "Describe and analyse this image. Respond using the same language as the user."
 			}

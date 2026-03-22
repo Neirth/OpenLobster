@@ -4,14 +4,17 @@ package memory_consolidation
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
+	"os"
 	"strings"
 
 	"github.com/neirth/openlobster/internal/domain/models"
 	"github.com/neirth/openlobster/internal/domain/ports"
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
+	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
 type service struct {
@@ -24,21 +27,22 @@ type service struct {
 }
 
 const (
-	extractionSystemPrompt = `You are a memory extraction sub-agent for user "%s".
-Extract only persistent facts from the provided messages. Output one fact per line, starting with "- ".
-Each line must be a single short sentence (max 15 words). No explanations, no summaries, no filler.
-Only include: preferences, habits, personal details, significant events. Skip greetings, questions, and transient content.`
+	extractionSystemPrompt = `You are a memory extraction sub-agent. The user you are processing is "%s".
+Your sole task is to extract persistent facts about "%s" from the conversation below.
+Output one fact per line, starting with "- ". Each line must be a single short sentence (max 15 words).
+No explanations, no summaries, no filler. Only include: preferences, habits, personal details, significant events.
+Skip greetings, questions, and transient content. If there is nothing worth remembering, output nothing.`
 
-	reductionSystemPrompt = `You are a memory filtering engine for user "%s". 
-You will receive fact summaries and the current state of the Knowledge Graph.
-Your task is to produce a **final condensed text** containing ONLY facts that are NEW or that UPDATE existing information.
+	reductionSystemPrompt = `You are a memory filtering engine. The user you are processing is "%s".
+You will receive fact summaries about "%s" and the current state of their Knowledge Graph.
+Produce a final condensed text containing ONLY facts that are NEW or that UPDATE existing information about "%s".
 Discard anything already present and unchanged in the Knowledge Graph.
 Use tools if you need to verify specific facts against the long-term memory.`
 
-	syncSystemPrompt = `You are a memory synchronization specialist for user "%s".
-Your task is to update the long-term memory (Neo4j) using the provided tools based on the new findings.
-- Use 'add_memory' for new facts.
-- Use 'set_user_property' for core user attributes (name, age, language, etc.).
+	syncSystemPrompt = `You are a memory synchronization specialist. The user you are updating memory for is "%s".
+Update the long-term memory (Neo4j) using the provided tools based on the new findings about "%s".
+- Use 'add_memory' for new facts about "%s".
+- Use 'set_user_property' for core attributes of "%s" (name, age, language, etc.).
 - Be precise and avoid duplicating information.`
 )
 
@@ -80,7 +84,8 @@ func (s *service) Consolidate(ctx context.Context) error {
 		if !ok {
 			id, err := s.convoRepo.GetByID(ctx, msg.ConversationID)
 			if err != nil {
-				log.Printf("memory_consolidation: failed to resolve user for message %s: %v", msg.ID, err)
+				anonMsg := anonymizeToken(fmt.Sprintf("%v", msg.ID))
+				logging.Printf("memory_consolidation: failed to resolve user for message %s: %v", anonMsg, err)
 				continue
 			}
 			userID = id.UserID
@@ -91,7 +96,7 @@ func (s *service) Consolidate(ctx context.Context) error {
 
 	for userID, msgs := range userMsgs {
 		if err := s.processUserBatch(ctx, userID, msgs); err != nil {
-			log.Printf("memory_consolidation: failed to process user %s: %v", userID, err)
+			logging.Printf("memory_consolidation: failed to process user %s: %v", anonymizeToken(userID), err)
 			continue
 		}
 	}
@@ -141,6 +146,12 @@ func (s *service) processUserBatch(ctx context.Context, userID string, msgs []mo
 	if user, err := s.userRepo.GetByID(ctx, userID); err == nil && user.Name != "" {
 		userName = user.Name
 	}
+
+	// Inject user identity into the context so memory tools (add_memory,
+	// set_user_property, search_memory) always write to the correct user node
+	// without requiring the model to pass for_user explicitly.
+	ctx = context.WithValue(ctx, mcp.ContextKeyUserID, userID)
+	ctx = context.WithValue(ctx, mcp.ContextKeyUserDisplayName, userName)
 
 	// Filter to only conversational turns — tool outputs and system messages
 	// carry no user-attributable memory and would inflate context for no gain.
@@ -206,13 +217,13 @@ func (s *service) extractSummary(ctx context.Context, msgs []models.Message, use
 	s.logPhase("extraction", userName, sb.String())
 	resp, err := s.aiProvider.Chat(ctx, ports.ChatRequest{
 		Messages: []ports.ChatMessage{
-			{Role: "system", Content: fmt.Sprintf(extractionSystemPrompt, userName)},
-			{Role: "user", Content: "Messages to process:\n" + sb.String()},
+			{Role: "system", Content: fmt.Sprintf(extractionSystemPrompt, userName, userName)},
+			{Role: "user", Content: fmt.Sprintf("Extract persistent facts about %s from the following conversation:\n\n%s", userName, sb.String())},
 		},
 		MaxTokens: maxOutputTokens,
 	})
 	if err != nil {
-		log.Printf("memory_consolidation: extraction failed for %s: %v", userName, err)
+		logging.Printf("memory_consolidation: extraction failed for %s: %v", anonymizeToken(userName), err)
 		return "", err
 	}
 
@@ -226,12 +237,12 @@ func (s *service) filterAgainstMemory(ctx context.Context, userID, userName stri
 
 	s.logPhase("reduction", userName, combinedSummaries)
 	messages := []ports.ChatMessage{
-		{Role: "system", Content: fmt.Sprintf(reductionSystemPrompt, userName)},
-		{Role: "user", Content: fmt.Sprintf("Current Knowledge Graph Context: %s\n\nNew Findings to Evaluate:\n%s", "[KNOWLEDGE GRAPH GATED BEHIND TOOLS]", combinedSummaries)},
+		{Role: "system", Content: fmt.Sprintf(reductionSystemPrompt, userName, userName, userName)},
+		{Role: "user", Content: fmt.Sprintf("User: %s\nCurrent Knowledge Graph Context: %s\n\nNew Findings to Evaluate:\n%s", userName, "[KNOWLEDGE GRAPH GATED BEHIND TOOLS]", combinedSummaries)},
 	}
 	resp, err := s.runAgenticLoop(ctx, messages, tools)
 	if err != nil {
-		log.Printf("memory_consolidation: reduction failed for %s: %v", userName, err)
+		logging.Printf("memory_consolidation: reduction failed for %s: %v", anonymizeToken(userName), err)
 		return "", err
 	}
 
@@ -243,12 +254,12 @@ func (s *service) syncFindings(ctx context.Context, userID, userName, findings s
 
 	s.logPhase("synchronization", userID, findings)
 	messages := []ports.ChatMessage{
-		{Role: "system", Content: fmt.Sprintf(syncSystemPrompt, userName)},
-		{Role: "user", Content: "Final findings to synchronize:\n" + findings},
+		{Role: "system", Content: fmt.Sprintf(syncSystemPrompt, userName, userName, userName, userName)},
+		{Role: "user", Content: fmt.Sprintf("User: %s\nFinal findings to synchronize:\n%s", userName, findings)},
 	}
 	_, err := s.runAgenticLoop(ctx, messages, tools)
 	if err != nil {
-		log.Printf("memory_consolidation: synchronization failed for %s: %v", userID, err)
+		logging.Printf("memory_consolidation: synchronization failed for %s: %v", anonymizeToken(userID), err)
 		return err
 	}
 
@@ -348,18 +359,38 @@ func (s *service) executeTool(ctx context.Context, tc ports.ToolCall) (json.RawM
 	return s.toolRegistry.Dispatch(ctx, tc.Function.Name, params)
 }
 
-func (s *service) logPhase(phase, user string, prompt string) {
-	const charsPerToken = 4
-	promptTokens := len(prompt) / charsPerToken
-	contextWindow := s.aiProvider.GetContextWindow()
+func (s *service) logPhase(phase, ident, prompt string) {
+	// Use an anonymized, stable token for logging to avoid PII leakage
+	anon := anonymizeToken(ident)
+	logging.Printf("memory_consolidation: [%s] user=%s estimated_prompt=%d tokens", phase, anon, len(prompt)/4)
 
-	pct := 0.0
-	if contextWindow > 0 {
-		pct = float64(promptTokens) / float64(contextWindow) * 100
+	// By default only log a truncated prompt snippet to reduce PII exposure.
+	// Full prompt logging can be enabled via env var OPENLOBSTER_MEMORY_VERBOSE=1
+	verbose := os.Getenv("OPENLOBSTER_MEMORY_VERBOSE") == "1"
+	if verbose {
+		logging.Debugf("memory_consolidation: [%s] full prompt:\n%s", phase, prompt)
+		return
 	}
 
-	log.Printf("memory_consolidation: [%s] user=%s estimated_prompt=%d context_window=%d (%.1f%% of context)",
-		phase, user, promptTokens, contextWindow, pct)
+	// Truncate the prompt snippet for safe debugging
+	maxSnippet := 400
+	snippet := prompt
+	if len(snippet) > maxSnippet {
+		snippet = snippet[:maxSnippet] + "..."
+	}
+	logging.Debugf("memory_consolidation: [%s] prompt_snippet:\n%s", phase, snippet)
+}
+
+func anonymizeToken(s string) string {
+	if s == "" {
+		return ""
+	}
+	h := sha256.Sum256([]byte(s))
+	hexs := hex.EncodeToString(h[:])
+	if len(hexs) > 12 {
+		return hexs[:12]
+	}
+	return hexs
 }
 
 func (s *service) markAsValidated(ctx context.Context, msgs []models.Message) error {
