@@ -159,6 +159,10 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		a.debugf("ollama:   [%d] role=%s content=%q", i, msg.Role, preview)
 	}
 
+	numPredict := a.maxTokens
+	if req.MaxTokens > 0 {
+		numPredict = req.MaxTokens
+	}
 	stream := false
 	ollamaReq := &ChatRequest{
 		Model:    a.model,
@@ -166,7 +170,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		Tools:    tools,
 		Stream:   &stream,
 		Options: map[string]interface{}{
-			"num_predict": a.maxTokens,
+			"num_predict": numPredict,
 		},
 	}
 
@@ -186,6 +190,10 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 	result := ports.ChatResponse{
 		Content:    sdkResp.Message.Content,
 		StopReason: "stop",
+		Usage: ports.TokenUsage{
+			PromptTokens:     sdkResp.PromptEvalCount,
+			CompletionTokens: sdkResp.EvalCount,
+		},
 	}
 
 	// Standard path: SDK already parsed tool_calls into typed structs.
@@ -208,6 +216,21 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		}
 		result.StopReason = "tool_use"
 		a.debugf("ollama: extracted %d tool_calls (SDK), stop_reason=tool_use", len(result.ToolCalls))
+	}
+
+	// Extract thinking/reasoning blocks (e.g. <thought>...</thought>)
+	if strings.Contains(result.Content, "<thought>") {
+		matches := thoughtBlockRe.FindAllStringSubmatch(result.Content, -1)
+		var thoughts []string
+		for _, m := range matches {
+			if len(m) > 1 {
+				thoughts = append(thoughts, strings.TrimSpace(m[1]))
+			}
+		}
+		if len(thoughts) > 0 {
+			result.Content = strings.TrimSpace(thoughtBlockRe.ReplaceAllString(result.Content, ""))
+			a.debugf("ollama: extracted %d reasoning blocks (discarded)", len(thoughts))
+		}
 	}
 
 	// Fallback path: some fine-tuned models embed <tool> blocks in content
@@ -459,6 +482,10 @@ var _ ports.AIProviderPort = (*Adapter)(nil)
 // toolBlockRe matches custom <tool>...</tool> blocks emitted by some fine-tuned
 // models instead of using the standard tool_calls API field.
 var toolBlockRe = regexp.MustCompile(`(?s)<tool>\s*(.*?)\s*</tool>`)
+
+// thoughtBlockRe matches <thought>...</thought> blocks often emitted by DeepSeek-R1
+// and similar reasoning models.
+var thoughtBlockRe = regexp.MustCompile(`(?s)<thought>\s*(.*?)\s*</thought>`)
 
 // parseToolBlocks extracts tool calls from <tool> JSON blocks embedded in the
 // model text response. This is a fallback for models with custom templates.

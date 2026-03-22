@@ -288,6 +288,8 @@
   "settings.field.anthropicApiKeyDesc": "API key from console.anthropic.com",
   "settings.field.dockerModelRunnerEndpoint": "Docker Model Runner Endpoint",
   "settings.field.dockerModelRunnerEndpointDesc": "Docker Model Runner API endpoint (default: http://localhost:12434/engines/v1)",
+  "settings.field.reasoningLevel": "Reasoning Level",
+  "settings.field.reasoningLevelDesc": "Controls the depth of internal reasoning. Higher levels may increase latency and token usage. 'None' disables explicit reasoning tokens.",
   "settings.field.dockerModelRunnerModel": "Docker Model Runner Model",
   "settings.field.dockerModelRunnerModelDesc": "Model name to use with Docker Model Runner (e.g. ai/smollm2)",
   "settings.field.capabilities": "Agent Capabilities",

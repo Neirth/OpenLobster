@@ -52,10 +52,12 @@ type ChatRequest struct {
 
 // ChatResponse is the body received from the Ollama /api/chat endpoint.
 type ChatResponse struct {
-	Model      string  `json:"model"`
-	Message    Message `json:"message"`
-	DoneReason string  `json:"done_reason"`
-	Done       bool    `json:"done"`
+	Model           string  `json:"model"`
+	Message         Message `json:"message"`
+	DoneReason      string  `json:"done_reason"`
+	Done            bool    `json:"done"`
+	PromptEvalCount int     `json:"prompt_eval_count"`
+	EvalCount       int     `json:"eval_count"`
 }
 
 // ToolFunctionParameters describes a tool function's JSON-schema parameters.

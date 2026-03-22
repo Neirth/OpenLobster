@@ -2,8 +2,9 @@ package memory
 
 import (
 	"context"
-	"strings"
 	"time"
+
+	toon "github.com/toon-format/toon-go"
 )
 
 type MemoryDigest struct {
@@ -52,11 +53,11 @@ type Knowledge struct {
 	UserID    string
 	Content   string
 	Embedding []float64
-	CreatedAt interface{}
+	CreatedAt any
 }
 
 type Result struct {
-	Data   []map[string]interface{}
+	Data   []map[string]any
 	Errors []error
 }
 
@@ -67,7 +68,7 @@ type AIProvider interface {
 type ChatRequest struct {
 	Model    string
 	Messages []ChatMessage
-	Tools    []interface{}
+	Tools    []any
 }
 
 type ChatMessage struct {
@@ -128,54 +129,35 @@ func (s *MemoryDigestService) GetOrRebuild(ctx context.Context, userID string) (
 }
 
 func (s *MemoryDigestService) summarizeGraph(graph Graph) string {
-	var sb strings.Builder
-	sb.WriteString("User knowledge graph:\n")
-
-	// Group nodes by type for clarity.
-	byType := make(map[string][]Node)
-	for _, node := range graph.Nodes {
-		byType[node.Type] = append(byType[node.Type], node)
+	type toonNode struct {
+		ID    string `toon:"id"`
+		Label string `toon:"label"`
+		Type  string `toon:"type"`
+		Value string `toon:"value"`
+	}
+	type toonEdge struct {
+		Source string `toon:"source"`
+		Target string `toon:"target"`
+		Label  string `toon:"label"`
+	}
+	type toonGraph struct {
+		Nodes []toonNode `toon:"nodes"`
+		Edges []toonEdge `toon:"edges"`
 	}
 
-	// Facts first.
-	for _, node := range byType["fact"] {
-		sb.WriteString("- ")
-		sb.WriteString(node.Value)
-		sb.WriteString("\n")
+	nodes := make([]toonNode, len(graph.Nodes))
+	for i, n := range graph.Nodes {
+		nodes[i] = toonNode(n)
 	}
-	// Then all other node types.
-	for nodeType, nodes := range byType {
-		if nodeType == "fact" {
-			continue
-		}
-		for _, node := range nodes {
-			sb.WriteString("- [")
-			sb.WriteString(nodeType)
-			sb.WriteString("] ")
-			if node.Label != "" {
-				sb.WriteString(node.Label)
-				sb.WriteString(": ")
-			}
-			sb.WriteString(node.Value)
-			sb.WriteString("\n")
-		}
+	edges := make([]toonEdge, len(graph.Edges))
+	for i, e := range graph.Edges {
+		edges[i] = toonEdge(e)
 	}
-
-	// Include edges as relationship statements.
-	if len(graph.Edges) > 0 {
-		sb.WriteString("Relations:\n")
-		for _, edge := range graph.Edges {
-			sb.WriteString("- ")
-			sb.WriteString(edge.Source)
-			sb.WriteString(" --[")
-			sb.WriteString(edge.Label)
-			sb.WriteString("]--> ")
-			sb.WriteString(edge.Target)
-			sb.WriteString("\n")
-		}
+	out, err := toon.MarshalString(toonGraph{Nodes: nodes, Edges: edges})
+	if err != nil {
+		return ""
 	}
-
-	return sb.String()
+	return out
 }
 
 func (s *MemoryDigestService) Invalidate(userID string) error {

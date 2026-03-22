@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	toon "github.com/toon-format/toon-go"
+
 	"github.com/neirth/openlobster/internal/domain/ports"
 )
 
@@ -150,18 +152,35 @@ func (s *MemoryDigestService) GetOrRebuild(ctx context.Context, userID string) (
 }
 
 func (s *MemoryDigestService) summarizeGraph(graph ports.Graph) string {
-	var sb strings.Builder
-	sb.WriteString("User knowledge graph:\n")
-
-	for _, node := range graph.Nodes {
-		if node.Type != "user" {
-			sb.WriteString("- ")
-			sb.WriteString(node.Value)
-			sb.WriteString("\n")
-		}
+	type toonNode struct {
+		ID    string `toon:"id"`
+		Label string `toon:"label"`
+		Type  string `toon:"type"`
+		Value string `toon:"value"`
+	}
+	type toonEdge struct {
+		Source string `toon:"source"`
+		Target string `toon:"target"`
+		Label  string `toon:"label"`
+	}
+	type toonGraph struct {
+		Nodes []toonNode `toon:"nodes"`
+		Edges []toonEdge `toon:"edges"`
 	}
 
-	return sb.String()
+	nodes := make([]toonNode, len(graph.Nodes))
+	for i, n := range graph.Nodes {
+		nodes[i] = toonNode{ID: n.ID, Label: n.Label, Type: n.Type, Value: n.Value}
+	}
+	edges := make([]toonEdge, len(graph.Edges))
+	for i, e := range graph.Edges {
+		edges[i] = toonEdge{Source: e.Source, Target: e.Target, Label: e.Label}
+	}
+	out, err := toon.MarshalString(toonGraph{Nodes: nodes, Edges: edges})
+	if err != nil {
+		return ""
+	}
+	return out
 }
 
 // Invalidate invalidates the cache for a user.

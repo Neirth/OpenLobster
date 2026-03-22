@@ -283,6 +283,8 @@
   "settings.field.anthropicApiKeyDesc": "来自 console.anthropic.com 的 API 密钥",
   "settings.field.dockerModelRunnerEndpoint": "Docker Model Runner 端点",
   "settings.field.dockerModelRunnerEndpointDesc": "Docker Model Runner API 端点（默认：http://localhost:12434/engines/v1）",
+  "settings.field.reasoningLevel": "推理级别",
+  "settings.field.reasoningLevelDesc": "控制内部推理的深度。更高级别可能会增加延迟和 Token 使用量。“无”将禁用显式推理。",
   "settings.field.dockerModelRunnerModel": "Docker Model Runner 模型",
   "settings.field.dockerModelRunnerModelDesc": "Docker Model Runner 使用的模型名称（如 ai/smollm2）",
   "settings.field.capabilities": "代理能力",

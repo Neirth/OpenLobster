@@ -24,16 +24,6 @@ import (
 	aiopenai "github.com/neirth/openlobster/internal/infrastructure/adapters/ai/openai"
 )
 
-const (
-	// zenAnthropicBase is the base URL for the Anthropic-format endpoint.
-	// The Anthropic SDK appends /v1/messages automatically.
-	zenAnthropicBase = "https://opencode.ai/zen"
-
-	// zenChatCompletionsURL is the OpenAI-compatible chat/completions endpoint.
-	// Used for GPT models (via OpenAI-compat shim) and all other model families.
-	zenChatCompletionsURL = "https://opencode.ai/zen/v1/chat/completions"
-)
-
 // Adapter routes requests to the correct Zen endpoint based on the model name.
 type Adapter struct {
 	underlying ports.AIProviderPort
@@ -44,7 +34,7 @@ type Adapter struct {
 // Routing logic:
 //   - "claude-*"  → Anthropic Messages API (https://opencode.ai/zen/v1/messages)
 //   - everything else → OpenAI-compatible chat/completions
-func NewAdapter(apiKey, model string, maxTokens int) *Adapter {
+func NewAdapter(apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
 	if maxTokens <= 0 {
 		maxTokens = 4096
 	}
@@ -53,11 +43,11 @@ func NewAdapter(apiKey, model string, maxTokens int) *Adapter {
 
 	switch {
 	case strings.HasPrefix(model, "claude-"):
-		underlying = aianthropicadapter.NewAdapterWithBaseURL(zenAnthropicBase, apiKey, model, maxTokens)
+		underlying = aianthropicadapter.NewAdapterWithBaseURL("https://opencode.ai/zen/v1", apiKey, model, maxTokens, reasoningLevel)
 	default:
 		// GPT-5 Responses API, Gemini, Kimi, MiniMax, GLM, Qwen3, Big Pickle …
 		// all exposed via the OpenAI-compatible chat/completions shim.
-		underlying = aiopenai.NewAdapterWithEndpoint(zenChatCompletionsURL, apiKey, model, maxTokens)
+		underlying = aiopenai.NewAdapterWithEndpoint("https://opencode.ai/zen/v1", apiKey, model, maxTokens, reasoningLevel)
 	}
 
 	return &Adapter{underlying: underlying, maxTokens: maxTokens}

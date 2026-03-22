@@ -156,8 +156,8 @@ func TestMemoryDigestService_summarizeGraph_WithEdges(t *testing.T) {
 	}
 
 	result := service.summarizeGraph(graph)
-	assert.Contains(t, result, "Relations:")
-	assert.Contains(t, result, "a --[knows]--> b")
+	assert.Contains(t, result, "edges[1]{source,target,label}:")
+	assert.Contains(t, result, "a,b,knows")
 }
 
 func TestMemoryDigestService_GetOrRebuild_ExpiredCache(t *testing.T) {

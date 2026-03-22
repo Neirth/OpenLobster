@@ -24,7 +24,7 @@ type Adapter = aiopenai.Adapter
 // The apiKey and model fields map directly to the Authorization header and
 // the Model field of each ChatCompletion request.
 func NewAdapter(baseURL, apiKey, model string, maxTokens int) *Adapter {
-	return aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxTokens)
+	return aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxTokens, "")
 }
 
 var _ ports.AIProviderPort = (*Adapter)(nil)

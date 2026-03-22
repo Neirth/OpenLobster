@@ -23,28 +23,30 @@ import (
 // Adapter implements [ports.AIProviderPort] using the official OpenAI SDK.
 // It supports any OpenAI-compatible endpoint via [NewAdapterWithEndpoint].
 type Adapter struct {
-	client    goOpenAI.Client
-	model     string
-	maxTokens int
+	client          goOpenAI.Client
+	model           string
+	maxTokens       int
+	reasoningLevel  string
 }
 
 // NewAdapter creates an Adapter targeting the standard OpenAI API endpoint.
-func NewAdapter(apiKey, model string, maxTokens int) *Adapter {
-	return NewAdapterWithEndpoint("", apiKey, model, maxTokens)
+func NewAdapter(apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
+	return NewAdapterWithEndpoint("", apiKey, model, maxTokens, reasoningLevel)
 }
 
 // NewAdapterWithEndpoint creates an Adapter targeting an arbitrary
 // OpenAI-compatible endpoint. Pass an empty baseURL to use the default
 // OpenAI endpoint (api.openai.com).
-func NewAdapterWithEndpoint(baseURL, apiKey, model string, maxTokens int) *Adapter {
+func NewAdapterWithEndpoint(baseURL, apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
 	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
 	if baseURL != "" {
 		opts = append(opts, option.WithBaseURL(baseURL))
 	}
 	return &Adapter{
-		client:    goOpenAI.NewClient(opts...),
-		model:     model,
-		maxTokens: maxTokens,
+		client:         goOpenAI.NewClient(opts...),
+		model:          model,
+		maxTokens:      maxTokens,
+		reasoningLevel: reasoningLevel,
 	}
 }
 
@@ -56,6 +58,13 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		Model:               goOpenAI.ChatModel(a.model),
 		Messages:            convertMessages(req.Messages),
 		MaxCompletionTokens: goOpenAI.Int(int64(a.maxTokens)),
+	}
+
+	if a.reasoningLevel != "" && a.reasoningLevel != "none" {
+		// ReasoningEffort is not yet supported by the vendored OpenAI SDK.
+		// We preserve the level in the Adapter struct for future updates:
+		// params.ReasoningEffort = goOpenAI.F(shared.ReasoningEffort(a.reasoningLevel))
+		_ = a.reasoningLevel // satisfy linter
 	}
 
 	if len(req.Tools) > 0 {
@@ -82,6 +91,9 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		Content:    choice.Message.Content,
 		StopReason: stopReason,
 	}
+
+	// The model's internal reasoning (e.g. reasoning_content) is handled by the model
+	// to improve the final answer, but we do not expose or store it.
 
 	if len(choice.Message.ToolCalls) > 0 {
 		result.ToolCalls = make([]ports.ToolCall, len(choice.Message.ToolCalls))
@@ -241,8 +253,6 @@ func convertTools(tools []ports.Tool) []goOpenAI.ChatCompletionToolUnionParam {
 			continue
 		}
 		name := strings.ReplaceAll(t.Function.Name, ":", "__")
-
-		// The SDK expects parameters as shared.FunctionParameters (map[string]any).
 		params := shared.FunctionParameters{}
 		if t.Function.Parameters != nil {
 			raw, err := json.Marshal(t.Function.Parameters)

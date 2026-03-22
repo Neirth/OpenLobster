@@ -80,11 +80,11 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 	}
 	return changedChannels, nil
 }
-
 func (a *ConfigUpdateAdapter) isProviderInputKey(k string) bool {
 	switch k {
 	case "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey",
-		"anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel":
+		"anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel",
+		"reasoningLevel":
 		return true
 	}
 	return false
@@ -130,25 +130,21 @@ func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
 		if v, ok := input["apiKey"].(string); ok && v != "" {
 			viper.Set("providers.openaicompat.api_key", v)
 		}
-		if v, ok := input["baseURL"].(string); ok && v != "" {
-			viper.Set("providers.openaicompat.base_url", v)
-		}
 		if v, ok := input["model"].(string); ok && v != "" {
 			viper.Set("providers.openaicompat.model", v)
+		}
+		if v, ok := input["baseURL"].(string); ok && v != "" {
+			viper.Set("providers.openaicompat.base_url", v)
 		}
 	case "anthropic":
 		if v, ok := input["anthropicApiKey"].(string); ok && v != "" {
 			viper.Set("providers.anthropic.api_key", v)
 		}
+		if v, ok := input["apiKey"].(string); ok && v != "" {
+			viper.Set("providers.anthropic.api_key", v)
+		}
 		if v, ok := input["model"].(string); ok && v != "" {
 			viper.Set("providers.anthropic.model", v)
-		}
-	case "docker-model-runner":
-		if v, ok := input["dockerModelRunnerEndpoint"].(string); ok && v != "" {
-			viper.Set("providers.docker_model_runner.endpoint", v)
-		}
-		if v, ok := input["dockerModelRunnerModel"].(string); ok && v != "" {
-			viper.Set("providers.docker_model_runner.default_model", v)
 		}
 	case "opencode-zen":
 		if v, ok := input["apiKey"].(string); ok && v != "" {
@@ -157,6 +153,17 @@ func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
 		if v, ok := input["model"].(string); ok && v != "" {
 			viper.Set("providers.opencode.model", v)
 		}
+	case "docker-model-runner":
+		if v, ok := input["dockerModelRunnerEndpoint"].(string); ok && v != "" {
+			viper.Set("providers.docker_model_runner.endpoint", v)
+		}
+		if v, ok := input["dockerModelRunnerModel"].(string); ok && v != "" {
+			viper.Set("providers.docker_model_runner.default_model", v)
+		}
+	}
+
+	if v, ok := input["reasoningLevel"].(string); ok && v != "" {
+		viper.Set("agent.reasoning_level", v)
 	}
 }
 
@@ -205,5 +212,6 @@ func InputToViperKeyMap() map[string]string {
 		"channelSlackBotToken":    "channels.slack.bot_token",
 		"channelSlackAppToken":    "channels.slack.app_token",
 		"wizardCompleted":         "wizard.completed",
+		"reasoningLevel":          "agent.reasoning_level",
 	}
 }

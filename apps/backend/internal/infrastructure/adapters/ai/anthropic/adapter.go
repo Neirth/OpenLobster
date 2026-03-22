@@ -25,34 +25,37 @@ const defaultMaxTokens = 4096
 
 // Adapter implements [ports.AIProviderPort] using the official Anthropic SDK.
 type Adapter struct {
-	client    anthropic.Client
-	model     string
-	maxTokens int
+	client         anthropic.Client
+	model          string
+	maxTokens      int
+	reasoningLevel string
 }
 
 // NewAdapter creates an Adapter that targets the Anthropic Messages API.
-func NewAdapter(apiKey, model string, maxTokens int) *Adapter {
+func NewAdapter(apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
 	if maxTokens <= 0 {
 		maxTokens = defaultMaxTokens
 	}
 	return &Adapter{
-		client:    anthropic.NewClient(option.WithAPIKey(apiKey)),
-		model:     model,
-		maxTokens: maxTokens,
+		client:         anthropic.NewClient(option.WithAPIKey(apiKey)),
+		model:          model,
+		maxTokens:      maxTokens,
+		reasoningLevel: reasoningLevel,
 	}
 }
 
 // NewAdapterWithBaseURL creates an Adapter that sends requests to a custom
 // base URL (e.g. an Anthropic-compatible gateway). The SDK appends /v1/messages
 // to the provided baseURL.
-func NewAdapterWithBaseURL(baseURL, apiKey, model string, maxTokens int) *Adapter {
+func NewAdapterWithBaseURL(baseURL, apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
 	if maxTokens <= 0 {
 		maxTokens = defaultMaxTokens
 	}
 	return &Adapter{
-		client:    anthropic.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(baseURL)),
-		model:     model,
-		maxTokens: maxTokens,
+		client:         anthropic.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(baseURL)),
+		model:          model,
+		maxTokens:      maxTokens,
+		reasoningLevel: reasoningLevel,
 	}
 }
 
@@ -71,6 +74,21 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		Model:     anthropic.Model(model),
 		MaxTokens: int64(a.maxTokens),
 		Messages:  messages,
+	}
+	thinkingBudget := 0
+	switch a.reasoningLevel {
+	case "low":
+		thinkingBudget = 1024
+	case "medium":
+		thinkingBudget = 4096
+	case "high":
+		thinkingBudget = 8192
+	}
+
+	if thinkingBudget > 0 {
+		// Thinking configuration is not yet supported by the vendored Anthropic SDK.
+		// Once updated, map the budget to the SDK's Thinking property here.
+		_ = thinkingBudget // satisfy unused variable linter
 	}
 	if len(systemBlocks) > 0 {
 		params.System = systemBlocks
@@ -313,6 +331,7 @@ func convertTools(tools []ports.Tool) []anthropic.ToolUnionParam {
 // ChatResponse type.
 func parseResponse(resp *anthropic.Message) ports.ChatResponse {
 	var textParts []string
+	var reasoningParts []string
 	var toolCalls []ports.ToolCall
 
 	for _, block := range resp.Content {
@@ -320,6 +339,12 @@ func parseResponse(resp *anthropic.Message) ports.ChatResponse {
 		case "text":
 			if block.Text != "" {
 				textParts = append(textParts, block.Text)
+			}
+		case "thinking":
+			if block.Thinking != "" {
+				thinking := block.Thinking
+				_ = thinking // satisfy linter if not used in append downstream
+				reasoningParts = append(reasoningParts, block.Thinking)
 			}
 		case "tool_use":
 			argsJSON, _ := json.Marshal(block.Input)
@@ -343,6 +368,9 @@ func parseResponse(resp *anthropic.Message) ports.ChatResponse {
 		stopReason = "max_tokens"
 		// "tool_use", "stop_sequence" are passed through unchanged.
 	}
+
+	// We discard the reasoning parts for now to keep the chat clean.
+	_ = reasoningParts
 
 	return ports.ChatResponse{
 		Content:    strings.Join(textParts, ""),

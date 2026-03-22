@@ -23,7 +23,7 @@ type Adapter = aiopenai.Adapter
 
 // NewAdapter creates an Adapter targeting the OpenRouter API.
 func NewAdapter(apiKey, model string, maxTokens int) *Adapter {
-	return aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxTokens)
+	return aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxTokens, "")
 }
 
 var _ ports.AIProviderPort = (*Adapter)(nil)

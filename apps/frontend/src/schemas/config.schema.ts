@@ -144,6 +144,13 @@ export const configSchema: ConfigSchema = {
         },
       },
     },
+    reasoningLevel: {
+      type: "string",
+      title: "Reasoning Level",
+      description: "Controls the depth of internal reasoning. Note: Higher levels may increase latency and token usage.",
+      enum: ["none", "low", "medium", "high"],
+      default: "medium",
+    },
 
     // ========== AGENT CAPABILITIES ==========
     capabilities: {
@@ -588,10 +595,10 @@ export const configGroups = [
       // Ollama
       "ollamaHost",
       "ollamaApiKey",
-      // Anthropic
-      "anthropicApiKey",
       // Docker Model Runner
       "dockerModelRunnerEndpoint",
+      // Reasoning
+      "reasoningLevel",
     ],
   },
   {

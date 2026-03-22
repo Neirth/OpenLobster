@@ -49,9 +49,12 @@ type ChatMessage struct {
 }
 
 type ChatRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
-	Tools    []Tool        `json:"tools,omitempty"`
+	Model     string        `json:"model"`
+	Messages  []ChatMessage `json:"messages"`
+	Tools     []Tool        `json:"tools,omitempty"`
+	// MaxTokens limits the number of tokens in the response. Zero means use the
+	// adapter default configured at startup.
+	MaxTokens int `json:"max_tokens,omitempty"`
 }
 
 type Tool struct {
@@ -65,11 +68,21 @@ type FunctionTool struct {
 	Parameters  map[string]interface{} `json:"parameters"`
 }
 
+// TokenUsage reports the number of tokens consumed by a chat call.
+type TokenUsage struct {
+	PromptTokens     int
+	CompletionTokens int
+}
+
+// Total returns the sum of prompt and completion tokens.
+func (u TokenUsage) Total() int { return u.PromptTokens + u.CompletionTokens }
+
 type ChatResponse struct {
 	Content    string     `json:"content"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	StopReason string     `json:"stop_reason"`
 	Audio      []byte     `json:"audio,omitempty"`
+	Usage      TokenUsage `json:"usage"`
 }
 
 type ToolCall struct {

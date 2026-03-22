@@ -172,7 +172,7 @@ func TestMemoryDigestService_GetOrRebuild_WithGraph(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, content, "Likes coding")
-	assert.Contains(t, content, "User knowledge graph")
+	assert.Contains(t, content, "nodes[")
 }
 
 func TestMemoryDigestService_GetOrRebuild_BackendError(t *testing.T) {

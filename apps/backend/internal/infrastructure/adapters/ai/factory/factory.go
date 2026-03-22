@@ -27,9 +27,9 @@ func BuildFromConfig(cfg *config.Config) ports.AIProviderPort {
 			model = "gpt-4o"
 		}
 		if baseURL := cfg.Providers.OpenAI.BaseURL; baseURL != "" {
-			return aiopenai.NewAdapterWithEndpoint(baseURL, cfg.Providers.OpenAI.APIKey, model, MaxOutputTokens)
+			return aiopenai.NewAdapterWithEndpoint(baseURL, cfg.Providers.OpenAI.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
 		}
-		return aiopenai.NewAdapter(cfg.Providers.OpenAI.APIKey, model, MaxOutputTokens)
+		return aiopenai.NewAdapter(cfg.Providers.OpenAI.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
 	case "openrouter":
 		model := cfg.Providers.OpenRouter.DefaultModel
 		if model == "" {
@@ -58,13 +58,13 @@ func BuildFromConfig(cfg *config.Config) ports.AIProviderPort {
 		if model == "" {
 			model = "claude-sonnet-4-6"
 		}
-		return aianthropicadapter.NewAdapter(cfg.Providers.Anthropic.APIKey, model, MaxOutputTokens)
+		return aianthropicadapter.NewAdapter(cfg.Providers.Anthropic.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
 	case "opencode-zen":
 		model := cfg.Providers.OpenCode.Model
 		if model == "" {
 			model = "kimi-k2.5"
 		}
-		return aizenadapter.NewAdapter(cfg.Providers.OpenCode.APIKey, model, MaxOutputTokens)
+		return aizenadapter.NewAdapter(cfg.Providers.OpenCode.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
 	case "docker-model-runner":
 		model := cfg.Providers.DockerModelRunner.DefaultModel
 		if model == "" {

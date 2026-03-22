@@ -200,10 +200,11 @@ type WizardConfig struct {
 }
 
 type AgentConfig struct {
-	Name         string             `mapstructure:"name"`
-	SystemPrompt string             `mapstructure:"system_prompt"`
-	Provider     string             `mapstructure:"provider"`
-	Capabilities CapabilitiesConfig `mapstructure:"capabilities"`
+	Name           string             `mapstructure:"name"`
+	SystemPrompt   string             `mapstructure:"system_prompt"`
+	Provider       string             `mapstructure:"provider"`
+	ReasoningLevel string             `mapstructure:"reasoning_level"` // none, low, medium, high
+	Capabilities   CapabilitiesConfig `mapstructure:"capabilities"`
 }
 
 type CapabilitiesConfig struct {
@@ -488,6 +489,7 @@ func setDefaults() {
 	viper.SetDefault("channels.slack.app_token", "")
 	// Default agent name (shown in navbar)
 	viper.SetDefault("agent.name", "OpenLobster")
+	viper.SetDefault("agent.reasoning_level", "medium")
 	// Default capabilities: subagents, memory, mcp, filesystem, sessions enabled
 	viper.SetDefault("agent.capabilities.subagents", true)
 	viper.SetDefault("agent.capabilities.memory", true)

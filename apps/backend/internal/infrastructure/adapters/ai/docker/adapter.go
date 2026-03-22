@@ -31,7 +31,7 @@ func NewAdapter(endpoint, model string, maxTokens int) *Adapter {
 		endpoint = DefaultEndpoint
 	}
 	// Docker Model Runner does not require an API key.
-	return aiopenai.NewAdapterWithEndpoint(endpoint, "ignored", model, maxTokens)
+	return aiopenai.NewAdapterWithEndpoint(endpoint, "not-needed", model, maxTokens, "")
 }
 
 var _ ports.AIProviderPort = (*Adapter)(nil)
