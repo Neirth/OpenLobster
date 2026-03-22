@@ -153,7 +153,7 @@ Facts stored in the graph carry a semantic **entity type**. The `add_memory` too
 The model chooses the type automatically during the Synchronization phase. In the Memory view, the **left panel** groups nodes by these types, making it easier to navigate large knowledge bases. Deduplication is keyed on `(userID, label, relation)` so facts from different users never overwrite each other.
 
 {% hint style="info" %}
-Typed nodes are only created by the consolidation pipeline or via the GraphQL `addMemory` mutation. The File/GML backend stores the type as a node attribute; Neo4j stores it as the node label.
+Typed nodes are only created by the consolidation pipeline or via the GraphQL `addMemoryNode` mutation (and updated via `updateMemoryNode`). The File/GML backend stores the type as a node attribute; Neo4j stores it as the node label.
 {% endhint %}
 
 ## How memory affects agent behavior
