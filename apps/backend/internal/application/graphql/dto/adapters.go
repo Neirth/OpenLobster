@@ -24,6 +24,7 @@ type ConversationPortAdapter struct {
 	Repo interface {
 		ListConversations() ([]repositories.ConversationRow, error)
 		DeleteUser(ctx context.Context, conversationID string) error
+		DeleteGroup(ctx context.Context, conversationID string) error
 	}
 }
 
@@ -52,6 +53,10 @@ func (a *ConversationPortAdapter) ListConversations() ([]ConversationSnapshot, e
 
 func (a *ConversationPortAdapter) DeleteUser(ctx context.Context, conversationID string) error {
 	return a.Repo.DeleteUser(ctx, conversationID)
+}
+
+func (a *ConversationPortAdapter) DeleteGroup(ctx context.Context, conversationID string) error {
+	return a.Repo.DeleteGroup(ctx, conversationID)
 }
 
 // ---------------------------------------------------------------------------

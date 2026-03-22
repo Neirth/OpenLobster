@@ -19,6 +19,7 @@ type MessageRepo interface {
 type ConversationPort interface {
 	ListConversations() ([]ConversationSnapshot, error)
 	DeleteUser(ctx context.Context, conversationID string) error
+	DeleteGroup(ctx context.Context, conversationID string) error
 }
 
 // SkillsPort exposes operations over skills.

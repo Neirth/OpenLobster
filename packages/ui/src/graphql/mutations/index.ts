@@ -209,6 +209,15 @@ export const DELETE_USER_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const DELETE_GROUP_MUTATION = /* GraphQL */ `
+  mutation DeleteGroup($conversationId: String!) {
+    deleteGroup(conversationId: $conversationId) {
+      success
+      error
+    }
+  }
+`;
+
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
 export const UPDATE_CONFIG_MUTATION = /* GraphQL */ `

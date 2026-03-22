@@ -24,40 +24,22 @@ type service struct {
 }
 
 const (
-	extractionPrompt = `
-You are a memory extraction sub-agent for user "%s".
-Extract only persistent facts from the messages below. Output one fact per line, starting with "- ".
+	extractionSystemPrompt = `You are a memory extraction sub-agent for user "%s".
+Extract only persistent facts from the provided messages. Output one fact per line, starting with "- ".
 Each line must be a single short sentence (max 15 words). No explanations, no summaries, no filler.
-Only include: preferences, habits, personal details, significant events. Skip greetings, questions, and transient content.
+Only include: preferences, habits, personal details, significant events. Skip greetings, questions, and transient content.`
 
-Messages:
-%s
-`
-
-	reductionPrompt = `
-You are a memory filtering engine. You will receive several fact summaries and the current state of the Knowledge Graph for user "%s".
-Your task is to produce a **final condensed text** containing ONLY facts that are NEW or that UPDATE existing information about this user.
+	reductionSystemPrompt = `You are a memory filtering engine for user "%s". 
+You will receive fact summaries and the current state of the Knowledge Graph.
+Your task is to produce a **final condensed text** containing ONLY facts that are NEW or that UPDATE existing information.
 Discard anything already present and unchanged in the Knowledge Graph.
+Use tools if you need to verify specific facts against the long-term memory.`
 
-Current Knowledge Graph:
-%s
-
-New Fact Summaries:
-%s
-
-Provide the final findings in a clear, bulleted text format.
-`
-
-	syncPrompt = `
-You are a memory synchronization specialist. You will receive a list of new/updated findings about user "%s".
-Your task is to update the long-term memory (Neo4j) using the provided tools.
+	syncSystemPrompt = `You are a memory synchronization specialist for user "%s".
+Your task is to update the long-term memory (Neo4j) using the provided tools based on the new findings.
 - Use 'add_memory' for new facts.
 - Use 'set_user_property' for core user attributes (name, age, language, etc.).
-- Be precise and avoid duplicating information.
-
-New Findings:
-%s
-`
+- Be precise and avoid duplicating information.`
 )
 
 // NewService creates a new memory consolidation service.
@@ -218,18 +200,19 @@ func (s *service) extractSummary(ctx context.Context, msgs []models.Message, use
 		fmt.Fprintf(&sb, "[%s] %s: %s\n", m.ID, label, m.Content)
 	}
 
-	prompt := fmt.Sprintf(extractionPrompt, userName, sb.String())
-
 	// Cap output to ~20 tokens per message in the chunk (one short fact each).
 	maxOutputTokens := len(msgs) * 20
 
-	s.logPhase("extraction", userName, prompt)
+	s.logPhase("extraction", userName, sb.String())
 	resp, err := s.aiProvider.Chat(ctx, ports.ChatRequest{
-		Messages:  []ports.ChatMessage{{Role: "system", Content: prompt}},
+		Messages: []ports.ChatMessage{
+			{Role: "system", Content: fmt.Sprintf(extractionSystemPrompt, userName)},
+			{Role: "user", Content: "Messages to process:\n" + sb.String()},
+		},
 		MaxTokens: maxOutputTokens,
 	})
 	if err != nil {
-		log.Printf("memory_consolidation: extraction failed for %s: %v (prompt: %s)", userName, err, prompt)
+		log.Printf("memory_consolidation: extraction failed for %s: %v", userName, err)
 		return "", err
 	}
 
@@ -238,18 +221,17 @@ func (s *service) extractSummary(ctx context.Context, msgs []models.Message, use
 
 func (s *service) filterAgainstMemory(ctx context.Context, userID, userName string, summaries []string) (string, error) {
 	combinedSummaries := strings.Join(summaries, "\n---\n")
-	prompt := fmt.Sprintf(reductionPrompt, userName, "[KNOWLEDGE GRAPH GATED BEHIND TOOLS]", combinedSummaries)
-
 	// In the reduction phase, we allow the model to use memory tools to verify if facts already exist.
 	tools := s.buildTools()
 
-	s.logPhase("reduction", userName, prompt)
-	resp, err := s.runAgenticLoop(ctx, []ports.ChatMessage{
-		{Role: "system", Content: prompt},
-		{Role: "user", Content: "Analyze these findings. Use search_memory if you need to check if a fact is already known. Return the finalized list of truly NEW findings."},
-	}, tools)
+	s.logPhase("reduction", userName, combinedSummaries)
+	messages := []ports.ChatMessage{
+		{Role: "system", Content: fmt.Sprintf(reductionSystemPrompt, userName)},
+		{Role: "user", Content: fmt.Sprintf("Current Knowledge Graph Context: %s\n\nNew Findings to Evaluate:\n%s", "[KNOWLEDGE GRAPH GATED BEHIND TOOLS]", combinedSummaries)},
+	}
+	resp, err := s.runAgenticLoop(ctx, messages, tools)
 	if err != nil {
-		log.Printf("memory_consolidation: reduction failed for %s: %v (prompt: %s)", userName, err, prompt)
+		log.Printf("memory_consolidation: reduction failed for %s: %v", userName, err)
 		return "", err
 	}
 
@@ -257,14 +239,14 @@ func (s *service) filterAgainstMemory(ctx context.Context, userID, userName stri
 }
 
 func (s *service) syncFindings(ctx context.Context, userID, userName, findings string) error {
-	prompt := fmt.Sprintf(syncPrompt, userName, findings)
 	tools := s.buildTools()
 
-	s.logPhase("synchronization", userID, prompt)
-	_, err := s.runAgenticLoop(ctx, []ports.ChatMessage{
-		{Role: "system", Content: prompt},
-		{Role: "user", Content: "Update the memory now using the provided tools based on these findings."},
-	}, tools)
+	s.logPhase("synchronization", userID, findings)
+	messages := []ports.ChatMessage{
+		{Role: "system", Content: fmt.Sprintf(syncSystemPrompt, userName)},
+		{Role: "user", Content: "Final findings to synchronize:\n" + findings},
+	}
+	_, err := s.runAgenticLoop(ctx, messages, tools)
 	if err != nil {
 		log.Printf("memory_consolidation: synchronization failed for %s: %v", userID, err)
 		return err

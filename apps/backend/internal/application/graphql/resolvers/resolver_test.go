@@ -1220,7 +1220,8 @@ type mockConvPort struct {
 func (m *mockConvPort) ListConversations() ([]dto.ConversationSnapshot, error) {
 	return m.convs, m.err
 }
-func (m *mockConvPort) DeleteUser(ctx context.Context, id string) error { return m.err }
+func (m *mockConvPort) DeleteUser(ctx context.Context, id string) error  { return m.err }
+func (m *mockConvPort) DeleteGroup(ctx context.Context, id string) error { return m.err }
 
 type mockMsgRepo struct {
 	messages []models.Message

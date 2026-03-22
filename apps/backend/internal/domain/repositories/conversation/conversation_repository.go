@@ -50,12 +50,21 @@ func (r *ConversationRepository) ListConversations() ([]ConversationRow, error) 
 
 // DeleteUser removes all data related to the participant of a given conversation.
 func (r *ConversationRepository) DeleteUser(ctx context.Context, conversationID string) error {
-	var userID string
+	var row struct {
+		UserID  string
+		GroupID *string
+	}
 	if err := r.db.WithContext(ctx).Raw(
-		"SELECT COALESCE(user_id, '') FROM conversations WHERE id = ?", conversationID,
-	).Scan(&userID).Error; err != nil || userID == "" {
+		"SELECT user_id, group_id FROM conversations WHERE id = ?", conversationID,
+	).Scan(&row).Error; err != nil || row.UserID == "" {
 		return fmt.Errorf("deleteUser: conversation not found: %v", err)
 	}
+
+	if row.GroupID != nil {
+		return fmt.Errorf("deleteUser: cannot delete user through a group conversation")
+	}
+
+	userID := row.UserID
 
 	r.db.WithContext(ctx).Exec(
 		"DELETE FROM tool_permissions WHERE user_id IN (SELECT DISTINCT channel_id FROM conversations WHERE user_id = ? AND channel_id IS NOT NULL)",
@@ -75,6 +84,23 @@ func (r *ConversationRepository) DeleteUser(ctx context.Context, conversationID 
 	r.db.WithContext(ctx).Delete(&domainmodels.UserChannelModel{}, "user_id = ?", userID)
 	r.db.WithContext(ctx).Delete(&domainmodels.ToolPermissionModel{}, "user_id = ?", userID)
 	r.db.WithContext(ctx).Delete(&domainmodels.UserModel{}, "id = ?", userID)
+
+	return nil
+}
+
+// DeleteGroup removes the group and its related data, but keeps members.
+func (r *ConversationRepository) DeleteGroup(ctx context.Context, conversationID string) error {
+	var groupID *string
+	if err := r.db.WithContext(ctx).Raw(
+		"SELECT group_id FROM conversations WHERE id = ?", conversationID,
+	).Scan(&groupID).Error; err != nil || groupID == nil || *groupID == "" {
+		return fmt.Errorf("deleteGroup: group not found (this might be a private chat): %v", err)
+	}
+
+	// Deleting the group will cascade to group_users, conversations and messages
+	if err := r.db.WithContext(ctx).Delete(&domainmodels.GroupModel{}, "id = ?", *groupID).Error; err != nil {
+		return fmt.Errorf("deleteGroup: %w", err)
+	}
 
 	return nil
 }

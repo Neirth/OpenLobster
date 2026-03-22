@@ -13,7 +13,7 @@ import type { Component } from 'solid-js';
 import { createSignal, For, Show, Suspense, createEffect, batch, createMemo } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
 import { useConversations, useSubscriptions, useConfig } from '@openlobster/ui/hooks';
-import { SEND_MESSAGE_MUTATION, DELETE_USER_MUTATION } from '@openlobster/ui/graphql/mutations';
+import { SEND_MESSAGE_MUTATION, DELETE_USER_MUTATION, DELETE_GROUP_MUTATION } from '@openlobster/ui/graphql/mutations';
 import { MESSAGES_QUERY } from '@openlobster/ui/graphql/queries';
 import type { Message } from '@openlobster/ui/types';
 import { renderMarkdown } from '../../lib/markdown';
@@ -368,6 +368,17 @@ const ChatView: Component = () => {
     },
   }));
 
+  const deleteGroup = createMutation(() => ({
+    mutationFn: (vars: { conversationId: string }) =>
+      client.request(DELETE_GROUP_MUTATION, vars),
+    onSuccess: () => {
+      setDeleteModalOpen(false);
+      setConfirmName('');
+      setSelectedId('');
+      void queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  }));
+
   function handleSend() {
     const content = draft().trim();
     if (!content || !selectedId()) return;
@@ -473,10 +484,12 @@ const ChatView: Component = () => {
                 </span>
                 <button
                   class="chat-thread__delete-btn"
-                  title={t('chat.deleteUser.button')}
+                  title={selectedConv()?.isGroup ? t('chat.deleteGroup.button') : t('chat.deleteUser.button')}
                   onClick={() => { setConfirmName(''); setDeleteModalOpen(true); }}
                 >
-                  <span class="material-symbols-outlined">person_remove</span>
+                  <span class="material-symbols-outlined">
+                    {selectedConv()?.isGroup ? 'group_remove' : 'person_remove'}
+                  </span>
                 </button>
               </div>
 
@@ -534,23 +547,35 @@ const ChatView: Component = () => {
           </div>
         </div>
 
-        {/* Delete user confirmation modal */}
+        {/* Delete user/group confirmation modal */}
         <Show when={deleteModalOpen()}>
           <div class="chat-delete-overlay" onClick={() => setDeleteModalOpen(false)}>
             <div class="chat-delete-modal" onClick={(e) => e.stopPropagation()}>
               <div class="chat-delete-modal__header">
-                <span class="material-symbols-outlined chat-delete-modal__icon">person_remove</span>
-                <h3 class="chat-delete-modal__title">{t('chat.deleteUser.title')}</h3>
+                <span class="material-symbols-outlined chat-delete-modal__icon">
+                  {selectedConv()?.isGroup ? 'group_remove' : 'person_remove'}
+                </span>
+                <h3 class="chat-delete-modal__title">
+                  {selectedConv()?.isGroup ? t('chat.deleteGroup.title') : t('chat.deleteUser.title')}
+                </h3>
               </div>
-              <p class="chat-delete-modal__desc">{t('chat.deleteUser.description')}</p>
+              <p class="chat-delete-modal__desc">
+                {selectedConv()?.isGroup ? t('chat.deleteGroup.description') : t('chat.deleteUser.description')}
+              </p>
               <ul class="chat-delete-modal__list">
                 <li>{t('chat.deleteUser.item.messages')}</li>
-                <li>{t('chat.deleteUser.item.conversations')}</li>
-                <li>{t('chat.deleteUser.item.permissions')}</li>
-                <li>{t('chat.deleteUser.item.account')}</li>
+                <Show when={!selectedConv()?.isGroup}>
+                  <li>{t('chat.deleteUser.item.conversations')}</li>
+                  <li>{t('chat.deleteUser.item.permissions')}</li>
+                  <li>{t('chat.deleteUser.item.account')}</li>
+                </Show>
+                <Show when={selectedConv()?.isGroup}>
+                  <li>{t('chat.deleteGroup.item.conversations')}</li>
+                  <li>{t('chat.deleteGroup.item.members')}</li>
+                </Show>
               </ul>
               <p class="chat-delete-modal__confirm-label">
-                {t('chat.deleteUser.confirmLabel')}
+                {selectedConv()?.isGroup ? t('chat.deleteGroup.confirmLabel') : t('chat.deleteUser.confirmLabel')}
                 <strong> {selectedConv() ? (selectedConv()!.isGroup && selectedConv()!.groupName ? selectedConv()!.groupName : selectedConv()!.participantName) : ''}</strong>
               </p>
               <input
@@ -566,8 +591,14 @@ const ChatView: Component = () => {
                 </button>
                 <button
                   class="btn-modal-confirm"
-                  disabled={confirmName() !== (selectedConv() ? (selectedConv()!.isGroup && selectedConv()!.groupName ? selectedConv()!.groupName : selectedConv()!.participantName) : '') || deleteUser.isPending}
-                  onClick={() => deleteUser.mutate({ conversationId: selectedId() })}
+                  disabled={confirmName() !== (selectedConv() ? (selectedConv()!.isGroup && selectedConv()!.groupName ? selectedConv()!.groupName : selectedConv()!.participantName) : '') || (selectedConv()?.isGroup ? deleteGroup.isPending : deleteUser.isPending)}
+                  onClick={() => {
+                    if (selectedConv()?.isGroup) {
+                      deleteGroup.mutate({ conversationId: selectedId() });
+                    } else {
+                      deleteUser.mutate({ conversationId: selectedId() });
+                    }
+                  }}
                 >
                   <span class="material-symbols-outlined">delete_forever</span>
                   {t('chat.deleteUser.confirm')}

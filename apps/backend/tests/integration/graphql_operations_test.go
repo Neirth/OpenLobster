@@ -250,7 +250,8 @@ type stubConvPort struct {
 func (s *stubConvPort) ListConversations() ([]dto.ConversationSnapshot, error) {
 	return s.convs, nil
 }
-func (s *stubConvPort) DeleteUser(ctx context.Context, conversationID string) error { return nil }
+func (s *stubConvPort) DeleteUser(ctx context.Context, conversationID string) error  { return nil }
+func (s *stubConvPort) DeleteGroup(ctx context.Context, conversationID string) error { return nil }
 
 type stubMsgRepo struct {
 	msgs []models.Message

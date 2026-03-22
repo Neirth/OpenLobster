@@ -28,6 +28,17 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, conversationID string
 	return &generated.MutationResult{Success: true}, nil
 }
 
+// DeleteGroup is the resolver for the deleteGroup field.
+func (r *mutationResolver) DeleteGroup(ctx context.Context, conversationID string) (*generated.MutationResult, error) {
+	if r.Deps == nil {
+		return &generated.MutationResult{Success: true}, nil
+	}
+	if err := r.Deps.DeleteGroup(ctx, conversationID); err != nil {
+		return nil, err
+	}
+	return &generated.MutationResult{Success: true}, nil
+}
+
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, conversationID *string, channelID *string, content string) (*generated.MessageSentResult, error) {
 	if r.Deps == nil {
