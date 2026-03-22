@@ -341,13 +341,20 @@ const MemoryView: Component = () => {
           </div>
           <div class="memory-modal-field">
             <label for="edit-type">{t('memory.type')}</label>
-            <input
+            <select
               id="edit-type"
-              type="text"
               value={editType()}
-              onInput={(e) => setEditType(e.currentTarget.value)}
+              onChange={(e) => setEditType(e.currentTarget.value)}
               required
-            />
+            >
+              <option value="fact">fact</option>
+              <option value="person">person</option>
+              <option value="place">place</option>
+              <option value="organization">organization</option>
+              <option value="event">event</option>
+              <option value="thing">thing</option>
+              <option value="story">story</option>
+            </select>
           </div>
 
           <div class="memory-modal-properties">

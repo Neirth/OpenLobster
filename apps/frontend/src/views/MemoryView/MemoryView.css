@@ -571,7 +571,8 @@
   text-transform: uppercase;
 }
 
-.memory-modal-field input {
+.memory-modal-field input,
+.memory-modal-field select {
   background: var(--color-bg-selected);
   border: 1px solid var(--color-bg-elevated);
   border-radius: var(--radius-sm, 6px);
@@ -583,9 +584,12 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   width: 100%;
   box-sizing: border-box;
+  appearance: none;
+  cursor: pointer;
 }
 
-.memory-modal-field input:focus {
+.memory-modal-field input:focus,
+.memory-modal-field select:focus {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
