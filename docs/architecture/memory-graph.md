@@ -146,7 +146,7 @@ Facts stored in the graph carry a semantic **entity type**. The `add_memory` too
 |------|-------------|-----------------|
 | `person` | A specific person: colleague, friend, family member | `Person` |
 | `place` | A location: city, country, address, venue | `Place` |
-| `thing` | An object, topic, or abstract concept | `Thing` |
+| `thing` | An object, topic, organization, or abstract concept | `Thing` |
 | `story` | A narrative event or diary-style entry | `Story` |
 | `fact` | Generic facts that don't fit the other categories | `Fact` |
 
