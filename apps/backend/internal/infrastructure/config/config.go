@@ -264,14 +264,19 @@ type ProvidersConfig struct {
 }
 
 type OpenRouterConfig struct {
-	APIKey       string `mapstructure:"api_key"`
-	DefaultModel string `mapstructure:"default_model"`
+	APIKey        string `mapstructure:"api_key"`
+	DefaultModel  string `mapstructure:"default_model"`
+	// ContextWindow overrides the context window used for message chunking.
+	// Required because OpenRouter does not expose this via API.
+	ContextWindow int    `mapstructure:"context_window"`
 }
 
 type OllamaConfig struct {
 	Endpoint     string `mapstructure:"endpoint"`
 	DefaultModel string `mapstructure:"default_model"`
 	APIKey       string `mapstructure:"api_key"`
+	// ContextWindow overrides the value auto-detected from /api/show.
+	ContextWindow int `mapstructure:"context_window"`
 }
 
 // OpenCodeConfig holds settings for the OpenCode Zen AI gateway.
@@ -285,6 +290,9 @@ type OpenAIConfig struct {
 	APIKey  string `mapstructure:"api_key"`
 	Model   string `mapstructure:"model"`
 	BaseURL string `mapstructure:"base_url"`
+	// ContextWindow overrides the context window used for message chunking.
+	// Required because the OpenAI API does not expose this per-model.
+	ContextWindow int `mapstructure:"context_window"`
 }
 
 // OpenAICompatConfig holds settings for a generic OpenAI-compatible provider.
@@ -292,18 +300,24 @@ type OpenAICompatConfig struct {
 	APIKey  string `mapstructure:"api_key"`
 	Model   string `mapstructure:"model"`
 	BaseURL string `mapstructure:"base_url"`
+	// ContextWindow must be set explicitly since compatible providers vary widely.
+	ContextWindow int `mapstructure:"context_window"`
 }
 
 // AnthropicConfig holds settings for the Anthropic Messages API.
 type AnthropicConfig struct {
 	APIKey string `mapstructure:"api_key"`
 	Model  string `mapstructure:"model"`
+	// ContextWindow overrides the value auto-detected from the Anthropic models API.
+	ContextWindow int `mapstructure:"context_window"`
 }
 
 // DockerModelRunnerConfig holds settings for Docker Desktop's Model Runner.
 type DockerModelRunnerConfig struct {
-	Endpoint     string `mapstructure:"endpoint"`
-	DefaultModel string `mapstructure:"default_model"`
+	Endpoint      string `mapstructure:"endpoint"`
+	DefaultModel  string `mapstructure:"default_model"`
+	// ContextWindow overrides the context window used for message chunking.
+	ContextWindow int    `mapstructure:"context_window"`
 }
 
 type ChannelsConfig struct {

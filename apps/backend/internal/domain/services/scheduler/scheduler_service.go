@@ -60,10 +60,11 @@ type Scheduler struct {
 	memEnabled    bool
 	consolidation ports.MemoryConsolidationPort
 
-	heap         taskHeap
-	notifyCh     chan struct{}
-	rescheduleCh chan schedulerEntry
-	inFlight     sync.Map
+	heap           taskHeap
+	notifyCh       chan struct{}
+	rescheduleCh   chan schedulerEntry
+	memIntervalCh  chan time.Duration
+	inFlight       sync.Map
 }
 
 // NewScheduler constructs a Scheduler ready to be started with Run.
@@ -78,15 +79,30 @@ func NewScheduler(
 		memInterval = 4 * time.Hour
 	}
 	return &Scheduler{
-		dispatcher:   dispatcher,
-		taskRepo:     taskRepo,
+		dispatcher:    dispatcher,
+		taskRepo:      taskRepo,
 		memInterval:   memInterval,
 		memEnabled:    memEnabled,
 		consolidation: consolidation,
 		heap:          make(taskHeap, 0, 16),
-		notifyCh:     make(chan struct{}, 1),
-		rescheduleCh: make(chan schedulerEntry, 64),
+		notifyCh:      make(chan struct{}, 1),
+		rescheduleCh:  make(chan schedulerEntry, 64),
+		memIntervalCh: make(chan time.Duration, 1),
 	}
+}
+
+// UpdateMemoryInterval changes the memory consolidation ticker at runtime.
+// The new interval takes effect immediately on the next select iteration.
+func (s *Scheduler) UpdateMemoryInterval(d time.Duration) {
+	if d <= 0 {
+		d = 4 * time.Hour
+	}
+	// Drain any queued (now stale) update and replace with the latest value.
+	select {
+	case <-s.memIntervalCh:
+	default:
+	}
+	s.memIntervalCh <- d
 }
 
 // Notify wakes the event loop so it reloads pending tasks from the database.
@@ -104,15 +120,20 @@ func (s *Scheduler) Run(ctx context.Context) {
 	timer := time.NewTimer(s.nextSleep())
 	defer timer.Stop()
 
+	var memTicker *time.Ticker
 	var memTickerC <-chan time.Time
 	if s.memEnabled && s.memInterval > 0 {
-		mt := time.NewTicker(s.memInterval)
-		defer mt.Stop()
-		memTickerC = mt.C
+		memTicker = time.NewTicker(s.memInterval)
+		memTickerC = memTicker.C
 	}
+	defer func() {
+		if memTicker != nil {
+			memTicker.Stop()
+		}
+	}()
 
-	log.Printf("scheduler: event loop started (pending=%d memConsolidation=%v)",
-		len(s.heap), s.memEnabled)
+	log.Printf("scheduler: event loop started (pending=%d memConsolidation=%v interval=%s)",
+		len(s.heap), s.memEnabled, s.memInterval)
 
 	for {
 		select {
@@ -134,6 +155,20 @@ func (s *Scheduler) Run(ctx context.Context) {
 
 		case <-memTickerC:
 			go s.consolidateMemory(ctx)
+
+		case d := <-s.memIntervalCh:
+			if memTicker != nil {
+				memTicker.Stop()
+			}
+			s.memInterval = d
+			if s.memEnabled && d > 0 {
+				memTicker = time.NewTicker(d)
+				memTickerC = memTicker.C
+			} else {
+				memTicker = nil
+				memTickerC = nil
+			}
+			log.Printf("scheduler: memory consolidation interval updated to %s", d)
 		}
 	}
 }

@@ -1,8 +1,7 @@
 // Copyright (c) OpenLobster contributors.
 // SPDX-License-Identifier: see LICENSE
 
-// Package ollama provides an AI provider adapter backed by a local Ollama instance.
-// It communicates directly with the Ollama REST API over HTTP, with no external SDK dependency.
+// Package ollama provides an AI provider adapter backed by the official Ollama Go SDK.
 package ollama
 
 import (
@@ -21,16 +20,23 @@ import (
 	"strings"
 	"sync"
 
+	ollamaapi "github.com/ollama/ollama/api"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
 )
 
+// chatClient is a narrow interface over the SDK client so that tests can inject
+// a mock without spinning up an HTTP server. *ollamaapi.Client satisfies it.
+type chatClient interface {
+	Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error
+	Show(ctx context.Context, req *ollamaapi.ShowRequest) (*ollamaapi.ShowResponse, error)
+}
+
 var ensureKeyOnce sync.Once
 
-// ensureOllamaPrivateKey creates ~/.ollama/id_ed25519 if missing, so the Ollama
-// SDK does not log "Failed to load private key". The key is used by the SDK for
-// ollama.com auth; we use Bearer token (ollamaApiKey) for our own connections.
+// ensureOllamaPrivateKey creates ~/.ollama/id_ed25519 if missing so the SDK
+// does not log "Failed to load private key" on every startup.
 func ensureOllamaPrivateKey() {
 	ensureKeyOnce.Do(func() {
 		home := os.Getenv("HOME")
@@ -70,14 +76,15 @@ func ensureOllamaPrivateKey() {
 
 // Adapter implements ports.AIProviderPort using the official Ollama Go SDK.
 type Adapter struct {
-	client    chatClient
-	model     string
-	maxTokens int
-	debug     bool
+	client        chatClient
+	initErr       error
+	model         string
+	maxTokens     int
+	contextWindow int
+	debug         bool
 }
 
-// debugf logs a message only when the adapter was created with debug enabled.
-func (a *Adapter) debugf(format string, args ...interface{}) {
+func (a *Adapter) debugf(format string, args ...any) {
 	if a.debug {
 		log.Printf(format, args...)
 	}
@@ -89,45 +96,64 @@ func NewAdapter(baseURL, model string, maxTokens int) *Adapter {
 }
 
 // NewAdapterWithAuth constructs an Adapter with an optional Bearer token.
-// Pass an empty apiKey to skip authentication (standard local Ollama instances).
 func NewAdapterWithAuth(baseURL, apiKey, model string, maxTokens int) *Adapter {
 	return newAdapter(baseURL, apiKey, model, maxTokens, false)
 }
 
-// NewAdapterWithOptions constructs an Adapter with full options including log level.
-// logLevel should be the value of cfg.Logging.Level; "debug" enables verbose request logs.
+// NewAdapterWithOptions constructs an Adapter with all options.
+// logLevel "debug" enables verbose request logs.
 func NewAdapterWithOptions(baseURL, apiKey, model string, maxTokens int, logLevel string) *Adapter {
-	debug := strings.EqualFold(logLevel, "debug")
-	return newAdapter(baseURL, apiKey, model, maxTokens, debug)
+	return newAdapter(baseURL, apiKey, model, maxTokens, strings.EqualFold(logLevel, "debug"))
 }
 
 func newAdapter(baseURL, apiKey, model string, maxTokens int, debug bool) *Adapter {
 	ensureOllamaPrivateKey()
+
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		log.Printf("ollama: invalid endpoint %q, using default: %v", baseURL, err)
-		c, envErr := ClientFromEnvironment()
+		log.Printf("ollama: invalid endpoint %q, falling back to environment: %v", baseURL, err)
+		c, envErr := ollamaapi.ClientFromEnvironment()
 		if envErr != nil {
 			log.Printf("ollama: ClientFromEnvironment failed: %v", envErr)
-			return &Adapter{client: &errClient{envErr}, model: model, maxTokens: maxTokens, debug: debug}
+			return &Adapter{initErr: envErr, model: model, maxTokens: maxTokens, debug: debug}
 		}
-		return &Adapter{client: c, model: model, maxTokens: maxTokens, debug: debug}
+		a := &Adapter{client: c, model: model, maxTokens: maxTokens, debug: debug}
+		a.probeContextWindow()
+		return a
 	}
+
 	httpClient := http.DefaultClient
 	if apiKey != "" {
 		httpClient = &http.Client{
 			Transport: &bearerTransport{token: apiKey, base: http.DefaultTransport},
 		}
 	}
-	return &Adapter{
-		client:    NewClient(u, httpClient),
-		model:     model,
-		maxTokens: maxTokens,
-		debug:     debug,
+	c := ollamaapi.NewClient(u, httpClient)
+	a := &Adapter{client: c, model: model, maxTokens: maxTokens, debug: debug}
+	a.probeContextWindow()
+	return a
+}
+
+// probeContextWindow calls Show to determine the model's actual context window.
+// model_info keys follow the pattern "<arch>.context_length" (llama, mistral, phi, etc.).
+func (a *Adapter) probeContextWindow() {
+	show, err := a.client.Show(context.Background(), &ollamaapi.ShowRequest{Model: a.model})
+	if err != nil {
+		log.Printf("ollama: could not probe context window for %q: %v (using default)", a.model, err)
+		return
+	}
+	for k, v := range show.ModelInfo {
+		if strings.HasSuffix(k, ".context_length") {
+			if n, ok := v.(float64); ok && n > 0 {
+				a.contextWindow = int(n)
+				log.Printf("ollama: model %q context window = %d tokens", a.model, a.contextWindow)
+				return
+			}
+		}
 	}
 }
 
-// bearerTransport adds an Authorization: Bearer <token> header to every request.
+// bearerTransport adds Authorization: Bearer to every outgoing request.
 type bearerTransport struct {
 	token string
 	base  http.RoundTripper
@@ -141,45 +167,46 @@ func (t *bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // Chat sends a chat request to Ollama and returns the response.
 func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatResponse, error) {
-	messages := a.convertMessages(sanitizeMessagesForOllama(req.Messages))
-	tools := a.convertTools(req.Tools)
+	if a.initErr != nil {
+		return ports.ChatResponse{}, a.initErr
+	}
 
-	a.debugf("ollama: sending request with model=%s, %d messages, %d tools",
-		a.model, len(messages), len(tools))
-	for i, t := range req.Tools {
-		if t.Function != nil {
-			a.debugf("ollama:   tool[%d] name=%q", i, t.Function.Name)
-		}
-	}
-	for i, msg := range messages {
-		preview := msg.Content
-		if len(preview) > 60 {
-			preview = preview[:60] + "..."
-		}
-		a.debugf("ollama:   [%d] role=%s content=%q", i, msg.Role, preview)
-	}
+	messages := a.convertMessages(sanitizeMessagesForOllama(req.Messages))
+	tools := convertTools(req.Tools)
+
+	a.debugf("ollama: request model=%s msgs=%d tools=%d", a.model, len(messages), len(tools))
 
 	numPredict := a.maxTokens
 	if req.MaxTokens > 0 {
 		numPredict = req.MaxTokens
 	}
-	stream := false
-	ollamaReq := &ChatRequest{
+	streamFalse := false
+	options := map[string]any{"num_predict": numPredict}
+	if cw := a.GetContextWindow(); cw > 0 {
+		// Safety cap: explicitly tell Ollama how much context to allocate for this session.
+		// Exceeding default 2048/4096 without num_ctx causes 500 Errors on large prompts.
+		// We cap at 32k to avoid OOM on consumer hardware if a model reports 128k+.
+		numCtx := cw
+		if numCtx > 32768 {
+			numCtx = 32768
+		}
+		options["num_ctx"] = numCtx
+		a.debugf("ollama: context_limit=%d (max_probed=%d)", numCtx, cw)
+	}
+
+	ollamaReq := &ollamaapi.ChatRequest{
 		Model:    a.model,
 		Messages: messages,
 		Tools:    tools,
-		Stream:   &stream,
-		Options: map[string]interface{}{
-			"num_predict": numPredict,
-		},
+		Stream:   &streamFalse,
+		Options:  options,
 	}
 
-	var sdkResp ChatResponse
-	err := a.client.Chat(ctx, ollamaReq, func(r ChatResponse) error {
+	var sdkResp ollamaapi.ChatResponse
+	if err := a.client.Chat(ctx, ollamaReq, func(r ollamaapi.ChatResponse) error {
 		sdkResp = r
 		return nil
-	})
-	if err != nil {
+	}); err != nil {
 		log.Printf("ollama: Chat error: %v", err)
 		return ports.ChatResponse{}, err
 	}
@@ -196,10 +223,9 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		},
 	}
 
-	// Standard path: SDK already parsed tool_calls into typed structs.
+	// Standard path: SDK parsed tool_calls into typed structs.
 	if len(sdkResp.Message.ToolCalls) > 0 {
 		for _, tc := range sdkResp.Message.ToolCalls {
-			// Restore the __ to : substitution used for API name compatibility.
 			name := strings.ReplaceAll(tc.Function.Name, "__", ":")
 			argsBytes, err := json.Marshal(tc.Function.Arguments)
 			if err != nil {
@@ -215,33 +241,26 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 			})
 		}
 		result.StopReason = "tool_use"
-		a.debugf("ollama: extracted %d tool_calls (SDK), stop_reason=tool_use", len(result.ToolCalls))
+		a.debugf("ollama: %d tool_calls (SDK), stop_reason=tool_use", len(result.ToolCalls))
 	}
 
-	// Extract thinking/reasoning blocks (e.g. <thought>...</thought>)
+	// Strip <thought>...</thought> reasoning blocks emitted by DeepSeek-R1 etc.
 	if strings.Contains(result.Content, "<thought>") {
 		matches := thoughtBlockRe.FindAllStringSubmatch(result.Content, -1)
-		var thoughts []string
-		for _, m := range matches {
-			if len(m) > 1 {
-				thoughts = append(thoughts, strings.TrimSpace(m[1]))
-			}
-		}
-		if len(thoughts) > 0 {
+		if len(matches) > 0 {
 			result.Content = strings.TrimSpace(thoughtBlockRe.ReplaceAllString(result.Content, ""))
-			a.debugf("ollama: extracted %d reasoning blocks (discarded)", len(thoughts))
+			a.debugf("ollama: stripped %d reasoning blocks", len(matches))
 		}
 	}
 
-	// Fallback path: some fine-tuned models embed <tool> blocks in content
-	// instead of the standard tool_calls field.
+	// Fallback: some fine-tuned models embed <tool> blocks in content.
 	if len(result.ToolCalls) == 0 && strings.Contains(result.Content, "<tool>") {
 		parsed := parseToolBlocks(result.Content)
 		if len(parsed) > 0 {
 			result.ToolCalls = parsed
 			result.StopReason = "tool_use"
 			result.Content = strings.TrimSpace(toolBlockRe.ReplaceAllString(result.Content, ""))
-			a.debugf("ollama: extracted %d tool_calls (<tool> blocks), stop_reason=tool_use", len(result.ToolCalls))
+			a.debugf("ollama: %d tool_calls (<tool> blocks), stop_reason=tool_use", len(result.ToolCalls))
 		}
 	}
 
@@ -259,19 +278,30 @@ func (a *Adapter) ChatToAudio(_ context.Context, _ ports.ChatRequest) (ports.Cha
 	return ports.ChatResponseWithAudio{}, fmt.Errorf("audio output not supported by Ollama")
 }
 
-// SupportsAudioInput reports false; Ollama does not accept audio input.
+// SupportsAudioInput reports false.
 func (a *Adapter) SupportsAudioInput() bool { return false }
 
-// SupportsAudioOutput reports false; Ollama does not produce audio output.
+// SupportsAudioOutput reports false.
 func (a *Adapter) SupportsAudioOutput() bool { return false }
 
-// GetMaxTokens returns the configured token limit.
+// GetMaxTokens returns the configured output token limit.
 func (a *Adapter) GetMaxTokens() int { return a.maxTokens }
 
-// sanitizeMessagesForOllama removes tool messages whose ToolCallID does not match
-// any assistant message's ToolCalls. Ollama Cloud returns "Unexpected tool call id"
-// when tool results reference IDs it doesn't know (e.g. from stale history).
-// Also drops duplicate tool results for the same ID (keeps first only).
+// GetContextWindow returns the model's context window as probed from /api/show.
+// Falls back to 8192 if the probe failed or the model does not advertise a length.
+func (a *Adapter) GetContextWindow() int {
+	if a.contextWindow > 0 {
+		return a.contextWindow
+	}
+	return 8192
+}
+
+// OverrideContextWindow sets the context window explicitly, overriding the probed value.
+func (a *Adapter) OverrideContextWindow(n int) { a.contextWindow = n }
+
+var _ ports.AIProviderPort = (*Adapter)(nil)
+
+// sanitizeMessagesForOllama removes orphan and duplicate tool result messages.
 func sanitizeMessagesForOllama(messages []ports.ChatMessage) []ports.ChatMessage {
 	validIDs := make(map[string]bool)
 	for _, m := range messages {
@@ -283,82 +313,42 @@ func sanitizeMessagesForOllama(messages []ports.ChatMessage) []ports.ChatMessage
 			}
 		}
 	}
-	seenToolIDs := make(map[string]bool)
+	seen := make(map[string]bool)
 	out := make([]ports.ChatMessage, 0, len(messages))
 	for _, m := range messages {
 		if m.Role == "tool" {
 			if m.ToolCallID == "" {
-				// Tool messages without a tool_call_id come from internal logging
-				// (e.g. persisted MCP/tool outputs) and are never part of the
-				// function-calling protocol expected by Ollama. Drop them
-				// silently from the history we send to the provider to avoid
-				// noisy logs and potential confusion, while keeping the user
-				//‑visible history unaffected.
-				continue // drop tool messages that cannot be correlated
-			}
-			if !validIDs[m.ToolCallID] {
-				log.Printf("ollama: dropping orphan tool message (tool_call_id=%q not in any assistant)", m.ToolCallID)
 				continue
 			}
-			if seenToolIDs[m.ToolCallID] {
+			if !validIDs[m.ToolCallID] {
+				log.Printf("ollama: dropping orphan tool message (tool_call_id=%q)", m.ToolCallID)
+				continue
+			}
+			if seen[m.ToolCallID] {
 				log.Printf("ollama: dropping duplicate tool result for id=%q", m.ToolCallID)
 				continue
 			}
-			seenToolIDs[m.ToolCallID] = true
+			seen[m.ToolCallID] = true
 		}
 		out = append(out, m)
 	}
 	return out
 }
 
-// collectImageBlocks extracts image bytes from multimodal content blocks.
-// Only blocks with pre-downloaded Data are used; audio and text blocks are ignored.
-func collectImageBlocks(blocks []ports.ContentBlock) []ImageData {
-	var images []ImageData
-	for _, b := range blocks {
-		if b.Type != ports.ContentBlockImage {
-			continue
-		}
-		// Prefer pre-downloaded data when available.
-		if len(b.Data) > 0 {
-			log.Printf("ollama: image block attached (%d bytes, mime=%s)", len(b.Data), b.MIMEType)
-			images = append(images, ImageData(b.Data))
-			continue
-		}
-
-		// URL fallback removed: ContentBlock.URL is not populated from attachments
-		// in current flows. Keep a diagnostic log to aid debugging when needed.
-		log.Printf("ollama: image block has no Data (mime=%s) — skipping", b.MIMEType)
-	}
-	return images
-}
-
 // convertMessages translates domain ChatMessages into SDK Message types.
-// Assistant messages that triggered tool use include their ToolCalls so that
-// Ollama can correlate subsequent tool-result messages correctly.
-// User messages with multimodal Blocks have their image data attached via the
-// Images field; other block types (audio, text) are carried in Content.
-func (a *Adapter) convertMessages(messages []ports.ChatMessage) []Message {
-	result := make([]Message, len(messages))
+func (a *Adapter) convertMessages(messages []ports.ChatMessage) []ollamaapi.Message {
+	result := make([]ollamaapi.Message, len(messages))
 	for i, msg := range messages {
-		m := Message{
+		m := ollamaapi.Message{
 			Role:    msg.Role,
 			Content: msg.Content,
 		}
 		if msg.Role == "user" && len(msg.Blocks) > 0 {
 			m.Images = collectImageBlocks(msg.Blocks)
-			a.debugf("ollama: user message has %d blocks → %d images extracted", len(msg.Blocks), len(m.Images))
-			// Ollama requires a non-empty Content when images are present.
-			// If the user sent only an image without text, provide a default prompt.
+			a.debugf("ollama: user msg has %d blocks → %d images", len(msg.Blocks), len(m.Images))
 			if len(m.Images) > 0 && strings.TrimSpace(m.Content) == "" {
 				m.Content = "Describe and analyse this image. Respond using the same language as the user."
-				a.debugf("ollama: injected default prompt for image-only message")
 			}
-
-			// If the user sent a voice message without a caption, instruct the
-			// model to interpret the audio and respond accordingly. Prefer the
-			// image prompt when images were present; only inject the audio prompt
-			// when no images were attached and content is empty.
 			hasAudio := false
 			for _, b := range msg.Blocks {
 				if b.Type == ports.ContentBlockAudio {
@@ -368,56 +358,63 @@ func (a *Adapter) convertMessages(messages []ports.ChatMessage) []Message {
 			}
 			if len(m.Images) == 0 && hasAudio && strings.TrimSpace(m.Content) == "" {
 				m.Content = "Interpret the attached voice message and respond appropriately. Respond using the same language as the user."
-				a.debugf("ollama: injected default prompt for audio-only message")
 			}
 		}
 		if msg.Role == "tool" {
-			if msg.ToolCallID != "" {
-				m.ToolCallID = msg.ToolCallID
-			}
-			if msg.ToolName != "" {
-				m.ToolName = msg.ToolName
-			}
+			m.ToolCallID = msg.ToolCallID
+			m.ToolName = msg.ToolName
 		}
-		if len(msg.ToolCalls) > 0 {
-			for idx, tc := range msg.ToolCalls {
-				name := strings.ReplaceAll(tc.Function.Name, ":", "__")
-				var argsObj ToolCallFunctionArguments
-				if err := json.Unmarshal([]byte(tc.Function.Arguments), &argsObj); err != nil {
-					log.Printf("ollama: failed to unmarshal tool call arguments for %q: %v", tc.Function.Name, err)
-					argsObj = ToolCallFunctionArguments{}
-				}
-				m.ToolCalls = append(m.ToolCalls, ToolCall{
-					ID: tc.ID,
-					Function: ToolCallFunction{
-						Index:     idx,
-						Name:      name,
-						Arguments: argsObj,
-					},
-				})
+		for idx, tc := range msg.ToolCalls {
+			name := strings.ReplaceAll(tc.Function.Name, ":", "__")
+			var args ollamaapi.ToolCallFunctionArguments
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+				log.Printf("ollama: failed to unmarshal tool call args for %q: %v", tc.Function.Name, err)
 			}
+			m.ToolCalls = append(m.ToolCalls, ollamaapi.ToolCall{
+				ID: tc.ID,
+				Function: ollamaapi.ToolCallFunction{
+					Index:     idx,
+					Name:      name,
+					Arguments: args,
+				},
+			})
 		}
 		result[i] = m
 	}
 	return result
 }
 
+// collectImageBlocks extracts image bytes from multimodal content blocks.
+func collectImageBlocks(blocks []ports.ContentBlock) []ollamaapi.ImageData {
+	var images []ollamaapi.ImageData
+	for _, b := range blocks {
+		if b.Type != ports.ContentBlockImage {
+			continue
+		}
+		if len(b.Data) > 0 {
+			images = append(images, ollamaapi.ImageData(b.Data))
+			continue
+		}
+		log.Printf("ollama: image block has no Data (mime=%s) — skipping", b.MIMEType)
+	}
+	return images
+}
+
 // convertTools translates domain Tool definitions into SDK Tool types.
-// Colons in qualified MCP tool names (server:tool) are replaced with __ because
-// Ollama enforces the OpenAI function-name character set ([a-zA-Z0-9_-]).
-func (a *Adapter) convertTools(tools []ports.Tool) Tools {
-	result := make(Tools, 0, len(tools))
+// Colons in tool names are replaced with __ (Ollama enforces [a-zA-Z0-9_-]).
+func convertTools(tools []ports.Tool) ollamaapi.Tools {
+	result := make(ollamaapi.Tools, 0, len(tools))
 	for _, t := range tools {
 		if t.Function == nil {
 			continue
 		}
 		name := strings.ReplaceAll(t.Function.Name, ":", "__")
-		result = append(result, Tool{
+		result = append(result, ollamaapi.Tool{
 			Type: "function",
-			Function: ToolFunction{
+			Function: ollamaapi.ToolFunction{
 				Name:        name,
 				Description: t.Function.Description,
-				Parameters: ToolFunctionParameters{
+				Parameters: ollamaapi.ToolFunctionParameters{
 					Type:       paramType(t.Function.Parameters),
 					Required:   paramRequired(t.Function.Parameters),
 					Properties: paramProperties(t.Function.Parameters),
@@ -428,17 +425,15 @@ func (a *Adapter) convertTools(tools []ports.Tool) Tools {
 	return result
 }
 
-// paramType extracts the "type" field from a JSON-schema parameters map.
-func paramType(p map[string]interface{}) string {
+func paramType(p map[string]any) string {
 	if t, ok := p["type"].(string); ok {
 		return t
 	}
 	return "object"
 }
 
-// paramRequired extracts the "required" array from a JSON-schema parameters map.
-func paramRequired(p map[string]interface{}) []string {
-	raw, ok := p["required"].([]interface{})
+func paramRequired(p map[string]any) []string {
+	raw, ok := p["required"].([]any)
 	if !ok {
 		return nil
 	}
@@ -451,25 +446,23 @@ func paramRequired(p map[string]interface{}) []string {
 	return out
 }
 
-// paramProperties converts the "properties" field of a JSON-schema parameters map
-// into the ToolPropertiesMap expected by the Ollama SDK.
-func paramProperties(p map[string]interface{}) *ToolPropertiesMap {
-	raw, ok := p["properties"].(map[string]interface{})
+func paramProperties(p map[string]any) *ollamaapi.ToolPropertiesMap {
+	raw, ok := p["properties"].(map[string]any)
 	if !ok {
 		return nil
 	}
-	out := NewToolPropertiesMap()
+	out := ollamaapi.NewToolPropertiesMap()
 	for k, v := range raw {
-		propMap, ok := v.(map[string]interface{})
+		propMap, ok := v.(map[string]any)
 		if !ok {
 			continue
 		}
-		prop := ToolProperty{}
+		prop := ollamaapi.ToolProperty{}
 		if t, ok := propMap["type"].(string); ok {
-			prop.Type = PropertyType{t}
+			prop.Type = ollamaapi.PropertyType{t}
 		}
 		prop.Description, _ = propMap["description"].(string)
-		if enums, ok := propMap["enum"].([]interface{}); ok {
+		if enums, ok := propMap["enum"].([]any); ok {
 			prop.Enum = append(prop.Enum, enums...)
 		}
 		out.Set(k, prop)
@@ -477,20 +470,11 @@ func paramProperties(p map[string]interface{}) *ToolPropertiesMap {
 	return out
 }
 
-var _ ports.AIProviderPort = (*Adapter)(nil)
-
-// toolBlockRe matches custom <tool>...</tool> blocks emitted by some fine-tuned
-// models instead of using the standard tool_calls API field.
 var toolBlockRe = regexp.MustCompile(`(?s)<tool>\s*(.*?)\s*</tool>`)
-
-// thoughtBlockRe matches <thought>...</thought> blocks often emitted by DeepSeek-R1
-// and similar reasoning models.
 var thoughtBlockRe = regexp.MustCompile(`(?s)<thought>\s*(.*?)\s*</thought>`)
 
-// parseToolBlocks extracts tool calls from <tool> JSON blocks embedded in the
-// model text response. This is a fallback for models with custom templates.
-// Generates deterministic IDs so tool results can be correlated (Ollama Cloud
-// requires matching tool_call_id in tool results).
+// parseToolBlocks extracts tool calls from <tool> JSON blocks embedded in content.
+// Fallback for models with custom templates that don't use the standard tool_calls field.
 func parseToolBlocks(content string) []ports.ToolCall {
 	matches := toolBlockRe.FindAllStringSubmatch(content, -1)
 	var calls []ports.ToolCall
@@ -499,21 +483,19 @@ func parseToolBlocks(content string) []ports.ToolCall {
 			continue
 		}
 		var payload struct {
-			Name       string                 `json:"name"`
-			Parameters map[string]interface{} `json:"parameters"`
+			Name       string         `json:"name"`
+			Parameters map[string]any `json:"parameters"`
 		}
 		if err := json.Unmarshal([]byte(m[1]), &payload); err != nil {
 			log.Printf("ollama: failed to parse <tool> block: %v", err)
 			continue
 		}
-		name := strings.ReplaceAll(payload.Name, "__", ":")
 		argsBytes, _ := json.Marshal(payload.Parameters)
-		id := fmt.Sprintf("tool_%d", i)
 		calls = append(calls, ports.ToolCall{
-			ID:   id,
+			ID:   fmt.Sprintf("tool_%d", i),
 			Type: "function",
 			Function: ports.FunctionCall{
-				Name:      name,
+				Name:      strings.ReplaceAll(payload.Name, "__", ":"),
 				Arguments: string(argsBytes),
 			},
 		})

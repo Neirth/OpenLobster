@@ -4,21 +4,27 @@ import (
 	"context"
 	"testing"
 
+	ollamaapi "github.com/ollama/ollama/api"
+
 	"github.com/neirth/openlobster/internal/domain/ports"
 )
 
 type mockChatClient struct {
-	response ChatResponse
+	response ollamaapi.ChatResponse
 }
 
-func (m *mockChatClient) Chat(ctx context.Context, req *ChatRequest, fn func(ChatResponse) error) error {
+func (m *mockChatClient) Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
 	return fn(m.response)
+}
+
+func (m *mockChatClient) Show(ctx context.Context, req *ollamaapi.ShowRequest) (*ollamaapi.ShowResponse, error) {
+	return &ollamaapi.ShowResponse{}, nil
 }
 
 func TestAdapter_Chat_Reasoning(t *testing.T) {
 	mockClient := &mockChatClient{
-		response: ChatResponse{
-			Message: Message{
+		response: ollamaapi.ChatResponse{
+			Message: ollamaapi.Message{
 				Role:    "assistant",
 				Content: "<thought>\nI should greet the user.\n</thought>\nHello there!",
 			},
@@ -46,8 +52,8 @@ func TestAdapter_Chat_Reasoning(t *testing.T) {
 
 func TestAdapter_Chat_MultipleReasoning(t *testing.T) {
 	mockClient := &mockChatClient{
-		response: ChatResponse{
-			Message: Message{
+		response: ollamaapi.ChatResponse{
+			Message: ollamaapi.Message{
 				Role:    "assistant",
 				Content: "<thought>Step 1</thought> Intermediate <thought>Step 2</thought> Final answer",
 			},

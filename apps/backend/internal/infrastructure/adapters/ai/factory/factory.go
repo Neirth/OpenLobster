@@ -26,39 +26,61 @@ func BuildFromConfig(cfg *config.Config) ports.AIProviderPort {
 		if model == "" {
 			model = "gpt-4o"
 		}
+		var a *aiopenai.Adapter
 		if baseURL := cfg.Providers.OpenAI.BaseURL; baseURL != "" {
-			return aiopenai.NewAdapterWithEndpoint(baseURL, cfg.Providers.OpenAI.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
+			a = aiopenai.NewAdapterWithEndpoint(baseURL, cfg.Providers.OpenAI.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
+		} else {
+			a = aiopenai.NewAdapter(cfg.Providers.OpenAI.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
 		}
-		return aiopenai.NewAdapter(cfg.Providers.OpenAI.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
+		if cfg.Providers.OpenAI.ContextWindow > 0 {
+			a.OverrideContextWindow(cfg.Providers.OpenAI.ContextWindow)
+		}
+		return a
 	case "openrouter":
 		model := cfg.Providers.OpenRouter.DefaultModel
 		if model == "" {
 			model = "openai/gpt-4o"
 		}
-		return aiopenrouter.NewAdapter(cfg.Providers.OpenRouter.APIKey, model, MaxOutputTokens)
+		a := aiopenrouter.NewAdapter(cfg.Providers.OpenRouter.APIKey, model, MaxOutputTokens)
+		if cfg.Providers.OpenRouter.ContextWindow > 0 {
+			a.OverrideContextWindow(cfg.Providers.OpenRouter.ContextWindow)
+		}
+		return a
 	case "openai-compatible":
 		model := cfg.Providers.OpenAICompat.Model
 		if model == "" {
 			model = "default"
 		}
-		return aiopenaicompat.NewAdapter(
+		a := aiopenaicompat.NewAdapter(
 			cfg.Providers.OpenAICompat.BaseURL,
 			cfg.Providers.OpenAICompat.APIKey,
 			model,
 			MaxOutputTokens,
 		)
+		if cfg.Providers.OpenAICompat.ContextWindow > 0 {
+			a.OverrideContextWindow(cfg.Providers.OpenAICompat.ContextWindow)
+		}
+		return a
 	case "ollama":
 		model := cfg.Providers.Ollama.DefaultModel
 		if model == "" {
 			model = "llama3"
 		}
-		return aiollama.NewAdapterWithOptions(cfg.Providers.Ollama.Endpoint, cfg.Providers.Ollama.APIKey, model, MaxOutputTokens, cfg.Logging.Level)
+		a := aiollama.NewAdapterWithOptions(cfg.Providers.Ollama.Endpoint, cfg.Providers.Ollama.APIKey, model, MaxOutputTokens, cfg.Logging.Level)
+		if cfg.Providers.Ollama.ContextWindow > 0 {
+			a.OverrideContextWindow(cfg.Providers.Ollama.ContextWindow)
+		}
+		return a
 	case "anthropic":
 		model := cfg.Providers.Anthropic.Model
 		if model == "" {
 			model = "claude-sonnet-4-6"
 		}
-		return aianthropicadapter.NewAdapter(cfg.Providers.Anthropic.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
+		a := aianthropicadapter.NewAdapter(cfg.Providers.Anthropic.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
+		if cfg.Providers.Anthropic.ContextWindow > 0 {
+			a.OverrideContextWindow(cfg.Providers.Anthropic.ContextWindow)
+		}
+		return a
 	case "opencode-zen":
 		model := cfg.Providers.OpenCode.Model
 		if model == "" {
@@ -70,7 +92,11 @@ func BuildFromConfig(cfg *config.Config) ports.AIProviderPort {
 		if model == "" {
 			model = "ai/mistral-nemo"
 		}
-		return aidockermodelrunner.NewAdapter(cfg.Providers.DockerModelRunner.Endpoint, model, MaxOutputTokens)
+		a := aidockermodelrunner.NewAdapter(cfg.Providers.DockerModelRunner.Endpoint, model, MaxOutputTokens)
+		if cfg.Providers.DockerModelRunner.ContextWindow > 0 {
+			a.OverrideContextWindow(cfg.Providers.DockerModelRunner.ContextWindow)
+		}
+		return a
 	}
 	return nil
 }

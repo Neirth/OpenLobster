@@ -163,6 +163,10 @@ func (a *App) initGraphQL() {
 				a.Deps.AIProvider = newProvider
 				log.Printf("config: soft reboot — AI provider reloaded")
 			}
+			if a.SchedulerUpdateMemoryInterval != nil && reloaded.Scheduler.MemoryInterval != cfg.Scheduler.MemoryInterval {
+				a.SchedulerUpdateMemoryInterval(reloaded.Scheduler.MemoryInterval)
+				log.Printf("config: scheduler memory interval updated to %s", reloaded.Scheduler.MemoryInterval)
+			}
 		},
 	}
 	a.Deps.ConfigWriter = a.ConfigWriter

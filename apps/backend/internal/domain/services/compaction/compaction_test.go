@@ -69,9 +69,8 @@ func (m *testAIProviderForCompaction) SupportsAudioOutput() bool {
 	return false
 }
 
-func (m *testAIProviderForCompaction) GetMaxTokens() int {
-	return 10000
-}
+func (m *testAIProviderForCompaction) GetMaxTokens() int    { return 10000 }
+func (m *testAIProviderForCompaction) GetContextWindow() int { return 8192 }
 
 func TestNewService(t *testing.T) {
 	service := NewService(&testMessageRepo{}, &testAIProviderForCompaction{}, 10000, 0.8)

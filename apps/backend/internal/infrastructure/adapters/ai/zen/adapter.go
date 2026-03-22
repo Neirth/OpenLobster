@@ -84,4 +84,10 @@ func (a *Adapter) GetMaxTokens() int {
 	return a.maxTokens
 }
 
+// GetContextWindow delegates to the underlying adapter which already has the
+// correct model-specific context window for OpenAI or Anthropic models.
+func (a *Adapter) GetContextWindow() int {
+	return a.underlying.GetContextWindow()
+}
+
 var _ ports.AIProviderPort = (*Adapter)(nil)

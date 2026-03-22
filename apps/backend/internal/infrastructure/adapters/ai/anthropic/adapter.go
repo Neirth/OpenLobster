@@ -14,6 +14,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
@@ -29,6 +30,7 @@ type Adapter struct {
 	model          string
 	maxTokens      int
 	reasoningLevel string
+	contextWindow  int
 }
 
 // NewAdapter creates an Adapter that targets the Anthropic Messages API.
@@ -36,12 +38,14 @@ func NewAdapter(apiKey, model string, maxTokens int, reasoningLevel string) *Ada
 	if maxTokens <= 0 {
 		maxTokens = defaultMaxTokens
 	}
-	return &Adapter{
+	a := &Adapter{
 		client:         anthropic.NewClient(option.WithAPIKey(apiKey)),
 		model:          model,
 		maxTokens:      maxTokens,
 		reasoningLevel: reasoningLevel,
 	}
+	a.probeContextWindow()
+	return a
 }
 
 // NewAdapterWithBaseURL creates an Adapter that sends requests to a custom
@@ -51,12 +55,40 @@ func NewAdapterWithBaseURL(baseURL, apiKey, model string, maxTokens int, reasoni
 	if maxTokens <= 0 {
 		maxTokens = defaultMaxTokens
 	}
-	return &Adapter{
+	a := &Adapter{
 		client:         anthropic.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(baseURL)),
 		model:          model,
 		maxTokens:      maxTokens,
 		reasoningLevel: reasoningLevel,
 	}
+	a.probeContextWindow()
+	return a
+}
+
+// OverrideContextWindow explicitly sets the context window, taking precedence
+// over the value probed from the Anthropic API.
+func (a *Adapter) OverrideContextWindow(n int) {
+	a.contextWindow = n
+}
+
+// probeContextWindow uses the SDK Models.Get to retrieve the real context
+// window size. The SDK handles auth and retries; context_window is extracted
+// from the raw JSON response since the ModelInfo struct does not expose it.
+// Failures are logged and silently ignored.
+func (a *Adapter) probeContextWindow() {
+	info, err := a.client.Models.Get(context.Background(), a.model, anthropic.ModelGetParams{})
+	if err != nil {
+		log.Printf("anthropic: could not probe context window for %q: %v (using default)", a.model, err)
+		return
+	}
+	var body struct {
+		ContextWindow int `json:"context_window"`
+	}
+	if err := json.Unmarshal([]byte(info.RawJSON()), &body); err != nil || body.ContextWindow <= 0 {
+		return
+	}
+	a.contextWindow = body.ContextWindow
+	log.Printf("anthropic: model %q context window = %d tokens", a.model, a.contextWindow)
 }
 
 // Chat sends a chat request to the Anthropic API and returns the model's
@@ -137,6 +169,16 @@ func (a *Adapter) SupportsAudioOutput() bool { return false }
 
 // GetMaxTokens returns the configured maximum token limit.
 func (a *Adapter) GetMaxTokens() int { return a.maxTokens }
+
+// GetContextWindow returns the model's context window as reported by the
+// Anthropic models API at startup, or the override set via OverrideContextWindow.
+// Falls back to 200000 (the minimum for current Claude models) if probing failed.
+func (a *Adapter) GetContextWindow() int {
+	if a.contextWindow > 0 {
+		return a.contextWindow
+	}
+	return 200000
+}
 
 // ---------------------------------------------------------------------------
 // helpers

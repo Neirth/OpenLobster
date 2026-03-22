@@ -9,18 +9,18 @@ import (
 	"log"
 	"strings"
 
-	toon "github.com/toon-format/toon-go"
-
 	"github.com/neirth/openlobster/internal/domain/models"
 	"github.com/neirth/openlobster/internal/domain/ports"
+	"github.com/neirth/openlobster/internal/domain/services/mcp"
 )
 
 type service struct {
-	msgRepo    ports.MessageRepositoryPort
-	memoryRepo ports.MemoryPort
-	aiProvider ports.AIProviderPort
-	userRepo   ports.UserRepositoryPort
-	convoRepo  ports.SessionRepositoryPort
+	msgRepo      ports.MessageRepositoryPort
+	memoryRepo   ports.MemoryPort
+	aiProvider   ports.AIProviderPort
+	userRepo     ports.UserRepositoryPort
+	convoRepo    ports.SessionRepositoryPort
+	toolRegistry *mcp.ToolRegistry
 }
 
 const (
@@ -67,13 +67,15 @@ func NewService(
 	aiProvider ports.AIProviderPort,
 	userRepo ports.UserRepositoryPort,
 	convoRepo ports.SessionRepositoryPort,
+	toolRegistry *mcp.ToolRegistry,
 ) ports.MemoryConsolidationPort {
 	return &service{
-		msgRepo:    msgRepo,
-		memoryRepo: memoryRepo,
-		aiProvider: aiProvider,
-		userRepo:   userRepo,
-		convoRepo:  convoRepo,
+		msgRepo:      msgRepo,
+		memoryRepo:   memoryRepo,
+		aiProvider:   aiProvider,
+		userRepo:     userRepo,
+		convoRepo:    convoRepo,
+		toolRegistry: toolRegistry,
 	}
 }
 
@@ -169,7 +171,7 @@ func (s *service) processUserBatch(ctx context.Context, userID string, msgs []mo
 
 	// 1. Extraction (Map) - adaptive chunks sized to the model's context window
 	var summaries []string
-	for _, chunk := range chunkMessages(conversational, s.aiProvider.GetMaxTokens()) {
+	for _, chunk := range chunkMessages(conversational, s.aiProvider.GetContextWindow()) {
 		summary, err := s.extractSummary(ctx, chunk, userName)
 		if err != nil {
 			return fmt.Errorf("extraction: %w", err)
@@ -221,166 +223,161 @@ func (s *service) extractSummary(ctx context.Context, msgs []models.Message, use
 	// Cap output to ~20 tokens per message in the chunk (one short fact each).
 	maxOutputTokens := len(msgs) * 20
 
+	s.logPhase("extraction", userName, prompt)
 	resp, err := s.aiProvider.Chat(ctx, ports.ChatRequest{
 		Messages:  []ports.ChatMessage{{Role: "system", Content: prompt}},
 		MaxTokens: maxOutputTokens,
 	})
 	if err != nil {
+		log.Printf("memory_consolidation: extraction failed for %s: %v (prompt: %s)", userName, err, prompt)
 		return "", err
 	}
 
-	s.logPhase("extraction", userName, resp.Usage)
 	return resp.Content, nil
 }
 
 func (s *service) filterAgainstMemory(ctx context.Context, userID, userName string, summaries []string) (string, error) {
-	graph, err := s.memoryRepo.GetUserGraph(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-
-	type toonNode struct {
-		ID    string `toon:"id"`
-		Label string `toon:"label"`
-		Type  string `toon:"type"`
-		Value string `toon:"value"`
-	}
-	type toonEdge struct {
-		Source string `toon:"source"`
-		Target string `toon:"target"`
-		Label  string `toon:"label"`
-	}
-	type toonGraph struct {
-		Nodes []toonNode `toon:"nodes"`
-		Edges []toonEdge `toon:"edges"`
-	}
-
-	nodes := make([]toonNode, len(graph.Nodes))
-	for i, n := range graph.Nodes {
-		nodes[i] = toonNode{ID: n.ID, Label: n.Label, Type: n.Type, Value: n.Value}
-	}
-	edges := make([]toonEdge, len(graph.Edges))
-	for i, e := range graph.Edges {
-		edges[i] = toonEdge{Source: e.Source, Target: e.Target, Label: e.Label}
-	}
-	graphTOON, err := toon.MarshalString(toonGraph{Nodes: nodes, Edges: edges})
-	if err != nil {
-		return "", fmt.Errorf("toon: %w", err)
-	}
-
 	combinedSummaries := strings.Join(summaries, "\n---\n")
-	prompt := fmt.Sprintf(reductionPrompt, userName, graphTOON, combinedSummaries)
+	prompt := fmt.Sprintf(reductionPrompt, userName, "[KNOWLEDGE GRAPH GATED BEHIND TOOLS]", combinedSummaries)
 
-	resp, err := s.aiProvider.Chat(ctx, ports.ChatRequest{
-		Messages: []ports.ChatMessage{{Role: "system", Content: prompt}},
-	})
+	// In the reduction phase, we allow the model to use memory tools to verify if facts already exist.
+	tools := s.buildTools()
+
+	s.logPhase("reduction", userName, prompt)
+	resp, err := s.runAgenticLoop(ctx, []ports.ChatMessage{
+		{Role: "system", Content: prompt},
+		{Role: "user", Content: "Analyze these findings. Use search_memory if you need to check if a fact is already known. Return the finalized list of truly NEW findings."},
+	}, tools)
 	if err != nil {
+		log.Printf("memory_consolidation: reduction failed for %s: %v (prompt: %s)", userName, err, prompt)
 		return "", err
 	}
 
-	s.logPhase("reduction", userName, resp.Usage)
 	return resp.Content, nil
 }
 
 func (s *service) syncFindings(ctx context.Context, userID, userName, findings string) error {
-	// 1. Define memory tools for the LLM
-	tools := []ports.Tool{
-		{
-			Type: "function",
-			Function: &ports.FunctionTool{
-				Name:        "add_memory",
-				Description: "Add a new fact or knowledge about the user to long-term memory.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"content": map[string]any{
-							"type":        "string",
-							"description": "The fact or knowledge to save.",
-						},
-					},
-					"required": []string{"content"},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: &ports.FunctionTool{
-				Name:        "set_user_property",
-				Description: "Set a core attribute for the user (name, age, occupation, etc.).",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"key": map[string]any{
-							"type":        "string",
-							"description": "The property name (e.g., 'name', 'language').",
-						},
-						"value": map[string]any{
-							"type":        "string",
-							"description": "The property value.",
-						},
-					},
-					"required": []string{"key", "value"},
-				},
-			},
-		},
-	}
-
 	prompt := fmt.Sprintf(syncPrompt, userName, findings)
+	tools := s.buildTools()
 
-	// 2. Call LLM with the new findings and defined tools
-	resp, err := s.aiProvider.Chat(ctx, ports.ChatRequest{
-		Messages: []ports.ChatMessage{
-			{Role: "system", Content: prompt},
-			{Role: "user", Content: "Process these findings and use your tools to update the memory now."},
-		},
-		Tools: tools,
-	})
+	s.logPhase("synchronization", userID, prompt)
+	_, err := s.runAgenticLoop(ctx, []ports.ChatMessage{
+		{Role: "system", Content: prompt},
+		{Role: "user", Content: "Update the memory now using the provided tools based on these findings."},
+	}, tools)
 	if err != nil {
+		log.Printf("memory_consolidation: synchronization failed for %s: %v", userID, err)
 		return err
-	}
-
-	s.logPhase("synchronization", userID, resp.Usage)
-
-	// 3. Execute tool calls returned by the LLM
-	for _, tc := range resp.ToolCalls {
-		switch tc.Function.Name {
-		case "add_memory":
-			var args struct {
-				Content string `json:"content"`
-			}
-			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-				log.Printf("sync: failed to parse add_memory args: %v", err)
-				continue
-			}
-			if err := s.memoryRepo.AddKnowledge(ctx, userID, args.Content, "", "", "", nil); err != nil {
-				log.Printf("sync: add_memory failed for user %s: %v", userID, err)
-			}
-		case "set_user_property":
-			var args struct {
-				Key   string `json:"key"`
-				Value string `json:"value"`
-			}
-			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-				log.Printf("sync: failed to parse set_user_property args: %v", err)
-				continue
-			}
-			if err := s.memoryRepo.SetUserProperty(ctx, userID, args.Key, args.Value); err != nil {
-				log.Printf("sync: set_user_property failed for user %s: %v", userID, err)
-			}
-		}
 	}
 
 	return nil
 }
 
-func (s *service) logPhase(phase, user string, usage ports.TokenUsage) {
-	maxTokens := s.aiProvider.GetMaxTokens()
-	pct := 0.0
-	if maxTokens > 0 {
-		pct = float64(usage.Total()) / float64(maxTokens) * 100
+func (s *service) buildTools() []ports.Tool {
+	if s.toolRegistry == nil {
+		return nil
 	}
-	log.Printf("memory_consolidation: [%s] user=%s prompt=%d completion=%d total=%d (%.1f%% of %d)",
-		phase, user, usage.PromptTokens, usage.CompletionTokens, usage.Total(), pct, maxTokens)
+	// Fetch all tools with "memory" capability
+	defs := s.toolRegistry.GetToolsByCapability("memory")
+	tools := make([]ports.Tool, 0, len(defs))
+	for _, def := range defs {
+		var params map[string]interface{}
+		if len(def.InputSchema) > 0 {
+			_ = json.Unmarshal(def.InputSchema, &params)
+		}
+		tools = append(tools, ports.Tool{
+			Type: "function",
+			Function: &ports.FunctionTool{
+				Name:        def.Name,
+				Description: def.Description,
+				Parameters:  params,
+			},
+		})
+	}
+	return tools
+}
+
+func (s *service) runAgenticLoop(ctx context.Context, messages []ports.ChatMessage, tools []ports.Tool) (*ports.ChatResponse, error) {
+	const maxRounds = 5
+	req := ports.ChatRequest{Messages: messages, Tools: tools}
+
+	var lastResp ports.ChatResponse
+	for round := 0; round < maxRounds; round++ {
+		resp, err := s.aiProvider.Chat(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		lastResp = resp
+
+		if resp.StopReason != "tool_use" || len(resp.ToolCalls) == 0 {
+			// If we have content, we are done. If not, and we executed tools,
+			// we might need one more pass to synthesize.
+			if strings.TrimSpace(resp.Content) != "" || round == 0 {
+				return &resp, nil
+			}
+			break
+		}
+
+		req.Messages = append(req.Messages, ports.ChatMessage{
+			Role:      "assistant",
+			Content:   resp.Content,
+			ToolCalls: resp.ToolCalls,
+		})
+
+		for _, tc := range resp.ToolCalls {
+			result, err := s.executeTool(ctx, tc)
+			content := ""
+			if err != nil {
+				content = fmt.Sprintf(`{"error":"%v"}`, err)
+			} else {
+				content = string(result)
+			}
+			req.Messages = append(req.Messages, ports.ChatMessage{
+				Role:       "tool",
+				ToolCallID: tc.ID,
+				ToolName:   tc.Function.Name,
+				Content:    content,
+			})
+		}
+	}
+
+	// Synthesis pass if the last response was a tool call with no content.
+	if len(lastResp.ToolCalls) > 0 && strings.TrimSpace(lastResp.Content) == "" {
+		synthResp, err := s.aiProvider.Chat(ctx, ports.ChatRequest{Messages: req.Messages})
+		if err != nil {
+			return nil, err
+		}
+		return &synthResp, nil
+	}
+
+	return &lastResp, nil
+}
+
+func (s *service) executeTool(ctx context.Context, tc ports.ToolCall) (json.RawMessage, error) {
+	if s.toolRegistry == nil {
+		return nil, fmt.Errorf("no tool registry")
+	}
+	// Inject userID in context for permission checks if needed,
+	// though memory consolidation usually runs with master/loopback privileges.
+	var params map[string]interface{}
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &params); err != nil {
+		return nil, err
+	}
+	return s.toolRegistry.Dispatch(ctx, tc.Function.Name, params)
+}
+
+func (s *service) logPhase(phase, user string, prompt string) {
+	const charsPerToken = 4
+	promptTokens := len(prompt) / charsPerToken
+	contextWindow := s.aiProvider.GetContextWindow()
+
+	pct := 0.0
+	if contextWindow > 0 {
+		pct = float64(promptTokens) / float64(contextWindow) * 100
+	}
+
+	log.Printf("memory_consolidation: [%s] user=%s estimated_prompt=%d context_window=%d (%.1f%% of context)",
+		phase, user, promptTokens, contextWindow, pct)
 }
 
 func (s *service) markAsValidated(ctx context.Context, msgs []models.Message) error {

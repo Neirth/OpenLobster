@@ -230,3 +230,4 @@ func (m *mockAI) ChatToAudio(_ context.Context, _ ports.ChatRequest) (ports.Chat
 func (m *mockAI) SupportsAudioInput() bool  { return false }
 func (m *mockAI) SupportsAudioOutput() bool { return false }
 func (m *mockAI) GetMaxTokens() int         { return 4096 }
+func (m *mockAI) GetContextWindow() int     { return 8192 }

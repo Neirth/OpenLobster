@@ -10,7 +10,13 @@ type AIProviderPort interface {
 	ChatToAudio(ctx context.Context, req ChatRequest) (ChatResponseWithAudio, error)
 	SupportsAudioInput() bool
 	SupportsAudioOutput() bool
+	// GetMaxTokens returns the maximum number of output tokens the adapter is
+	// configured to generate per response.
 	GetMaxTokens() int
+	// GetContextWindow returns the model's total context window in tokens
+	// (input + output). Used by the memory consolidation pipeline to size
+	// message chunks so they fit within the model's input budget.
+	GetContextWindow() int
 }
 
 // ContentBlockType identifies the kind of content in a multimodal message part.

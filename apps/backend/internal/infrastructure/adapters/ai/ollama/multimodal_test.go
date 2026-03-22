@@ -3,11 +3,8 @@
 package ollama
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
@@ -124,50 +121,16 @@ func TestConvertMessages_AssistantNotAffected(t *testing.T) {
 	assert.Empty(t, result[0].Images)
 }
 
-// TestClient_JSONErrorBody verifies that when Ollama returns a non-200 status with a
-// JSON body containing an "error" field, the error message is clean and human-readable.
-func TestClient_JSONErrorBody(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":"model 'llama99' not found, try pulling it first"}`))
-	}))
-	defer srv.Close()
+// TestConvertMessages_ToolRole verifies that tool-role messages carry ToolCallID and ToolName.
+func TestConvertMessages_ToolRole(t *testing.T) {
+	a := testAdapter()
+	msgs := []ports.ChatMessage{
+		{Role: "tool", Content: "result", ToolCallID: "call_1", ToolName: "my_tool"},
+	}
+	result := a.convertMessages(msgs)
 
-	u, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-	c := NewClient(u, http.DefaultClient)
-
-	chatErr := c.Chat(context.Background(), &ChatRequest{Model: "llama99"}, func(ChatResponse) error { return nil })
-
-	require.Error(t, chatErr)
-	assert.Contains(t, chatErr.Error(), "model 'llama99' not found")
-	assert.Contains(t, chatErr.Error(), "HTTP 500")
-	// Must NOT contain raw JSON braces.
-	assert.NotContains(t, chatErr.Error(), `{"error"`)
-}
-
-// TestClient_NonJSONErrorBody verifies that when a proxy in front of Ollama returns
-// a non-200 status with a non-JSON body (e.g. HTML), the error is truncated and does
-// not flood the logs with kilobytes of content.
-func TestClient_NonJSONErrorBody(t *testing.T) {
-	bigHTML := strings.Repeat("<html>proxy error body</html>", 100) // ~2 900 chars
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte(bigHTML))
-	}))
-	defer srv.Close()
-
-	u, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-	c := NewClient(u, http.DefaultClient)
-
-	chatErr := c.Chat(context.Background(), &ChatRequest{Model: "any"}, func(ChatResponse) error { return nil })
-
-	require.Error(t, chatErr)
-	assert.Contains(t, chatErr.Error(), "503")
-	// Error message must be short — no more than 300 characters total.
-	assert.LessOrEqual(t, len(chatErr.Error()), 300)
+	require.Len(t, result, 1)
+	assert.Equal(t, "tool", result[0].Role)
+	assert.Equal(t, "call_1", result[0].ToolCallID)
+	assert.Equal(t, "my_tool", result[0].ToolName)
 }
