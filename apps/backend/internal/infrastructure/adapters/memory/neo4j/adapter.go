@@ -75,6 +75,10 @@ func (a *Adapter) AddKnowledge(ctx context.Context, userID string, content strin
 		entityType = "Thing"
 	case "story":
 		entityType = "Story"
+	case "event":
+		entityType = "Event"
+	case "organization":
+		entityType = "Organization"
 	default:
 		entityType = "Fact"
 	}
@@ -535,6 +539,10 @@ func (a *Adapter) UpdateNode(ctx context.Context, id, label, typ, value string, 
 		desiredLabel = "Thing"
 	case "story":
 		desiredLabel = "Story"
+	case "event":
+		desiredLabel = "Event"
+	case "organization":
+		desiredLabel = "Organization"
 	case "fact", "entity":
 		desiredLabel = "Fact"
 	default:

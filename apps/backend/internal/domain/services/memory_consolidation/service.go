@@ -52,11 +52,13 @@ If every candidate fact already exists in memory, respond with exactly: NO_REPLY
 	syncSystemPrompt = `You are a memory synchronization specialist. The user you are updating memory for is "%s".
 Update the long-term memory (Neo4j) using the provided tools based on the new findings about "%s".
 - Use 'add_memory' for new facts about "%s". Choose entity_type carefully:
-  - entity_type="person"  → the fact is about a specific person (colleague, friend, family member, etc.)
-  - entity_type="place"   → the fact is about a location (city, country, address, etc.)
-  - entity_type="thing"   → the fact is about an object, topic, or abstract concept
-  - entity_type="story"   → the fact is a narrative event or diary-style entry
-  - entity_type="fact"    → generic facts that do not fit the above categories
+  - entity_type="person"       → a specific person (colleague, friend, family member, etc.)
+  - entity_type="place"        → a location (city, country, address, neighbourhood, etc.)
+  - entity_type="organization" → a company, school, team, institution, or club
+  - entity_type="event"        → a time-bound occurrence (concert, trip, appointment, interview, etc.)
+  - entity_type="thing"        → an object, hobby, topic, or abstract concept
+  - entity_type="story"        → a personal narrative or diary-style entry
+  - entity_type="fact"         → generic facts that do not fit any category above
 - Use 'set_user_property' for core attributes of "%s" (name, age, language, etc.).
 - Be precise and avoid duplicating information.`
 )
@@ -111,7 +113,7 @@ func (s *service) Consolidate(ctx context.Context) error {
 
 	for userID, msgs := range userMsgs {
 		if err := s.processUserBatch(ctx, userID, msgs); err != nil {
-			logging.Printf("memory_consolidation: failed to process user %s: %v", anonymizeToken(userID), err)
+			logging.Printf("memory_consolidation: failed to process user %s: %v", userID, err)
 			continue
 		}
 	}
@@ -248,7 +250,7 @@ func (s *service) extractSummary(ctx context.Context, msgs []models.Message, use
 		MaxTokens: maxOutputTokens,
 	})
 	if err != nil {
-		logging.Printf("memory_consolidation: extraction failed for %s: %v", anonymizeToken(userName), err)
+		logging.Printf("memory_consolidation: extraction failed for %s: %v", userName, err)
 		return "", err
 	}
 
@@ -265,7 +267,7 @@ func (s *service) filterAgainstMemory(ctx context.Context, userName string, summ
 		{Role: "user", Content: fmt.Sprintf("User: %s\nNew candidate facts:\n%s", userName, combinedSummaries)},
 	}, tools)
 	if err != nil {
-		logging.Printf("memory_consolidation: reduction failed for %s: %v", anonymizeToken(userName), err)
+		logging.Printf("memory_consolidation: reduction failed for %s: %v", userName, err)
 		return "", err
 	}
 
@@ -282,7 +284,7 @@ func (s *service) syncFindings(ctx context.Context, userName, findings string) e
 	}
 	_, err := s.runAgenticLoop(ctx, messages, tools)
 	if err != nil {
-		logging.Printf("memory_consolidation: synchronization failed for %s: %v", anonymizeToken(userName), err)
+		logging.Printf("memory_consolidation: synchronization failed for %s: %v", userName, err)
 		return err
 	}
 
@@ -383,9 +385,7 @@ func (s *service) executeTool(ctx context.Context, tc ports.ToolCall) (json.RawM
 }
 
 func (s *service) logPhase(phase, ident, prompt string) {
-	// Use an anonymized, stable token for logging to avoid PII leakage
-	anon := anonymizeToken(ident)
-	logging.Printf("memory_consolidation: [%s] user=%s estimated_prompt=%d tokens", phase, anon, len(prompt)/4)
+	logging.Printf("memory_consolidation: [%s] user=%s estimated_prompt=%d tokens", phase, ident, len(prompt)/4)
 
 	// By default only log a truncated prompt snippet to reduce PII exposure.
 	// Full prompt logging can be enabled via env var OPENLOBSTER_MEMORY_VERBOSE=1

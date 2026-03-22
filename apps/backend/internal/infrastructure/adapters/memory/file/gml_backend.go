@@ -190,6 +190,10 @@ func (b *GMLBackend) AddKnowledge(_ context.Context, userID string, content stri
 		entityType = "thing"
 	case "story":
 		entityType = "story"
+	case "event":
+		entityType = "event"
+	case "organization":
+		entityType = "organization"
 	case "", "fact":
 		entityType = "fact"
 	default:
