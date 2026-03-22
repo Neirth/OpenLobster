@@ -27,21 +27,36 @@ type service struct {
 }
 
 const (
-	extractionSystemPrompt = `You are a memory extraction sub-agent. The user you are processing is "%s".
-Your sole task is to extract persistent facts about "%s" from the conversation below.
-Output one fact per line, starting with "- ". Each line must be a single short sentence (max 15 words).
-No explanations, no summaries, no filler. Only include: preferences, habits, personal details, significant events.
-Skip greetings, questions, and transient content. If there is nothing worth remembering, output nothing.`
+	// noReply is the sentinel value the extraction agent emits when it finds
+	// no facts that are new or differ from what is already in memory.
+	noReply = "NO_REPLY"
+
+	extractionSystemPrompt = `You are a memory extraction and deduplication agent. The user you are processing is "%s".
+
+Steps you MUST follow for the conversation below:
+1. Identify candidate persistent facts about "%s": preferences, habits, personal details, significant events.
+   Skip greetings, questions, and transient content.
+2. For each candidate fact, call 'search_memory' to check whether it already exists in long-term memory.
+3. Output ONLY the facts that are genuinely new or meaningfully different from what is already stored.
+   Format: one fact per line, starting with "- ", max 15 words each.
+4. If every candidate fact already exists in memory, or if there are no candidate facts at all,
+   respond with exactly: NO_REPLY`
 
 	reductionSystemPrompt = `You are a memory filtering engine. The user you are processing is "%s".
-You will receive fact summaries about "%s" and the current state of their Knowledge Graph.
-Produce a final condensed text containing ONLY facts that are NEW or that UPDATE existing information about "%s".
-Discard anything already present and unchanged in the Knowledge Graph.
-Use tools if you need to verify specific facts against the long-term memory.`
+You will receive candidate facts about "%s" extracted from recent conversations.
+Use 'search_memory' to check each fact against the existing Knowledge Graph for "%s".
+Output ONLY facts that are genuinely new or meaningfully different from what is already stored.
+Format: one fact per line, starting with "- ", max 15 words each.
+If every candidate fact already exists in memory, respond with exactly: NO_REPLY`
 
 	syncSystemPrompt = `You are a memory synchronization specialist. The user you are updating memory for is "%s".
 Update the long-term memory (Neo4j) using the provided tools based on the new findings about "%s".
-- Use 'add_memory' for new facts about "%s".
+- Use 'add_memory' for new facts about "%s". Choose entity_type carefully:
+  - entity_type="person"  → the fact is about a specific person (colleague, friend, family member, etc.)
+  - entity_type="place"   → the fact is about a location (city, country, address, etc.)
+  - entity_type="thing"   → the fact is about an object, topic, or abstract concept
+  - entity_type="story"   → the fact is a narrative event or diary-style entry
+  - entity_type="fact"    → generic facts that do not fit the above categories
 - Use 'set_user_property' for core attributes of "%s" (name, age, language, etc.).
 - Be precise and avoid duplicating information.`
 )
@@ -153,16 +168,26 @@ func (s *service) processUserBatch(ctx context.Context, userID string, msgs []mo
 	ctx = context.WithValue(ctx, mcp.ContextKeyUserID, userID)
 	ctx = context.WithValue(ctx, mcp.ContextKeyUserDisplayName, userName)
 
-	// Filter to only conversational turns — tool outputs and system messages
-	// carry no user-attributable memory and would inflate context for no gain.
+	// Filter to only conversational turns that have not yet been validated.
+	// The DB query already excludes validated messages, but we guard here too
+	// to avoid unnecessary API calls if the flag was set concurrently.
+	// Tool outputs and system messages carry no user-attributable memory.
 	var conversational []models.Message
 	for _, m := range msgs {
+		if m.IsValidated {
+			continue
+		}
 		if m.Role == "user" || m.Role == "assistant" {
 			conversational = append(conversational, m)
 		}
 	}
 
-	// 1. Extraction (Map) - adaptive chunks sized to the model's context window
+	// All messages already validated — nothing to do, skip API entirely.
+	if len(conversational) == 0 {
+		return nil
+	}
+
+	// 1. Extraction (Map) — one LLM call per chunk, no tools, extracts raw facts.
 	var summaries []string
 	for _, chunk := range chunkMessages(conversational, s.aiProvider.GetContextWindow()) {
 		summary, err := s.extractSummary(ctx, chunk, userName)
@@ -178,22 +203,22 @@ func (s *service) processUserBatch(ctx context.Context, userID string, msgs []mo
 		return s.markAsValidated(ctx, msgs)
 	}
 
-	// 2. Reduction (Filter) - Filter summaries against memory
-	finalFindings, err := s.filterAgainstMemory(ctx, userID, userName, summaries)
+	// 2. Reduction — one LLM call with memory tools, compares summaries against
+	// existing memory. Responds with NO_REPLY if nothing new to persist.
+	findings, err := s.filterAgainstMemory(ctx, userName, summaries)
 	if err != nil {
 		return fmt.Errorf("reduction: %w", err)
 	}
 
-	if strings.TrimSpace(finalFindings) == "" {
+	if strings.TrimSpace(findings) == noReply || strings.TrimSpace(findings) == "" {
 		return s.markAsValidated(ctx, msgs)
 	}
 
-	// 3. Synchronization (Final Sync) - Save findings to Neo4j
-	if err := s.syncFindings(ctx, userID, userName, finalFindings); err != nil {
+	// 3. Synchronization — persist new facts to the graph.
+	if err := s.syncFindings(ctx, userName, findings); err != nil {
 		return fmt.Errorf("synchronization: %w", err)
 	}
 
-	// Cleanup
 	return s.markAsValidated(ctx, msgs)
 }
 
@@ -230,17 +255,15 @@ func (s *service) extractSummary(ctx context.Context, msgs []models.Message, use
 	return resp.Content, nil
 }
 
-func (s *service) filterAgainstMemory(ctx context.Context, userID, userName string, summaries []string) (string, error) {
+func (s *service) filterAgainstMemory(ctx context.Context, userName string, summaries []string) (string, error) {
 	combinedSummaries := strings.Join(summaries, "\n---\n")
-	// In the reduction phase, we allow the model to use memory tools to verify if facts already exist.
 	tools := s.buildTools()
 
 	s.logPhase("reduction", userName, combinedSummaries)
-	messages := []ports.ChatMessage{
+	resp, err := s.runAgenticLoop(ctx, []ports.ChatMessage{
 		{Role: "system", Content: fmt.Sprintf(reductionSystemPrompt, userName, userName, userName)},
-		{Role: "user", Content: fmt.Sprintf("User: %s\nCurrent Knowledge Graph Context: %s\n\nNew Findings to Evaluate:\n%s", userName, "[KNOWLEDGE GRAPH GATED BEHIND TOOLS]", combinedSummaries)},
-	}
-	resp, err := s.runAgenticLoop(ctx, messages, tools)
+		{Role: "user", Content: fmt.Sprintf("User: %s\nNew candidate facts:\n%s", userName, combinedSummaries)},
+	}, tools)
 	if err != nil {
 		logging.Printf("memory_consolidation: reduction failed for %s: %v", anonymizeToken(userName), err)
 		return "", err
@@ -249,17 +272,17 @@ func (s *service) filterAgainstMemory(ctx context.Context, userID, userName stri
 	return resp.Content, nil
 }
 
-func (s *service) syncFindings(ctx context.Context, userID, userName, findings string) error {
+func (s *service) syncFindings(ctx context.Context, userName, findings string) error {
 	tools := s.buildTools()
 
-	s.logPhase("synchronization", userID, findings)
+	s.logPhase("synchronization", userName, findings)
 	messages := []ports.ChatMessage{
 		{Role: "system", Content: fmt.Sprintf(syncSystemPrompt, userName, userName, userName, userName)},
 		{Role: "user", Content: fmt.Sprintf("User: %s\nFinal findings to synchronize:\n%s", userName, findings)},
 	}
 	_, err := s.runAgenticLoop(ctx, messages, tools)
 	if err != nil {
-		logging.Printf("memory_consolidation: synchronization failed for %s: %v", anonymizeToken(userID), err)
+		logging.Printf("memory_consolidation: synchronization failed for %s: %v", anonymizeToken(userName), err)
 		return err
 	}
 
