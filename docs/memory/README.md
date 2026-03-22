@@ -37,7 +37,7 @@ For example:
 
 **What the agent extracts:**
 - Node: Person "Alice"
-- Node: Thing "Acme Corp" (or a company-typed fact)
+- Node: Thing "Acme Corp"
 - Node: Place "New York"
 - Node: Thing "Q4 planning"
 - Relationships: Alice works_at Acme Corp, Acme Corp located_in New York, Alice handles Q4 planning
