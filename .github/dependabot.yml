@@ -1,46 +1,59 @@
 version: 2
 updates:
+  # GitHub Actions - security only, grouped into a single PR
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "04:00"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
     labels: ["deps", "automation"]
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
+  # Frontend (npm) - root + /apps/frontend grouped into a single PR
   - package-ecosystem: "npm"
-    directory: "/"
+    directories:
+      - "/"
+      - "/apps/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "05:00"
-    open-pull-requests-limit: 10
-    labels: ["deps"]
-
-  - package-ecosystem: "npm"
-    directory: "/apps/frontend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "05:30"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     labels: ["deps", "frontend"]
+    groups:
+      frontend:
+        patterns:
+          - "*"
 
+  # Backend (Go modules) - grouped into a single PR
   - package-ecosystem: "gomod"
     directory: "/apps/backend"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:00"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
     labels: ["deps", "backend"]
+    groups:
+      backend:
+        patterns:
+          - "*"
 
+  # Docker - grouped into a single PR
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "06:30"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     labels: ["deps", "docker"]
+    groups:
+      docker:
+        patterns:
+          - "*"
