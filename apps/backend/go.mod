@@ -14,13 +14,15 @@ require (
 	github.com/hashicorp/vault/api v1.22.0
 	github.com/mark3labs/mcp-go v0.45.0
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
+	github.com/ollama/ollama v0.18.2
 	github.com/openai/openai-go/v3 v3.26.0
 	github.com/pion/opus v0.0.0-20260219180131-abe26becac00
 	github.com/prometheus/client_golang v1.23.2
-	github.com/slack-go/slack v0.19.0
+	github.com/slack-go/slack v0.20.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
+	github.com/toon-format/toon-go v0.0.0-20251202084852-7ca0e27c4e8c
 	github.com/twilio/twilio-go v1.30.2
 	github.com/vektah/gqlparser/v2 v2.5.32
 	github.com/wapikit/wapi.go v0.7.5
@@ -86,7 +88,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	github.com/ollama/ollama v0.18.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -108,7 +109,6 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	github.com/toon-format/toon-go v0.0.0-20251202084852-7ca0e27c4e8c // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
