@@ -93,7 +93,7 @@ description: >-
     <div class="bench__item">
       <div class="bench__num">0</div>
       <div class="bench__label">Runtime dependencies</div>
-      <div class="bench__vs"><span>single static binary</span></div>
+      <div class="bench__vs"><span>single static binary, no npm</span></div>
     </div>
   </div>
 </div>
@@ -109,16 +109,27 @@ description: >-
     <div class="problem">
       <p>
         OpenClaw had a moment — self-hosted AI agent, fast growth, lots of
-        attention. Then the security community looked at it: a CVE batch that
-        filled a full page on RedPacket, and a skills marketplace where 26% of
-        entries had at least one vulnerability. The memory system was a
-        MEMORY.md file. The scheduler was a heartbeat daemon waking up every
-        30 minutes. Auth was off by default, which is how 40,000 exposed
-        instances ended up indexed on Censys.
+        attention. Then the security community looked at it.
+        CVE-2026-25253 (CVSS 8.8): 1-click RCE via querystring injection in the
+        control UI. CVE-2026-25593, CVE-2026-24763, CVE-2026-25157,
+        CVE-2026-25475, and more filling a full page on RedPacket. Cisco
+        published a report calling personal AI agents like OpenClaw a security
+        nightmare. Microsoft's Security Blog recommended running it only inside
+        an isolated VM with a dedicated non-privileged account. By February
+        2026, 40,000 exposed instances were indexed on Censys — 63% of them
+        vulnerable to remote code execution.
       </p>
       <p>
-        OpenLobster is the fork that fixes the list. Not a rebranding — a
-        rewrite of every part that was broken.
+        Beyond security: the memory system was a MEMORY.md file. The scheduler
+        was a heartbeat daemon waking up every 30 minutes to read a checklist.
+        There was no concept of separate users — the docs listed
+        "only the main session writes to MEMORY.md" as a feature. The skills
+        marketplace shipped 26% of entries with at least one vulnerability.
+      </p>
+      <p>
+        OpenLobster is the fork that addresses the list. Not a rebranding — a
+        rewrite of every part that was broken, starting with the assumption that
+        security is not optional.
       </p>
     </div>
 
@@ -208,8 +219,10 @@ description: >-
       <h2 class="section__title">How OpenLobster positions in the landscape.</h2>
       <p class="section__subtitle">
         The Claw family and the broader self-hosted AI agent ecosystem share
-        overlapping goals but make very different trade-offs. These are the
-        dimensions that matter.
+        overlapping goals but make very different trade-offs. OpenClaw,
+        PicoClaw, and NanoClaw are direct architectural relatives. Open WebUI
+        and AnythingLLM represent the alternative approach: polished chat
+        interfaces with no channel integrations or autonomous scheduling.
       </p>
     </div>
 
@@ -372,7 +385,7 @@ description: >-
             <td>RAM at idle</td>
             <td class="hl"><span class="tag-y">~30 MB</span></td>
             <td>150 MB+</td>
-            <td><span class="tag-y">&lt;10 MB</span></td>
+            <td><span class="tag-y">&lt;10 MB core</span></td>
             <td>~50 MB</td>
             <td>~200 MB+</td>
             <td>~300 MB+</td>
