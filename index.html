@@ -1,399 +1,639 @@
 ---
 layout: default
-title: OpenLobster — Personal AI Assistant
+title: OpenLobster
 description: >-
-  Personal, self-hosted AI assistant — security-first, multi-user,
+  Personal, self-hosted AI assistant. Security-first, multi-user,
   single Go binary. The Claw family done right.
 ---
 
-<!-- ── Nav ─────────────────────────────────────────── -->
+<!-- ─── Navigation ────────────────────────────────────────────── -->
 <nav class="nav">
-  <div class="nav__inner">
-    <a href="#" class="nav__logo">
-      <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="OpenLobster logo">
+  <div class="wrap">
+    <a href="#" class="nav__brand">
+      <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="">
       OpenLobster
     </a>
     <ul class="nav__links">
-      <li><a href="#features">Features</a></li>
+      <li><a href="#features">What changed</a></li>
       <li><a href="#compare">Compare</a></li>
-      <li><a href="#quickstart">Quick start</a></li>
+      <li><a href="#community">Community</a></li>
       <li><a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener">Docs</a></li>
-      <li><a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener" class="nav__cta">GitHub</a></li>
+      <li><a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener" class="cta">GitHub</a></li>
     </ul>
   </div>
 </nav>
 
-<!-- ── Hero ─────────────────────────────────────────── -->
+<!-- ─── Hero ──────────────────────────────────────────────────── -->
 <section class="hero">
-  <div class="hero__badge">⚡ v0.2.0 — Security-first fork of OpenClaw</div>
+  <div class="wrap">
+    <div class="hero__copy">
+      <p class="hero__eyebrow">v0.2.0 — GPLv3</p>
 
-  <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="OpenLobster" class="hero__logo">
+      <h1 class="hero__title">
+        The AI assistant<br>
+        built to <strong>stay secure</strong>.
+      </h1>
 
-  <h1 class="hero__title">
-    The AI assistant<br>
-    the <span>Claw family needed</span>.
-  </h1>
+      <p class="hero__body">
+        OpenLobster is a personal, self-hosted AI agent. It runs as a single
+        Go binary, connects to the channels your users already use, and ships
+        with authentication on by default — unlike the project it replaces.
+      </p>
 
-  <p class="hero__sub">
-    Personal, self-hosted AI agent — runs where you want, connects to the
-    channels you use. Built on Go. Secure by default.
-  </p>
-
-  <div class="hero__actions">
-    <a href="#quickstart" class="btn btn--primary">Get started</a>
-    <a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener" class="btn btn--outline">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57
-                 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41
-                 -1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815
-                 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925
-                 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23
-                 .96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65
-                 .24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925
-                 .435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57
-                 A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
-      </svg>
-      View on GitHub
-    </a>
-  </div>
-
-  <div class="hero__stats">
-    <div>
-      <div class="hero__stat-value">200ms</div>
-      <div class="hero__stat-label">Startup time</div>
+      <div class="hero__actions">
+        <a href="#quickstart" class="btn btn--primary">Quick start</a>
+        <a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener" class="btn btn--ghost">
+          View source
+        </a>
+        <a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener" class="btn btn--ghost">
+          Read the docs
+        </a>
+      </div>
     </div>
-    <div>
-      <div class="hero__stat-value">30 MB</div>
-      <div class="hero__stat-label">RAM usage</div>
-    </div>
-    <div>
-      <div class="hero__stat-value">~66 MB</div>
-      <div class="hero__stat-label">Binary size</div>
-    </div>
-    <div>
-      <div class="hero__stat-value">5+</div>
-      <div class="hero__stat-label">Chat channels</div>
+
+    <div class="hero__terminal" aria-hidden="true">
+      <div class="hero__terminal-bar">
+        <div class="hero__terminal-dot" style="background:#3a3a3a"></div>
+        <div class="hero__terminal-dot" style="background:#3a3a3a"></div>
+        <div class="hero__terminal-dot" style="background:#3a3a3a"></div>
+        <span class="hero__terminal-title">openlobster — startup</span>
+      </div>
+      <pre><code><span class="tc">$ </span><span class="tk">./dist/openlobster</span>
+
+<span class="ts">INFO</span>  config loaded        backend=sqlite
+<span class="ts">INFO</span>  memory backend ready  type=neo4j
+<span class="ts">INFO</span>  scheduler started    jobs=0
+<span class="ts">INFO</span>  channels ready        telegram discord slack
+<span class="ts">INFO</span>  auth enforced         token=set
+<span class="ts">INFO</span>  server listening      addr=127.0.0.1:8080
+
+<span class="tc">startup: 200ms   ram: 30MB   binary: 66MB</span></code></pre>
     </div>
   </div>
 </section>
 
-<!-- ── Features ─────────────────────────────────────── -->
-<section id="features">
-  <div class="section">
-    <div class="section__label">What changed</div>
-    <h2 class="section__title">Every OpenClaw flaw, fixed.</h2>
-    <p class="section__desc">
-      OpenClaw had a moment. Then the security community looked at it.
-      OpenLobster is what you get when you take that feedback seriously.
-    </p>
+<!-- ─── Benchmarks ────────────────────────────────────────────── -->
+<div class="bench">
+  <div class="wrap">
+    <div class="bench__item">
+      <div class="bench__num">200ms</div>
+      <div class="bench__label">Startup time</div>
+      <div class="bench__vs">vs <span>2–3 s</span> for OpenClaw</div>
+    </div>
+    <div class="bench__item">
+      <div class="bench__num">30 MB</div>
+      <div class="bench__label">RAM at idle</div>
+      <div class="bench__vs">vs <span>150 MB+</span> for OpenClaw</div>
+    </div>
+    <div class="bench__item">
+      <div class="bench__num">66 MB</div>
+      <div class="bench__label">Binary size</div>
+      <div class="bench__vs">vs <span>200 MB+</span> node_modules</div>
+    </div>
+    <div class="bench__item">
+      <div class="bench__num">0</div>
+      <div class="bench__label">Runtime dependencies</div>
+      <div class="bench__vs"><span>single static binary</span></div>
+    </div>
+  </div>
+</div>
 
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="feature-card__icon ic--red">🔒</div>
-        <h3 class="feature-card__title">Security by default</h3>
-        <p class="feature-card__body">
-          Dashboard auth is <em>on</em> by default — not opt-in.
-          Config and secrets are encrypted on disk. API keys live in a
-          secrets backend (encrypted file or OpenBao), not in plain YAML.
-          No leaked <code>OPENLOBSTER_*</code> env vars to terminal tools.
+<!-- ─── What changed ──────────────────────────────────────────── -->
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="section__header">
+      <p class="section__label">What changed</p>
+      <h2 class="section__title">Every OpenClaw flaw, addressed.</h2>
+    </div>
+
+    <div class="problem">
+      <p>
+        OpenClaw had a moment — self-hosted AI agent, fast growth, lots of
+        attention. Then the security community looked at it: a CVE batch that
+        filled a full page on RedPacket, and a skills marketplace where 26% of
+        entries had at least one vulnerability. The memory system was a
+        MEMORY.md file. The scheduler was a heartbeat daemon waking up every
+        30 minutes. Auth was off by default, which is how 40,000 exposed
+        instances ended up indexed on Censys.
+      </p>
+      <p>
+        OpenLobster is the fork that fixes the list. Not a rebranding — a
+        rewrite of every part that was broken.
+      </p>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <p class="feature__num">01</p>
+        <h3 class="feature__title">Security by default</h3>
+        <p class="feature__body">
+          Dashboard auth is enforced before first launch, not an opt-in flag.
+          Config and secrets are encrypted on disk. API keys live in a secrets
+          backend — encrypted file or OpenBao — never in plain YAML. Env vars
+          with the <code>OPENLOBSTER_</code> prefix are never forwarded to
+          terminal tools.
         </p>
+        <span class="feature__tag">CVE-hardened</span>
       </div>
 
-      <div class="feature-card">
-        <div class="feature-card__icon ic--blue">🧠</div>
-        <h3 class="feature-card__title">Real memory system</h3>
-        <p class="feature-card__body">
-          MEMORY.md is not a memory system — it's a wiki. OpenLobster
-          uses a proper Neo4j graph database with typed nodes, edges, and
-          relationships. Browse and edit it live from the UI. File backend
-          available for local setups.
+      <div class="feature">
+        <p class="feature__num">02</p>
+        <h3 class="feature__title">Graph memory</h3>
+        <p class="feature__body">
+          MEMORY.md does not scale and does not reason about relationships.
+          OpenLobster uses Neo4j as a first-class graph database: typed nodes,
+          typed edges, and relationship weights the agent builds and updates as
+          it converses. A file-based GML backend is available for single-node
+          setups where running Neo4j is impractical.
         </p>
+        <span class="feature__tag">Neo4j or file backend</span>
       </div>
 
-      <div class="feature-card">
-        <div class="feature-card__icon ic--green">👥</div>
-        <h3 class="feature-card__title">True multi-user support</h3>
-        <p class="feature-card__body">
-          Each user on every channel is a first-class entity with their own
-          conversation history, tool permissions, and pairing flow. A
-          Telegram user and a Discord user can talk to the same agent
-          without stepping on each other.
+      <div class="feature">
+        <p class="feature__num">03</p>
+        <h3 class="feature__title">First-class multi-user</h3>
+        <p class="feature__body">
+          Each user on every channel is a separate entity: own conversation
+          history, own tool permissions, own pairing flow. A Telegram user and
+          a Discord user can talk to the same agent simultaneously without
+          sharing context or stepping on each other's sessions.
         </p>
+        <span class="feature__tag">Per-user permissions</span>
       </div>
 
-      <div class="feature-card">
-        <div class="feature-card__icon ic--orange">⏰</div>
-        <h3 class="feature-card__title">Proper task scheduler</h3>
-        <p class="feature-card__body">
-          The 30-minute heartbeat loop reading HEARTBEAT.md is gone.
-          Real cron expressions for recurring jobs, ISO 8601 for one-shot
-          tasks. Status, next-run times, and logs visible in the dashboard.
+      <div class="feature">
+        <p class="feature__num">04</p>
+        <h3 class="feature__title">Real task scheduler</h3>
+        <p class="feature__body">
+          The 30-minute heartbeat loop reading a HEARTBEAT.md checklist is
+          removed. Recurring jobs use cron expressions. One-shot tasks use ISO
+          8601 datetimes. Status, next-run time, and execution logs are visible
+          in the dashboard without touching a config file.
         </p>
+        <span class="feature__tag">Cron + ISO 8601</span>
       </div>
 
-      <div class="feature-card">
-        <div class="feature-card__icon ic--cyan">🔌</div>
-        <h3 class="feature-card__title">Full MCP integration</h3>
-        <p class="feature-card__body">
-          Connects to any Streamable HTTP MCP server, handles full
-          OAuth 2.1, lets you browse tools per server, and gives you a
-          per-user permission matrix. One-click marketplace for integrations.
+      <div class="feature">
+        <p class="feature__num">05</p>
+        <h3 class="feature__title">Full MCP integration</h3>
+        <p class="feature__body">
+          Any Streamable HTTP MCP server works: OAuth 2.1 is handled end-to-end,
+          tool browsing is per-server, and each user gets an explicit permission
+          matrix so you control exactly what they can invoke. A one-click
+          marketplace covers the most common integrations.
         </p>
+        <span class="feature__tag">OAuth 2.1 + per-user matrix</span>
       </div>
 
-      <div class="feature-card">
-        <div class="feature-card__icon ic--purple">⚡</div>
-        <h3 class="feature-card__title">Go backend, single binary</h3>
-        <p class="feature-card__body">
-          Rewrote the Node.js backend in Go. 200ms startup vs 2-3s.
-          30 MB RAM vs 150 MB+. Single static binary — no npm, no
-          Node version pinning, no <code>node_modules</code>. Runs on a
-          Raspberry Pi 3 or a $15 LicheeRV Nano.
+      <div class="feature">
+        <p class="feature__num">06</p>
+        <h3 class="feature__title">Go backend, single binary</h3>
+        <p class="feature__body">
+          The entire Node.js backend has been rewritten in Go with a GraphQL
+          API generated by gqlgen. The output is a single static binary with
+          no runtime dependency. 200 ms cold start. 30 MB RAM. Runs on a
+          Raspberry Pi 3, a VPS with 512 MB, or a $15 LicheeRV Nano.
         </p>
+        <span class="feature__tag">Go + gqlgen</span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Comparison ─────────────────────────────────── -->
-<div class="section--alt" id="compare">
-  <div class="section">
-    <div class="section__label">Comparison</div>
-    <h2 class="section__title">How it stacks up</h2>
-    <p class="section__desc">
-      The Claw family grew fast but cut corners on the things that matter.
-      Here is what OpenLobster actually delivers.
-    </p>
+<!-- ─── Comparison ────────────────────────────────────────────── -->
+<section class="section section--alt" id="compare">
+  <div class="wrap">
+    <div class="section__header">
+      <p class="section__label">Comparison</p>
+      <h2 class="section__title">How OpenLobster positions in the landscape.</h2>
+      <p class="section__subtitle">
+        The Claw family and the broader self-hosted AI agent ecosystem share
+        overlapping goals but make very different trade-offs. These are the
+        dimensions that matter.
+      </p>
+    </div>
 
-    <div class="compare-table-wrap">
-      <table class="compare-table">
+    <div class="table-wrap">
+      <table class="cmp">
         <thead>
           <tr>
-            <th>Feature</th>
-            <th class="col--highlight">OpenLobster</th>
+            <th>Capability</th>
+            <th class="hl">OpenLobster</th>
             <th>OpenClaw</th>
             <th>PicoClaw</th>
             <th>NanoClaw</th>
+            <th>Open WebUI</th>
+            <th>AnythingLLM</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>Auth enabled by default</td>
-            <td class="col--highlight"><span class="tag tag--yes">✓ Yes</span></td>
-            <td><span class="tag tag--no">✗ No</span></td>
-            <td><span class="tag tag--no">✗ No</span></td>
-            <td><span class="tag tag--na">— N/A</span></td>
+          <!-- Security -->
+          <tr class="section-row">
+            <td colspan="7">Security</td>
           </tr>
           <tr>
-            <td>Graph memory (Neo4j)</td>
-            <td class="col--highlight"><span class="tag tag--yes">✓ Yes</span></td>
-            <td><span class="tag tag--no">✗ MEMORY.md</span></td>
-            <td><span class="tag tag--no">✗ No</span></td>
-            <td><span class="tag tag--no">✗ No</span></td>
+            <td>Auth on by default</td>
+            <td class="hl"><span class="tag-y">Yes</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-p">Partial</span></td>
+            <td><span class="tag-p">Optional</span></td>
+            <td><span class="tag-p">Optional</span></td>
+          </tr>
+          <tr>
+            <td>Encrypted secrets on disk</td>
+            <td class="hl"><span class="tag-y">Yes</span></td>
+            <td><span class="tag-n">Plain YAML</span></td>
+            <td><span class="tag-n">Plain YAML</span></td>
+            <td><span class="tag-p">Container-scoped</span></td>
+            <td><span class="tag-n">Plain .env</span></td>
+            <td><span class="tag-n">Plain .env</span></td>
+          </tr>
+          <tr>
+            <td>No leaked env vars to agent</td>
+            <td class="hl"><span class="tag-y">Enforced</span></td>
+            <td><span class="tag-n">Not enforced</span></td>
+            <td><span class="tag-n">Not enforced</span></td>
+            <td><span class="tag-y">Container-isolated</span></td>
+            <td><span class="tag-n">Not enforced</span></td>
+            <td><span class="tag-n">Not enforced</span></td>
+          </tr>
+
+          <!-- Memory -->
+          <tr class="section-row">
+            <td colspan="7">Memory</td>
+          </tr>
+          <tr>
+            <td>Memory model</td>
+            <td class="hl"><span class="tag-y">Graph (Neo4j)</span></td>
+            <td><span class="tag-n">MEMORY.md file</span></td>
+            <td><span class="tag-n">JSONL file</span></td>
+            <td><span class="tag-p">Simple key-value</span></td>
+            <td><span class="tag-p">RAG / vector store</span></td>
+            <td><span class="tag-p">RAG / vector store</span></td>
+          </tr>
+          <tr>
+            <td>Browsable from UI</td>
+            <td class="hl"><span class="tag-y">Graph view</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-p">Partial</span></td>
+            <td><span class="tag-y">Yes</span></td>
+          </tr>
+          <tr>
+            <td>Concurrent session safety</td>
+            <td class="hl"><span class="tag-y">Graph transactions</span></td>
+            <td><span class="tag-n">Single writer only</span></td>
+            <td><span class="tag-n">File lock</span></td>
+            <td><span class="tag-y">Container isolation</span></td>
+            <td><span class="tag-y">DB-backed</span></td>
+            <td><span class="tag-y">DB-backed</span></td>
+          </tr>
+
+          <!-- Multi-user & channels -->
+          <tr class="section-row">
+            <td colspan="7">Users &amp; channels</td>
           </tr>
           <tr>
             <td>Multi-user support</td>
-            <td class="col--highlight"><span class="tag tag--yes">✓ Full</span></td>
-            <td><span class="tag tag--no">✗ Single</span></td>
-            <td><span class="tag tag--partial">~ Limited</span></td>
-            <td><span class="tag tag--no">✗ No</span></td>
+            <td class="hl"><span class="tag-y">Full, per-user history</span></td>
+            <td><span class="tag-n">Single user</span></td>
+            <td><span class="tag-n">Single user</span></td>
+            <td><span class="tag-p">Per-container</span></td>
+            <td><span class="tag-y">Workspace-level</span></td>
+            <td><span class="tag-y">Multi-workspace</span></td>
           </tr>
           <tr>
-            <td>Real task scheduler</td>
-            <td class="col--highlight"><span class="tag tag--yes">✓ Cron + ISO</span></td>
-            <td><span class="tag tag--no">✗ Heartbeat</span></td>
-            <td><span class="tag tag--partial">~ Basic</span></td>
-            <td><span class="tag tag--no">✗ No</span></td>
+            <td>Per-user tool permissions</td>
+            <td class="hl"><span class="tag-y">Matrix per user</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-p">Role-based</span></td>
           </tr>
           <tr>
-            <td>Full OAuth 2.1 MCP</td>
-            <td class="col--highlight"><span class="tag tag--yes">✓ Yes</span></td>
-            <td><span class="tag tag--partial">~ Demo only</span></td>
-            <td><span class="tag tag--no">✗ No</span></td>
-            <td><span class="tag tag--no">✗ No</span></td>
+            <td>Chat channel integrations</td>
+            <td class="hl"><span class="tag-y">Telegram, Discord, Slack, WhatsApp, SMS</span></td>
+            <td><span class="tag-p">Telegram, Discord</span></td>
+            <td><span class="tag-p">Discord, Matrix, IRC</span></td>
+            <td><span class="tag-p">Telegram, Slack, WhatsApp</span></td>
+            <td><span class="tag-n">Web UI only</span></td>
+            <td><span class="tag-n">Web UI only</span></td>
+          </tr>
+
+          <!-- Scheduling & MCP -->
+          <tr class="section-row">
+            <td colspan="7">Scheduling &amp; integrations</td>
           </tr>
           <tr>
-            <td>Encrypted secrets</td>
-            <td class="col--highlight"><span class="tag tag--yes">✓ Yes</span></td>
-            <td><span class="tag tag--no">✗ Plain YAML</span></td>
-            <td><span class="tag tag--no">✗ Plain YAML</span></td>
-            <td><span class="tag tag--na">— N/A</span></td>
+            <td>Task scheduler</td>
+            <td class="hl"><span class="tag-y">Cron + ISO 8601</span></td>
+            <td><span class="tag-n">30-min heartbeat</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-p">Basic interval</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-n">No</span></td>
+          </tr>
+          <tr>
+            <td>MCP support</td>
+            <td class="hl"><span class="tag-y">Full OAuth 2.1</span></td>
+            <td><span class="tag-p">Demo-level</span></td>
+            <td><span class="tag-y">Protocol compliant</span></td>
+            <td><span class="tag-n">No</span></td>
+            <td><span class="tag-p">Tools only</span></td>
+            <td><span class="tag-p">Tools only</span></td>
+          </tr>
+
+          <!-- Deployment -->
+          <tr class="section-row">
+            <td colspan="7">Deployment &amp; resource usage</td>
           </tr>
           <tr>
             <td>Backend language</td>
-            <td class="col--highlight"><span class="tag tag--yes">Go</span></td>
-            <td><span class="tag tag--partial">Node.js</span></td>
-            <td><span class="tag tag--partial">Node.js</span></td>
-            <td><span class="tag tag--partial">Python</span></td>
+            <td class="hl"><span class="tag-y">Go</span></td>
+            <td>Node.js</td>
+            <td><span class="tag-y">Go</span></td>
+            <td>Python</td>
+            <td>Python</td>
+            <td>Node.js</td>
           </tr>
           <tr>
-            <td>RAM usage (idle)</td>
-            <td class="col--highlight"><span class="tag tag--yes">~30 MB</span></td>
-            <td><span class="tag tag--no">150 MB+</span></td>
-            <td><span class="tag tag--partial">~80 MB</span></td>
-            <td><span class="tag tag--partial">~50 MB</span></td>
+            <td>Deployment unit</td>
+            <td class="hl"><span class="tag-y">Single static binary</span></td>
+            <td>npm + node_modules</td>
+            <td><span class="tag-y">Single binary</span></td>
+            <td>Docker containers</td>
+            <td>Docker / pip</td>
+            <td>Docker / npm</td>
           </tr>
           <tr>
-            <td>Startup time</td>
-            <td class="col--highlight"><span class="tag tag--yes">200ms</span></td>
-            <td><span class="tag tag--no">2-3s</span></td>
-            <td><span class="tag tag--no">~2s</span></td>
-            <td><span class="tag tag--partial">~1s</span></td>
+            <td>RAM at idle</td>
+            <td class="hl"><span class="tag-y">~30 MB</span></td>
+            <td>150 MB+</td>
+            <td><span class="tag-y">&lt;10 MB</span></td>
+            <td>~50 MB</td>
+            <td>~200 MB+</td>
+            <td>~300 MB+</td>
           </tr>
           <tr>
-            <td>Setup wizard UI</td>
-            <td class="col--highlight"><span class="tag tag--yes">✓ Yes</span></td>
-            <td><span class="tag tag--no">✗ Manual YAML</span></td>
-            <td><span class="tag tag--no">✗ Manual</span></td>
-            <td><span class="tag tag--no">✗ Manual</span></td>
+            <td>Setup wizard</td>
+            <td class="hl"><span class="tag-y">Yes — first launch</span></td>
+            <td><span class="tag-n">Manual YAML</span></td>
+            <td><span class="tag-n">Manual config</span></td>
+            <td><span class="tag-n">Manual config</span></td>
+            <td><span class="tag-y">Yes</span></td>
+            <td><span class="tag-y">Yes</span></td>
           </tr>
           <tr>
-            <td>Chat channels</td>
-            <td class="col--highlight"><span class="tag tag--yes">Telegram, Discord, Slack, WhatsApp, SMS</span></td>
-            <td><span class="tag tag--partial">Telegram, Discord</span></td>
-            <td><span class="tag tag--partial">Telegram</span></td>
-            <td><span class="tag tag--partial">CLI only</span></td>
+            <td>Runs on ARM / RISC-V</td>
+            <td class="hl"><span class="tag-y">Yes — static binary</span></td>
+            <td><span class="tag-n">Node.js required</span></td>
+            <td><span class="tag-y">Yes — RISC-V, MIPS</span></td>
+            <td><span class="tag-p">Container required</span></td>
+            <td><span class="tag-p">Docker only</span></td>
+            <td><span class="tag-p">Docker only</span></td>
           </tr>
         </tbody>
       </table>
     </div>
   </div>
-</div>
+</section>
 
-<!-- ── Quick start ────────────────────────────────── -->
-<section id="quickstart">
-  <div class="section">
-    <div class="section__label">Quick start</div>
-    <h2 class="section__title">Up in under a minute.</h2>
-    <p class="section__desc">
-      Single binary, no runtime dependencies. Works on Linux, macOS,
-      and anything that runs Go — including ARM boards.
-    </p>
+<!-- ─── Community ─────────────────────────────────────────────── -->
+<section class="section" id="community">
+  <div class="wrap">
+    <div class="section__header">
+      <p class="section__label">Community</p>
+      <h2 class="section__title">Where the project lives.</h2>
+      <p class="section__subtitle">
+        OpenLobster is a community-maintained fork. The conversation happens
+        across these channels — pick the one that fits your question.
+      </p>
+    </div>
+
+    <div class="community-grid">
+      <a href="https://github.com/Neirth/OpenLobster/discussions" target="_blank" rel="noopener" class="community-item">
+        <p class="community-item__label">GitHub Discussions</p>
+        <p class="community-item__title">Q&amp;A and proposals</p>
+        <p class="community-item__body">
+          Migration questions, feature proposals, architecture
+          discussions. Threaded, searchable, and permanent.
+        </p>
+        <span class="community-item__arrow">Open discussions &rarr;</span>
+      </a>
+
+      <a href="https://discord.gg/Qx9eJcZH5v" target="_blank" rel="noopener" class="community-item">
+        <p class="community-item__label">Discord</p>
+        <p class="community-item__title">Real-time chat</p>
+        <p class="community-item__body">
+          Quick help, configuration questions, sharing setups.
+          The fastest place to get an answer from another user or
+          a maintainer.
+        </p>
+        <span class="community-item__arrow">Join Discord &rarr;</span>
+      </a>
+
+      <a href="https://github.com/Neirth/OpenLobster/releases" target="_blank" rel="noopener" class="community-item">
+        <p class="community-item__label">GitHub Releases</p>
+        <p class="community-item__title">Changelog and binaries</p>
+        <p class="community-item__body">
+          Every release includes pre-built binaries for Linux and
+          macOS (amd64, arm64) and a full change log. No build
+          step required.
+        </p>
+        <span class="community-item__arrow">See releases &rarr;</span>
+      </a>
+
+      <a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener" class="community-item">
+        <p class="community-item__label">GitBook Docs</p>
+        <p class="community-item__title">Full documentation</p>
+        <p class="community-item__body">
+          Dashboard, chat, memory browser, MCP management, skills,
+          tasks, settings — every part of the interface documented
+          with screenshots.
+        </p>
+        <span class="community-item__arrow">Read the docs &rarr;</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Quick start ───────────────────────────────────────────── -->
+<section class="section section--alt" id="quickstart">
+  <div class="wrap">
+    <div class="section__header">
+      <p class="section__label">Quick start</p>
+      <h2 class="section__title">Running in under two minutes.</h2>
+      <p class="section__subtitle">
+        Build from source or pull the Docker image. No Node, no npm,
+        no node_modules. A single binary and a config file is all it takes.
+      </p>
+    </div>
 
     <div class="quickstart-grid">
       <div>
-        <div class="code-block">
-          <div class="code-block__header">
-            <div class="code-block__dot" style="background:#F44336"></div>
-            <div class="code-block__dot" style="background:#FF9800"></div>
-            <div class="code-block__dot" style="background:#4CAF50"></div>
-            <span class="code-block__title">build &amp; run</span>
+        <div class="codeblock">
+          <div class="codeblock__header">
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <span class="codeblock__title">build from source</span>
           </div>
-          <pre><code><span class="c"># Install deps &amp; build</span>
+          <pre><code><span class="tc"># Requires Go 1.22+ and pnpm</span>
 pnpm install
 pnpm build --filter=@openlobster/backend
 
-<span class="c"># Run — dashboard at :8080</span>
+<span class="tc"># Dashboard at http://127.0.0.1:8080</span>
 ./dist/openlobster</code></pre>
         </div>
 
-        <div class="code-block" style="margin-top:16px">
-          <div class="code-block__header">
-            <div class="code-block__dot" style="background:#F44336"></div>
-            <div class="code-block__dot" style="background:#FF9800"></div>
-            <div class="code-block__dot" style="background:#4CAF50"></div>
-            <span class="code-block__title">docker</span>
+        <div class="codeblock" style="margin-top:16px">
+          <div class="codeblock__header">
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <span class="codeblock__title">docker</span>
           </div>
           <pre><code>docker run -p 8080:8080 \
   -e OPENLOBSTER_GRAPHQL_HOST=0.0.0.0 \
-  -e OPENLOBSTER_GRAPHQL_AUTH_TOKEN=<span class="s">secret</span> \
+  -e OPENLOBSTER_GRAPHQL_AUTH_TOKEN=<span class="ts">your-secret</span> \
   -v ~/.openlobster/data:/app/data \
-  ghcr.io/neirth/openlobster/openlobster:<span class="k">latest</span></code></pre>
+  ghcr.io/neirth/openlobster/openlobster:<span class="tk">latest</span></code></pre>
         </div>
       </div>
 
       <div>
-        <div class="code-block">
-          <div class="code-block__header">
-            <div class="code-block__dot" style="background:#F44336"></div>
-            <div class="code-block__dot" style="background:#FF9800"></div>
-            <div class="code-block__dot" style="background:#4CAF50"></div>
-            <span class="code-block__title">minimal env config</span>
+        <div class="codeblock">
+          <div class="codeblock__header">
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <div class="codeblock__dot" style="background:#3a3a3a"></div>
+            <span class="codeblock__title">minimal environment variables</span>
           </div>
-          <pre><code><span class="c"># Agent</span>
-OPENLOBSTER_AGENT_NAME=<span class="s">my-agent</span>
+          <pre><code><span class="tc"># Agent identity</span>
+OPENLOBSTER_AGENT_NAME=<span class="ts">my-agent</span>
 
-<span class="c"># Database</span>
-OPENLOBSTER_DATABASE_DRIVER=<span class="k">sqlite</span>
-OPENLOBSTER_DATABASE_DSN=<span class="s">./data/openlobster.db</span>
+<span class="tc"># Database — SQLite for local use</span>
+OPENLOBSTER_DATABASE_DRIVER=<span class="tk">sqlite</span>
+OPENLOBSTER_DATABASE_DSN=<span class="ts">./data/openlobster.db</span>
 
-<span class="c"># Auth (set this before going public!)</span>
-OPENLOBSTER_GRAPHQL_AUTH_TOKEN=<span class="s">your-secret</span>
+<span class="tc"># Auth — set before exposing to the network</span>
+OPENLOBSTER_GRAPHQL_AUTH_TOKEN=<span class="ts">strong-secret</span>
 
-<span class="c"># AI provider — pick one</span>
-OPENLOBSTER_PROVIDERS_OLLAMA_ENDPOINT=<span class="s">http://localhost:11434</span>
-OPENLOBSTER_PROVIDERS_ANTHROPIC_API_KEY=<span class="s">sk-ant-…</span>
-OPENLOBSTER_PROVIDERS_OPENAI_API_KEY=<span class="s">sk-…</span></code></pre>
+<span class="tc"># Memory — file backend, no Neo4j required</span>
+OPENLOBSTER_MEMORY_BACKEND=<span class="tk">file</span>
+OPENLOBSTER_MEMORY_FILE_PATH=<span class="ts">./data/memory</span>
+
+<span class="tc"># AI provider — pick one</span>
+OPENLOBSTER_PROVIDERS_OLLAMA_ENDPOINT=<span class="ts">http://localhost:11434</span>
+<span class="tc"># or</span>
+OPENLOBSTER_PROVIDERS_ANTHROPIC_API_KEY=<span class="ts">sk-ant-…</span>
+<span class="tc"># or</span>
+OPENLOBSTER_PROVIDERS_OPENAI_API_KEY=<span class="ts">sk-…</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Stack ──────────────────────────────────────── -->
-<div class="section--alt">
-  <div class="section">
-    <div class="section__label">Stack</div>
-    <h2 class="section__title">Built to last.</h2>
-    <p class="section__desc">No bloated runtimes. Boring, reliable choices that actually work at the edge.</p>
-
-    <div class="stack-grid">
-      <div class="stack-item">
-        <span class="stack-item__layer">Frontend</span>
-        <span class="stack-item__tech">SolidJS + Vite, vanilla CSS</span>
-      </div>
-      <div class="stack-item">
-        <span class="stack-item__layer">Backend</span>
-        <span class="stack-item__tech">Go, GraphQL (gqlgen)</span>
-      </div>
-      <div class="stack-item">
-        <span class="stack-item__layer">Database</span>
-        <span class="stack-item__tech">SQLite / PostgreSQL / MySQL</span>
-      </div>
-      <div class="stack-item">
-        <span class="stack-item__layer">Memory</span>
-        <span class="stack-item__tech">File (GML) or Neo4j</span>
-      </div>
-      <div class="stack-item">
-        <span class="stack-item__layer">Secrets</span>
-        <span class="stack-item__tech">Encrypted file or OpenBao</span>
-      </div>
-      <div class="stack-item">
-        <span class="stack-item__layer">Channels</span>
-        <span class="stack-item__tech">Telegram, Discord, WhatsApp, Slack, Twilio SMS</span>
-      </div>
-      <div class="stack-item">
-        <span class="stack-item__layer">AI</span>
-        <span class="stack-item__tech">OpenAI, Anthropic, Ollama, OpenRouter, Docker Model Runner</span>
-      </div>
-      <div class="stack-item">
-        <span class="stack-item__layer">Deploy</span>
-        <span class="stack-item__tech">Single static binary, Docker (distroless)</span>
-      </div>
+<!-- ─── Stack ─────────────────────────────────────────────────── -->
+<section class="section">
+  <div class="wrap">
+    <div class="section__header">
+      <p class="section__label">Stack</p>
+      <h2 class="section__title">Boring technology, deliberately.</h2>
+      <p class="section__subtitle">
+        No framework churn. Each choice was made to reduce operational overhead
+        and keep the binary small enough to run at the edge.
+      </p>
     </div>
+
+    <table class="stack-table">
+      <tbody>
+        <tr>
+          <td>Frontend</td>
+          <td>SolidJS + Vite, vanilla CSS — no component framework</td>
+        </tr>
+        <tr>
+          <td>Backend</td>
+          <td>Go, GraphQL API generated by gqlgen — single static binary</td>
+        </tr>
+        <tr>
+          <td>Database</td>
+          <td>SQLite (default), PostgreSQL, or MySQL</td>
+        </tr>
+        <tr>
+          <td>Memory</td>
+          <td>File backend (GML) for local use, or Neo4j for multi-instance</td>
+        </tr>
+        <tr>
+          <td>Secrets</td>
+          <td>Encrypted file backend, or OpenBao for production</td>
+        </tr>
+        <tr>
+          <td>Channels</td>
+          <td>Telegram, Discord, WhatsApp Business, Slack, Twilio SMS</td>
+        </tr>
+        <tr>
+          <td>AI providers</td>
+          <td>OpenAI, Anthropic, Ollama, OpenRouter, Docker Model Runner, any OpenAI-compatible endpoint</td>
+        </tr>
+        <tr>
+          <td>License</td>
+          <td>GNU General Public License v3.0</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-</div>
+</section>
 
-<!-- ── Footer ─────────────────────────────────────── -->
+<!-- ─── Footer ────────────────────────────────────────────────── -->
 <footer class="footer">
-  <div class="footer__inner">
-    <div class="footer__logo">
-      <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="OpenLobster">
-      OpenLobster
+  <div class="wrap">
+    <div class="footer__inner">
+      <div>
+        <a href="#" class="footer__brand">
+          <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="">
+          OpenLobster
+        </a>
+        <p class="footer__tagline">
+          Personal, self-hosted AI assistant. Runs where you want,
+          connects to the channels you use.
+        </p>
+      </div>
+
+      <div>
+        <p class="footer__col-title">Project</p>
+        <ul class="footer__links">
+          <li><a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/releases" target="_blank" rel="noopener">Releases</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/issues" target="_blank" rel="noopener">Issues</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="footer__col-title">Resources</p>
+        <ul class="footer__links">
+          <li><a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener">Documentation</a></li>
+          <li><a href="https://discord.gg/Qx9eJcZH5v" target="_blank" rel="noopener">Discord</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/discussions/44" target="_blank" rel="noopener">Migration from OpenClaw</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md" target="_blank" rel="noopener">License (GPLv3)</a></li>
+        </ul>
+      </div>
     </div>
 
-    <ul class="footer__links">
-      <li><a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener">GitHub</a></li>
-      <li><a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener">Docs</a></li>
-      <li><a href="https://discord.gg/Qx9eJcZH5v" target="_blank" rel="noopener">Discord</a></li>
-      <li><a href="https://github.com/Neirth/OpenLobster/discussions" target="_blank" rel="noopener">Discussions</a></li>
-      <li><a href="https://github.com/Neirth/OpenLobster/issues" target="_blank" rel="noopener">Issues</a></li>
-      <li><a href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md" target="_blank" rel="noopener">GPLv3 License</a></li>
-    </ul>
-
-    <p class="footer__copy">
-      OpenLobster is an independent open-source project — not affiliated with Anthropic.<br>
-      Released under the <a href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md">GNU General Public License v3.0</a>.
-    </p>
+    <div class="footer__bottom">
+      <p class="footer__copy">
+        OpenLobster is an independent open-source project, not affiliated with Anthropic.
+      </p>
+      <p class="footer__copy">
+        Released under the
+        <a href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md" target="_blank" rel="noopener">GNU General Public License v3.0</a>.
+      </p>
+    </div>
   </div>
 </footer>
