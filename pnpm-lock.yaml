@@ -58,8 +58,8 @@ importers:
         specifier: ^2.2.1
         version: 2.2.1(solid-js@1.9.11)
       '@solidjs/router':
-        specifier: ^0.15.4
-        version: 0.15.4(solid-js@1.9.11)
+        specifier: ^0.16.1
+        version: 0.16.1(solid-js@1.9.11)
       '@tanstack/solid-query':
         specifier: ^5.90.26
         version: 5.90.26(solid-js@1.9.11)
@@ -93,7 +93,7 @@ importers:
         version: 1.58.2
       '@solidjs/testing-library':
         specifier: ^0.8.10
-        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.11))(solid-js@1.9.11)
+        version: 0.8.10(@solidjs/router@0.16.1(solid-js@1.9.11))(solid-js@1.9.11)
       '@testing-library/user-event':
         specifier: ^14.6.1
         version: 14.6.1(@testing-library/dom@10.4.1)
@@ -1423,8 +1423,8 @@ packages:
     peerDependencies:
       solid-js: ^1.6.12
 
-  '@solidjs/router@0.15.4':
-    resolution: {integrity: sha512-WOpgg9a9T638cR+5FGbFi/IV4l2FpmBs1GpIMSPa0Ce9vyJN7Wts+X2PqMf9IYn0zUj2MlSJtm1gp7/HI/n5TQ==}
+  '@solidjs/router@0.16.1':
+    resolution: {integrity: sha512-IhyjedgC6LRpw/8CPGGI89FrV+r0xTHzOl2c4CRyzYQ1bLepJxbVI1LLKvsavMWY5TRBRacV7hAeOhuTXkjiqg==}
     peerDependencies:
       solid-js: ^1.8.6
 
@@ -4462,16 +4462,16 @@ snapshots:
     dependencies:
       solid-js: 1.9.11
 
-  '@solidjs/router@0.15.4(solid-js@1.9.11)':
+  '@solidjs/router@0.16.1(solid-js@1.9.11)':
     dependencies:
       solid-js: 1.9.11
 
-  '@solidjs/testing-library@0.8.10(@solidjs/router@0.15.4(solid-js@1.9.11))(solid-js@1.9.11)':
+  '@solidjs/testing-library@0.8.10(@solidjs/router@0.16.1(solid-js@1.9.11))(solid-js@1.9.11)':
     dependencies:
       '@testing-library/dom': 10.4.1
       solid-js: 1.9.11
     optionalDependencies:
-      '@solidjs/router': 0.15.4(solid-js@1.9.11)
+      '@solidjs/router': 0.16.1(solid-js@1.9.11)
 
   '@standard-schema/spec@1.1.0': {}
 
