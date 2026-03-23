@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -46,6 +47,16 @@ func NewOpenBAOProvider(address, token, mount string) (*OpenBAOProvider, error) 
 	cfg := vault.DefaultConfig()
 	cfg.Address = address
 	cfg.HttpClient.Timeout = openbaoTimeout
+	// Disable HTTP keep-alives for test environments where httptest.Server
+	// Close() can block waiting for active connections. Disabling keep-alive
+	// makes individual requests close connections promptly.
+	if cfg.HttpClient.Transport == nil {
+		cfg.HttpClient.Transport = &http.Transport{DisableKeepAlives: true}
+	} else {
+		if tr, ok := cfg.HttpClient.Transport.(*http.Transport); ok {
+			tr.DisableKeepAlives = true
+		}
+	}
 
 	client, err := vault.NewClient(cfg)
 	if err != nil {

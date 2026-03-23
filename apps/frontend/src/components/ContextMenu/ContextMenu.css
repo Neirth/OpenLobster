@@ -1,0 +1,63 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+.ctx-trigger {
+  display: contents; /* transparent wrapper — does not affect layout */
+}
+
+.ctx-menu {
+  /* position/z-index handled by the browser's top layer (popover API) */
+  position: fixed;
+  inset: unset; /* override the popover UA default that centres the element */
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  min-width: 160px;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  /* --color-bg-overlay is the canonical token for dropdowns/menus */
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.ctx-menu:popover-open {
+  /* Scale from top-left so the menu grows from where the cursor clicked */
+  transform-origin: top left;
+  animation: ctx-in var(--duration-micro) var(--ease-out);
+}
+
+@keyframes ctx-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.ctx-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  height: 32px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--duration-micro) var(--ease-out);
+}
+
+.ctx-menu__item:hover {
+  background: var(--color-bg-selected);
+}
+
+.ctx-menu__item--danger {
+  color: var(--color-error);
+}
+
+.ctx-menu__item--danger:hover {
+  background: var(--color-error-bg);
+}
+
+.ctx-menu__icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  opacity: 0.75;
+}

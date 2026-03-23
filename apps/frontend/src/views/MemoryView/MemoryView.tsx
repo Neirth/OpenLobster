@@ -20,6 +20,7 @@ import { UPDATE_MEMORY_NODE_MUTATION, DELETE_MEMORY_NODE_MUTATION } from '@openl
 import { client } from '../../graphql/client';
 import AppShell from '../../components/AppShell';
 import Modal from '../../components/Modal';
+import ContextMenu from '../../components/ContextMenu/ContextMenu';
 import { t } from '../../App';
 import GraphVisualization from '../../components/GraphVisualization';
 import './MemoryView.css';
@@ -206,15 +207,20 @@ const MemoryView: Component = () => {
                   <ul class="memory-list">
                     <For each={nodes}>
                       {(node) => (
-                        <li class="memory-item" classList={{ 'memory-item--active': selectedNode()?.id === node.id }} onClick={() => setSelectedNode(node)}>
-                          <div class="memory-item-avatar">
-                            <span class="avatar-placeholder">{(node.label ?? '?').charAt(0)}</span>
-                          </div>
-                          <div class="memory-item-info">
-                            <span class="memory-item-name">{node.label ?? ''}</span>
-                            <span class="memory-item-role">{node.type ?? ''}</span>
-                          </div>
-                        </li>
+                        <ContextMenu items={[
+                          { label: t('memory.editNode'), icon: 'edit', onClick: () => { setSelectedNode(node); openEditModal(); } },
+                          { label: t('memory.deleteNode'), icon: 'delete', danger: true, onClick: () => { setSelectedNode(node); setDeleteModalOpen(true); } },
+                        ]}>
+                          <li class="memory-item" classList={{ 'memory-item--active': selectedNode()?.id === node.id }} onClick={() => setSelectedNode(node)}>
+                            <div class="memory-item-avatar">
+                              <span class="avatar-placeholder">{(node.label ?? '?').charAt(0)}</span>
+                            </div>
+                            <div class="memory-item-info">
+                              <span class="memory-item-name">{node.label ?? ''}</span>
+                              <span class="memory-item-role">{node.type ?? ''}</span>
+                            </div>
+                          </li>
+                        </ContextMenu>
                       )}
                     </For>
                   </ul>
