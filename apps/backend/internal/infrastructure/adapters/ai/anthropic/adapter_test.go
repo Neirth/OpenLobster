@@ -397,6 +397,114 @@ func TestAdapter_ChatWithAudio_ForwardsToChat(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// sanitizeMessages
+// ---------------------------------------------------------------------------
+
+func TestSanitizeMessages_PassesNonToolMessages(t *testing.T) {
+	msgs := []ports.ChatMessage{
+		{Role: "system", Content: "You are helpful."},
+		{Role: "user", Content: "Hi"},
+		{Role: "assistant", Content: "Hello!"},
+	}
+	out := sanitizeMessages(msgs)
+	assert.Len(t, out, 3)
+}
+
+func TestSanitizeMessages_DropsToolMessageWithEmptyID(t *testing.T) {
+	msgs := []ports.ChatMessage{
+		{
+			Role: "assistant",
+			ToolCalls: []ports.ToolCall{
+				{ID: "toolu_abc", Type: "function", Function: ports.FunctionCall{Name: "my_tool", Arguments: "{}"}},
+			},
+		},
+		{Role: "tool", ToolCallID: "", Content: "result"},
+	}
+	out := sanitizeMessages(msgs)
+	// Only the assistant message should survive.
+	require.Len(t, out, 1)
+	assert.Equal(t, "assistant", out[0].Role)
+}
+
+func TestSanitizeMessages_DropsOrphanToolMessage(t *testing.T) {
+	// tool message references an ID that no assistant message declared.
+	msgs := []ports.ChatMessage{
+		{Role: "assistant", Content: "sure"},
+		{Role: "tool", ToolCallID: "toolu_ghost", Content: "orphan result"},
+	}
+	out := sanitizeMessages(msgs)
+	require.Len(t, out, 1)
+	assert.Equal(t, "assistant", out[0].Role)
+}
+
+func TestSanitizeMessages_KeepsValidToolMessage(t *testing.T) {
+	msgs := []ports.ChatMessage{
+		{
+			Role: "assistant",
+			ToolCalls: []ports.ToolCall{
+				{ID: "toolu_123", Type: "function", Function: ports.FunctionCall{Name: "my_tool", Arguments: "{}"}},
+			},
+		},
+		{Role: "tool", ToolCallID: "toolu_123", Content: "ok"},
+	}
+	out := sanitizeMessages(msgs)
+	assert.Len(t, out, 2)
+	assert.Equal(t, "tool", out[1].Role)
+	assert.Equal(t, "toolu_123", out[1].ToolCallID)
+}
+
+func TestSanitizeMessages_MultipleToolCallsAllValid(t *testing.T) {
+	msgs := []ports.ChatMessage{
+		{
+			Role: "assistant",
+			ToolCalls: []ports.ToolCall{
+				{ID: "tc_1", Type: "function", Function: ports.FunctionCall{Name: "tool_a", Arguments: "{}"}},
+				{ID: "tc_2", Type: "function", Function: ports.FunctionCall{Name: "tool_b", Arguments: "{}"}},
+			},
+		},
+		{Role: "tool", ToolCallID: "tc_1", Content: "result_a"},
+		{Role: "tool", ToolCallID: "tc_2", Content: "result_b"},
+	}
+	out := sanitizeMessages(msgs)
+	assert.Len(t, out, 3)
+}
+
+func TestSanitizeMessages_DropsToolMessageBeforeAssistantDeclaration(t *testing.T) {
+	// A tool message appears BEFORE the assistant that declares the matching
+	// tool call.  It must be treated as orphan (no preceding declaration).
+	msgs := []ports.ChatMessage{
+		{Role: "tool", ToolCallID: "tc_1", Content: "early result"},
+		{
+			Role: "assistant",
+			ToolCalls: []ports.ToolCall{
+				{ID: "tc_1", Type: "function", Function: ports.FunctionCall{Name: "tool_a", Arguments: "{}"}},
+			},
+		},
+	}
+	out := sanitizeMessages(msgs)
+	require.Len(t, out, 1)
+	assert.Equal(t, "assistant", out[0].Role)
+}
+
+func TestSanitizeMessages_MixedValidAndOrphan(t *testing.T) {
+	msgs := []ports.ChatMessage{
+		{
+			Role: "assistant",
+			ToolCalls: []ports.ToolCall{
+				{ID: "tc_good", Type: "function", Function: ports.FunctionCall{Name: "tool_a", Arguments: "{}"}},
+			},
+		},
+		{Role: "tool", ToolCallID: "tc_good", Content: "ok"},
+		{Role: "tool", ToolCallID: "tc_bad", Content: "orphan"},
+		{Role: "tool", ToolCallID: "", Content: "empty id"},
+	}
+	out := sanitizeMessages(msgs)
+	// assistant + one valid tool = 2
+	require.Len(t, out, 2)
+	assert.Equal(t, "tc_good", out[1].ToolCallID)
+}
+
+// ---------------------------------------------------------------------------
 // NewAdapter helpers — defaultMaxTokens guard
 // ---------------------------------------------------------------------------
 

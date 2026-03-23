@@ -26,6 +26,12 @@ type Message struct {
 	Role           string                 `json:"role"`
 	ConversationID string                 `json:"conversation_id"`
 	IsValidated    bool                   `json:"is_validated"`
+	// ToolCallID is set on role=tool messages to link back to the originating
+	// tool_use block in the preceding assistant message.
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	// ToolCallsRaw is a JSON-encoded []ports.ToolCall, set on role=assistant
+	// messages that contain tool_use blocks.
+	ToolCallsRaw string `json:"tool_calls_raw,omitempty"`
 }
 
 type AudioContent struct {

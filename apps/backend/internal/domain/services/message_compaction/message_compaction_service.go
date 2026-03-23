@@ -4,6 +4,7 @@ package message_compaction
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -131,7 +132,14 @@ func (c *Service) BuildMessages(ctx context.Context, conversationID string, syst
 		if m.Role == "compaction" {
 			continue
 		}
-		messages = append(messages, ports.ChatMessage{Role: m.Role, Content: m.Content})
+		chatMsg := ports.ChatMessage{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID}
+		if m.ToolCallsRaw != "" {
+			var toolCalls []ports.ToolCall
+			if jsonErr := json.Unmarshal([]byte(m.ToolCallsRaw), &toolCalls); jsonErr == nil {
+				chatMsg.ToolCalls = toolCalls
+			}
+		}
+		messages = append(messages, chatMsg)
 	}
 
 	return messages, nil
