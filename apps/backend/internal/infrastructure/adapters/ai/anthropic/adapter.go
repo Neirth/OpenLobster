@@ -100,7 +100,7 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 		model = a.model
 	}
 
-	systemBlocks, messages := convertMessages(req.Messages)
+	systemBlocks, messages := convertMessages(sanitizeMessages(req.Messages))
 
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),
@@ -230,6 +230,40 @@ func convertUserBlocks(m ports.ChatMessage) []anthropic.ContentBlockParamUnion {
 }
 
 // convertMessages splits system-role messages out into TextBlockParam slices
+// sanitizeMessages drops tool-role messages whose ToolCallID is empty or does
+// not correspond to a tool_use block in any preceding assistant message.
+// This is a defensive guard against corrupted history (e.g. messages loaded
+// from a database that did not persist tool-call metadata) so that the
+// Anthropic API never receives a tool_use_id that fails its
+// ^[a-zA-Z0-9_-]+$ validation.
+func sanitizeMessages(msgs []ports.ChatMessage) []ports.ChatMessage {
+	// Single forward pass: only IDs declared by a preceding assistant message
+	// are valid for a subsequent tool message.
+	validIDs := make(map[string]bool)
+	out := make([]ports.ChatMessage, 0, len(msgs))
+	for _, m := range msgs {
+		if m.Role == "tool" {
+			if m.ToolCallID == "" {
+				log.Printf("anthropic: dropping tool message with empty tool_call_id")
+				continue
+			}
+			if !validIDs[m.ToolCallID] {
+				log.Printf("anthropic: dropping orphan tool message (tool_call_id=%q)", m.ToolCallID)
+				continue
+			}
+		}
+		// Register any tool-call IDs this message declares so that subsequent
+		// tool messages can be validated against them.
+		for _, tc := range m.ToolCalls {
+			if tc.ID != "" {
+				validIDs[tc.ID] = true
+			}
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
 // and converts the remaining messages to []anthropic.MessageParam.
 //
 // Consecutive messages with the same role are preserved as-is because the

@@ -12,6 +12,126 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// ─── buildToolMetadata / parseToolMetadata ────────────────────────────────────
+
+func TestBuildParseToolMetadata_Empty(t *testing.T) {
+	result := buildToolMetadata("", "")
+	assert.Equal(t, "", result)
+}
+
+func TestBuildParseToolMetadata_ToolCallID(t *testing.T) {
+	raw := buildToolMetadata("toolu_abc", "")
+	assert.NotEmpty(t, raw)
+	id, calls := parseToolMetadata(raw)
+	assert.Equal(t, "toolu_abc", id)
+	assert.Equal(t, "", calls)
+}
+
+func TestBuildParseToolMetadata_ToolCallsRaw(t *testing.T) {
+	callsJSON := `[{"id":"toolu_abc","type":"function","function":{"name":"my_tool","arguments":"{}"}}]`
+	raw := buildToolMetadata("", callsJSON)
+	assert.NotEmpty(t, raw)
+	id, calls := parseToolMetadata(raw)
+	assert.Equal(t, "", id)
+	assert.Equal(t, callsJSON, calls)
+}
+
+func TestBuildParseToolMetadata_Both(t *testing.T) {
+	callsJSON := `[{"id":"toolu_xyz","type":"function","function":{"name":"tool","arguments":"{}"}}]`
+	raw := buildToolMetadata("toolu_xyz", callsJSON)
+	id, calls := parseToolMetadata(raw)
+	assert.Equal(t, "toolu_xyz", id)
+	assert.Equal(t, callsJSON, calls)
+}
+
+func TestParseToolMetadata_InvalidJSON(t *testing.T) {
+	id, calls := parseToolMetadata("{not valid json")
+	assert.Equal(t, "", id)
+	assert.Equal(t, "", calls)
+}
+
+// ─── Tool metadata DB round-trip ──────────────────────────────────────────────
+
+func TestRepository_Save_ToolMessagePreservesToolCallID(t *testing.T) {
+	gormDB, ctx := setupMessageDB(t)
+	repo := NewMessageRepository(gormDB)
+
+	convID := uuid.New().String()
+	require.NoError(t, repo.Save(ctx, &models.Message{
+		ID:             uuid.New(),
+		ConversationID: convID,
+		Role:           "tool",
+		Content:        "result",
+		ToolCallID:     "toolu_persist_123",
+		Timestamp:      time.Now().UTC(),
+	}))
+
+	msgs, err := repo.GetByConversation(ctx, convID, 10)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "toolu_persist_123", msgs[0].ToolCallID)
+}
+
+func TestRepository_Save_AssistantMessagePreservesToolCallsRaw(t *testing.T) {
+	gormDB, ctx := setupMessageDB(t)
+	repo := NewMessageRepository(gormDB)
+
+	callsJSON := `[{"id":"toolu_abc","type":"function","function":{"name":"my_tool","arguments":"{}"}}]`
+	convID := uuid.New().String()
+	require.NoError(t, repo.Save(ctx, &models.Message{
+		ID:             uuid.New(),
+		ConversationID: convID,
+		Role:           "assistant",
+		Content:        "",
+		ToolCallsRaw:   callsJSON,
+		Timestamp:      time.Now().UTC(),
+	}))
+
+	msgs, err := repo.GetByConversation(ctx, convID, 10)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, callsJSON, msgs[0].ToolCallsRaw)
+}
+
+func TestRepository_GetSinceLastCompaction_PreservesToolMetadata(t *testing.T) {
+	gormDB, ctx := setupMessageDB(t)
+	repo := NewMessageRepository(gormDB)
+
+	callsJSON := `[{"id":"toolu_xyz","type":"function","function":{"name":"tool","arguments":"{}"}}]`
+	convID := uuid.New().String()
+	t1 := time.Now().UTC()
+	t2 := t1.Add(time.Second)
+
+	// assistant message with ToolCalls
+	require.NoError(t, repo.Save(ctx, &models.Message{
+		ID:             uuid.New(),
+		ConversationID: convID,
+		Role:           "assistant",
+		Content:        "",
+		ToolCallsRaw:   callsJSON,
+		Timestamp:      t1,
+	}))
+	// tool result message
+	require.NoError(t, repo.Save(ctx, &models.Message{
+		ID:             uuid.New(),
+		ConversationID: convID,
+		Role:           "tool",
+		Content:        "ok",
+		ToolCallID:     "toolu_xyz",
+		Timestamp:      t2,
+	}))
+
+	msgs, err := repo.GetSinceLastCompaction(ctx, convID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+
+	assistantMsg := msgs[0]
+	toolMsg := msgs[1]
+
+	assert.Equal(t, callsJSON, assistantMsg.ToolCallsRaw, "ToolCallsRaw must survive DB round-trip")
+	assert.Equal(t, "toolu_xyz", toolMsg.ToolCallID, "ToolCallID must survive DB round-trip")
+}
+
 // ─── GetByConversationPaged ───────────────────────────────────────────────────
 
 func TestRepository_GetByConversationPaged_NilBefore(t *testing.T) {

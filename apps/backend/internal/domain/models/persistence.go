@@ -94,6 +94,12 @@ type MessageModel struct {
 	IsCompaction   bool      `gorm:"column:is_compaction;default:false"`
 	IsValidated    bool      `gorm:"column:is_validated;default:false;index:idx_msg_validation"`
 	CreatedAt      time.Time `gorm:"column:created_at;autoCreateTime:false;index:idx_msg_conv_created,priority:2;index:idx_msg_validation,priority:2"`
+	// ToolMetadata stores tool-call context as a JSON blob so it survives
+	// round-trips through the database.  For role=tool messages the blob
+	// contains {"tool_call_id":"…"}; for role=assistant messages that include
+	// tool_use blocks it contains {"tool_calls_raw":"…"} (a JSON-encoded
+	// []ports.ToolCall).  The column is nullable/empty for all other roles.
+	ToolMetadata string `gorm:"column:tool_metadata"`
 	// Attachments associated with this message (metadata only)
 	Attachments []MessageAttachmentModel `gorm:"foreignKey:MessageID;references:ID;constraint:OnDelete:CASCADE,OnUpdate:CASCADE;" json:"attachments,omitempty"`
 
