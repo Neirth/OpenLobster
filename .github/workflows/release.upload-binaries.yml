@@ -56,8 +56,8 @@ jobs:
           mv dist/daemon/openlobster-linux-amd64   dist/daemon/openlobster-${VERSION}-linux-amd64
 
       - name: Upload binaries to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag || github.event.release.tag_name }}
-          files: |
-            dist/daemon/openlobster-*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          gh release upload "${VERSION}" dist/daemon/openlobster-* --clobber
