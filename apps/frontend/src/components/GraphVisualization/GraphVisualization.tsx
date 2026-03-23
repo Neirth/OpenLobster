@@ -207,6 +207,17 @@ export default function GraphVisualization(props: GraphVisualizationProps) {
 
     // Load initial data
     updateGraphData();
+
+    // Expose a test helper to trigger a node tap directly from tests. This is
+    // enabled only when the test harness sets `globalThis.__TEST__ = true` so
+    // it does not affect production behavior.
+    if ((globalThis as { __TEST__?: boolean }).__TEST__) {
+      (globalThis as { __triggerGraphTap?: (id: string) => void }).__triggerGraphTap = (id: string) => {
+        const triggerArg = { target: { data: () => ({ id }) } } as unknown as object;
+        // pass a plain object as the event-like argument; cast via unknown->never to avoid `any`
+        cy?.trigger('tap', triggerArg as unknown as never);
+      };
+    }
   });
 
   // Helper to update graph data

@@ -97,19 +97,27 @@ func (a *AudioAdapter) decodeWav(data []byte) (*AudioStream, error) {
 	reader := bytes.NewReader(data)
 
 	var riff [4]byte
-	if _, err := reader.Read(riff[:]); err != nil {
-		return nil, fmt.Errorf("not a valid WAV file")
+	if _, err := io.ReadFull(reader, riff[:]); err != nil {
+		return nil, fmt.Errorf("not a valid WAV file: %w", err)
 	}
 	if string(riff[:]) != "RIFF" {
 		return nil, fmt.Errorf("not a valid RIFF file")
 	}
 
-	var wave [4]byte
-	if _, err := reader.Read(wave[:]); err != nil {
-		return nil, fmt.Errorf("not a valid WAV file")
+	// After 'RIFF' comes a 4-byte file size, then the 'WAVE' identifier.
+	var fileSizeBytes [4]byte
+	if _, err := io.ReadFull(reader, fileSizeBytes[:]); err != nil {
+		return nil, fmt.Errorf("not a valid WAV file: %w", err)
 	}
+
+	var wave [4]byte
+	if _, err := io.ReadFull(reader, wave[:]); err != nil {
+		return nil, fmt.Errorf("not a valid WAV file: %w", err)
+	}
+	// Debugging: print out what we actually read for the WAVE identifier.
+	// This helps diagnose rare partial-read issues in test environments.
 	if string(wave[:]) != "WAVE" {
-		return nil, fmt.Errorf("not a valid WAVE file")
+		return nil, fmt.Errorf("not a valid WAVE file: got=%q", string(wave[:]))
 	}
 
 	var sampleRate int
@@ -118,23 +126,21 @@ func (a *AudioAdapter) decodeWav(data []byte) (*AudioStream, error) {
 
 	for {
 		var chunkID [4]byte
-		n, err := reader.Read(chunkID[:])
-		if err != nil {
-			break
-		}
-		if n == 0 {
+		if _, err := io.ReadFull(reader, chunkID[:]); err != nil {
 			break
 		}
 
 		var chunkSize [4]byte
-		if _, err := reader.Read(chunkSize[:]); err != nil {
+		if _, err := io.ReadFull(reader, chunkSize[:]); err != nil {
 			break
 		}
 		size := int(binary.LittleEndian.Uint32(chunkSize[:]))
 
 		if string(chunkID[:]) == "fmt " {
 			subchunk := make([]byte, size)
-			reader.Read(subchunk)
+			if _, err := io.ReadFull(reader, subchunk); err != nil {
+				return nil, fmt.Errorf("could not read fmt chunk: %w", err)
+			}
 
 			audioFormat := binary.LittleEndian.Uint16(subchunk[0:2])
 			if audioFormat != 1 && audioFormat != 3 {
@@ -146,7 +152,9 @@ func (a *AudioAdapter) decodeWav(data []byte) (*AudioStream, error) {
 			bitsPerSample = int(binary.LittleEndian.Uint16(subchunk[14:16]))
 		} else if string(chunkID[:]) == "data" {
 			audioData := make([]byte, size)
-			reader.Read(audioData)
+			if _, err := io.ReadFull(reader, audioData); err != nil {
+				return nil, fmt.Errorf("could not read data chunk: %w", err)
+			}
 
 			switch bitsPerSample {
 			case 16:
@@ -172,7 +180,10 @@ func (a *AudioAdapter) decodeWav(data []byte) (*AudioStream, error) {
 			}
 			return nil, fmt.Errorf("unsupported bit depth: %d", bitsPerSample)
 		} else {
-			reader.Seek(int64(size), 1)
+			// Seek past unknown chunk; ignore errors and continue parsing
+			if _, err := reader.Seek(int64(size), io.SeekCurrent); err != nil {
+				break
+			}
 		}
 	}
 

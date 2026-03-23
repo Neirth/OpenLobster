@@ -502,6 +502,14 @@ func (d *Deps) DeleteUser(ctx context.Context, conversationID string) error {
 	return d.ConvPort.DeleteUser(ctx, conversationID)
 }
 
+// DeleteGroup implements conversations.Provider.
+func (d *Deps) DeleteGroup(ctx context.Context, conversationID string) error {
+	if d.ConvPort == nil {
+		return nil
+	}
+	return d.ConvPort.DeleteGroup(ctx, conversationID)
+}
+
 // ─── Config provider ─────────────────────────────────────────────────────────
 
 // Config implements config.Provider.

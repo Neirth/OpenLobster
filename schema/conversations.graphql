@@ -45,6 +45,7 @@ extend type Query {
 
 extend type Mutation {
   deleteUser(conversationId: String!): MutationResult!
+  deleteGroup(conversationId: String!): MutationResult!
   sendMessage(
     conversationId: String
     channelId:      String

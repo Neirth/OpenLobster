@@ -45,6 +45,7 @@ func (m *mockAIProvider) ChatToAudio(ctx context.Context, req ports.ChatRequest)
 func (m *mockAIProvider) SupportsAudioInput() bool  { return true }
 func (m *mockAIProvider) SupportsAudioOutput() bool { return true }
 func (m *mockAIProvider) GetMaxTokens() int         { return 4096 }
+func (m *mockAIProvider) GetContextWindow() int     { return 8192 }
 
 type mockMessageRepo struct {
 	mock.Mock

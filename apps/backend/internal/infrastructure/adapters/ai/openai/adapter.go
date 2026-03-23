@@ -23,10 +23,11 @@ import (
 // Adapter implements [ports.AIProviderPort] using the official OpenAI SDK.
 // It supports any OpenAI-compatible endpoint via [NewAdapterWithEndpoint].
 type Adapter struct {
-	client          goOpenAI.Client
-	model           string
-	maxTokens       int
-	reasoningLevel  string
+	client         goOpenAI.Client
+	model          string
+	maxTokens      int
+	reasoningLevel string
+	contextWindow  int
 }
 
 // NewAdapter creates an Adapter targeting the standard OpenAI API endpoint.
@@ -150,6 +151,22 @@ func (a *Adapter) SupportsAudioOutput() bool {
 // GetMaxTokens returns the configured maximum token budget.
 func (a *Adapter) GetMaxTokens() int {
 	return a.maxTokens
+}
+
+// GetContextWindow returns the context window set via OverrideContextWindow, or
+// 8192 as a safe fallback. OpenAI's API does not expose context window metadata,
+// so callers must set providers.openai.context_window in config when the model
+// supports more than 8192 input tokens.
+func (a *Adapter) GetContextWindow() int {
+	if a.contextWindow > 0 {
+		return a.contextWindow
+	}
+	return 8192
+}
+
+// OverrideContextWindow explicitly sets the context window for this adapter.
+func (a *Adapter) OverrideContextWindow(n int) {
+	a.contextWindow = n
 }
 
 // ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"time"
 
 	appmcp "github.com/neirth/openlobster/internal/application/mcp"
 	"github.com/neirth/openlobster/internal/application/graphql"
@@ -80,7 +81,8 @@ type App struct {
 	MsgHandler    *domainhandlers.MessageHandler
 	SkillsAdapter *filesystem.SkillsAdapter
 
-	SchedulerNotify func()
+	SchedulerNotify               func()
+	SchedulerUpdateMemoryInterval func(time.Duration)
 
 	// Application layer
 	AgentRegistry  *registry.AgentRegistry

@@ -73,6 +73,10 @@ func (m *MockAIAdapter) GetMaxTokens() int {
 	return 4096
 }
 
+func (m *MockAIAdapter) GetContextWindow() int {
+	return 8192
+}
+
 func (m *MockAIAdapter) Close() error {
 	return nil
 }

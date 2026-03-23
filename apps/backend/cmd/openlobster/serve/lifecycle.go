@@ -45,6 +45,7 @@ func (a *App) startAndWait() {
 			a.AIProvider, // This should be the provider configured for memory
 			a.UserRepo,
 			a.SessionRepo,
+			a.ToolRegistry,
 		)
 		sched := domainservices.NewScheduler(
 			a.Cfg.Scheduler.MemoryInterval,
@@ -54,6 +55,7 @@ func (a *App) startAndWait() {
 			consolidationSvc,
 		)
 		a.SchedulerNotify = sched.Notify
+		a.SchedulerUpdateMemoryInterval = sched.UpdateMemoryInterval
 		go sched.Run(ctx)
 	}
 

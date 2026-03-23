@@ -21,7 +21,7 @@ fi
 (cd apps/backend && golangci-lint run ./...)
 
 step "Backend: go test"
-(cd apps/backend && go test ./...)
+(cd apps/backend && bash scripts/run-coverage.sh)
 
 step "Package @openlobster/ui: eslint"
 (cd packages/ui && pnpm exec eslint . --max-warnings 0)

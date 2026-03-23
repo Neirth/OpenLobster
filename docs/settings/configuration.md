@@ -16,8 +16,9 @@ Only save when you are confident in the values. Changes apply to the running ser
 | Field | Description |
 | ----- | ----------- |
 | **Agent Name** | Display name for this agent instance. Use letters, numbers, and dashes. Example: `support-agent`. |
-| **AI Provider** | The model provider: `openai`, `openrouter`, `ollama`, `anthropic`, `docker-model-runner`. Changing this reveals provider-specific fields. |
+| **AI Provider** | The model provider: `openai`, `openrouter`, `ollama`, `anthropic`, `opencode-zen`, `docker-model-runner`. Changing this reveals provider-specific fields. |
 | **Default Model** | The model to use for agent tasks. Example: `gpt-4o-mini`, `llama3.2:latest`. |
+| **Reasoning Level** | Controls how much "thinking" budget the model uses: `none`, `low`, `medium` (default), `high`. Higher levels improve accuracy for complex tasks at the cost of extra latency and tokens. Applied to OpenAI, Anthropic, OpenRouter, and OpenCode Zen providers. |
 
 ### Provider-specific fields
 
@@ -39,6 +40,11 @@ Only save when you are confident in the values. Changes apply to the running ser
 {% tab title="OpenRouter" %}
 * **API Key** — Copy from your OpenRouter dashboard.
 * **Base URL** — Leave empty to use the default OpenRouter endpoint.
+{% endtab %}
+
+{% tab title="OpenCode Zen" %}
+* **API Key** — Copy from your OpenCode dashboard.
+* **Model** — Model name, e.g. `kimi-k2.5`. See the OpenCode documentation for supported models.
 {% endtab %}
 
 {% tab title="Docker Model Runner" %}
@@ -236,6 +242,32 @@ Enable and configure the messaging channels the agent listens on.
 4. Set **Enable Twilio** to `true` and save.
 {% endtab %}
 {% endtabs %}
+
+## CLI flags and environment variables
+
+Some settings can be overridden at startup without editing the config file. This is useful for containerized deployments or when you want to override config per-instance.
+
+### `openlobster serve` flags
+
+| Flag | Env variable | Description |
+|------|-------------|-------------|
+| `--host <addr>` | `OPENLOBSTER_HOST` | IP address to bind, e.g. `0.0.0.0`. Overrides `graphql.host` in config. |
+| `--port <n>` | `OPENLOBSTER_PORT` | TCP port to listen on. Overrides `graphql.port` in config. |
+| `--data-dir <path>` | `OPENLOBSTER_DATA_DIR` | Base data directory for databases, secrets, and logs. |
+
+Flags take precedence over environment variables, which take precedence over the config file.
+
+**Example — run on a different port without editing config:**
+
+```bash
+openlobster serve --port 9090
+```
+
+**Example — Docker override:**
+
+```bash
+docker run -e OPENLOBSTER_HOST=0.0.0.0 -e OPENLOBSTER_PORT=8080 openlobster
+```
 
 ## Security and best practices
 

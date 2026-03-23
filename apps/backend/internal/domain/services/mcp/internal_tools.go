@@ -720,7 +720,7 @@ func (t *AddMemoryTool) Definition() ToolDefinition {
 				"content":  {"type": "string", "description": "Full sentence describing what to remember (e.g. 'User lives in Valencia', 'User loves electronic music')"},
 				"label":    {"type": "string", "description": "Short keyword for the fact (e.g. 'Valencia', 'Electronica', 'Software Engineer'). Defaults to first words of content."},
 				"relation": {"type": "string", "description": "Edge from user to this fact: LIVES_IN, LIKES, IS, WORKS_AT, WORKS_AS, PREFERS, HAS_FACT, etc. Defaults to HAS_FACT."},
-				"entity_type": {"type": "string", "description": "Semantic category for the node: fact, person, place, thing, story. Defaults to 'fact' (or inferred from relation)."},
+				"entity_type": {"type": "string", "description": "Semantic category for the node: fact, person, place, thing, story, event, organization. Defaults to 'fact' (or inferred from relation)."},
 				"for_user": {"type": "string", "description": "Name of the user this memory belongs to. Only for memory consolidation agents processing multiple users — omit for normal per-user interactions."}
 			},
 			"required": ["content"]
@@ -773,6 +773,10 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 			et = "person"
 		case "LIKES", "LOVES", "PREFERS", "HATES", "WORKS_AT", "WORKS_AS", "EMBODIES":
 			et = "thing"
+		case "ATTENDED", "PARTICIPATED_IN", "EXPERIENCED", "SCHEDULED_FOR":
+			et = "event"
+		case "MEMBER_OF", "WORKS_FOR", "STUDIES_AT", "AFFILIATED_WITH":
+			et = "organization"
 		case "HAS_FACT", "IS":
 			et = "fact"
 		default:

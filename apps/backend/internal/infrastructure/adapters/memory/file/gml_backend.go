@@ -71,6 +71,7 @@ type GMLBackend struct {
 	persistCh   chan *InMemoryGraph
 	persistDone chan struct{}
 	loopDone    chan struct{}
+	closeOnce   sync.Once
 }
 
 func NewGMLBackend(path string) *GMLBackend {
@@ -113,7 +114,9 @@ func (b *GMLBackend) Close() error {
 	if dirty && snapshot != nil {
 		b.schedulePersist(snapshot)
 	}
-	close(b.persistCh)
+	// Close persistCh exactly once to avoid panics if Close() is called
+	// multiple times (tests sometimes call Close explicitly and via defer).
+	b.closeOnce.Do(func() { close(b.persistCh) })
 	<-b.loopDone
 	return nil
 }
@@ -190,6 +193,10 @@ func (b *GMLBackend) AddKnowledge(_ context.Context, userID string, content stri
 		entityType = "thing"
 	case "story":
 		entityType = "story"
+	case "event":
+		entityType = "event"
+	case "organization":
+		entityType = "organization"
 	case "", "fact":
 		entityType = "fact"
 	default:

@@ -30,6 +30,7 @@ func (m *mockAIProvider) ChatToAudio(ctx context.Context, req ports.ChatRequest)
 func (m *mockAIProvider) SupportsAudioInput() bool  { return false }
 func (m *mockAIProvider) SupportsAudioOutput() bool { return false }
 func (m *mockAIProvider) GetMaxTokens() int         { return 4096 }
+func (m *mockAIProvider) GetContextWindow() int     { return 8192 }
 
 func TestNewService(t *testing.T) {
 	svc := NewService(nil, 5, time.Minute)

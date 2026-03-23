@@ -74,6 +74,30 @@ func (r *ToolRegistry) AllTools() []ToolDefinition {
 	return tools
 }
 
+func (r *ToolRegistry) GetToolsByCapability(capability string) []ToolDefinition {
+	var tools []ToolDefinition
+	for name, t := range r.internal {
+		if CapabilityForTool(name) == capability {
+			tools = append(tools, t.Definition())
+		}
+	}
+	// Note: currently MCP tools are all grouped under "mcp" capability in CapabilityForTool.
+	// We might want to refine this in the future if MCP servers provide metadata.
+	return tools
+}
+
+func (r *ToolRegistry) GetToolsByNames(names []string) []ToolDefinition {
+	var tools []ToolDefinition
+	for _, name := range names {
+		if t, ok := r.internal[name]; ok {
+			tools = append(tools, t.Definition())
+		} else if t, ok := r.mcp[name]; ok {
+			tools = append(tools, t.Tool)
+		}
+	}
+	return tools
+}
+
 func (r *ToolRegistry) Dispatch(ctx context.Context, toolName string, params map[string]interface{}) (json.RawMessage, error) {
 	userID := "default"
 	if u, ok := ctx.Value(ContextKeyUserID).(string); ok {
