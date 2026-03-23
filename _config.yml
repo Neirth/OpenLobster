@@ -12,6 +12,12 @@ kramdown:
 
 plugins:
   - jekyll-seo-tag
+  - jekyll-polyglot
+
+languages: ["en", "es", "zh"]
+default_lang: "en"
+exclude_from_localization: ["assets", ".jekyll-cache"]
+parallel_localization: false
 
 exclude:
   - apps/

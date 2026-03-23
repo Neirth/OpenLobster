@@ -1,0 +1,223 @@
+lang_name: "ES"
+
+meta:
+  description: "Asistente de IA personal y autoalojado. Seguridad ante todo, multi-usuario, binario único en Go. La familia Claw como debería ser."
+
+nav:
+  features: "Qué cambió"
+  compare: "Comparar"
+  community: "Comunidad"
+  docs: "Documentación"
+
+hero:
+  eyebrow: "v0.2.0 — GPLv3"
+  title: "El asistente IA<br>diseñado para <strong>ser seguro</strong>."
+  body: >-
+    OpenLobster es un agente de IA personal y autoalojado. Se ejecuta como un
+    único binario de Go, se conecta a los canales que tus usuarios ya usan y
+    viene con autenticación activada por defecto — a diferencia del proyecto
+    que reemplaza.
+  cta_primary: "Inicio rápido"
+  cta_source: "Ver código"
+  cta_docs: "Leer la documentación"
+
+bench:
+  startup_label: "Tiempo de inicio"
+  startup_vs: "vs <span>2–3 s</span> de OpenClaw"
+  ram_label: "RAM en reposo"
+  ram_vs: "vs <span>150 MB+</span> de OpenClaw"
+  binary_label: "Tamaño del binario"
+  binary_vs: "vs <span>200 MB+</span> de node_modules"
+  deps_label: "Dependencias en ejecución"
+  deps_vs: "<span>binario estático único, sin npm</span>"
+
+features:
+  label: "Qué cambió"
+  title: "Cada fallo de OpenClaw, corregido."
+  problem_1: >-
+    OpenClaw tuvo su momento — agente de IA autoalojado, crecimiento rápido,
+    mucha atención. Luego la comunidad de seguridad lo analizó.
+    CVE-2026-25253 (CVSS 8.8): RCE con un clic mediante inyección en el
+    querystring de la interfaz de control. CVE-2026-25593, CVE-2026-24763,
+    CVE-2026-25157, CVE-2026-25475, y más, llenando una página completa en
+    RedPacket. Cisco publicó un informe calificando a los agentes de IA
+    personales como OpenClaw como una pesadilla de seguridad. El Blog de
+    Seguridad de Microsoft recomendó ejecutarlo únicamente dentro de una VM
+    aislada con una cuenta sin privilegios. En febrero de 2026, 40.000
+    instancias expuestas estaban indexadas en Censys — el 63% vulnerables a
+    ejecución remota de código.
+  problem_2: >-
+    Más allá de la seguridad: el sistema de memoria era un archivo MEMORY.md.
+    El planificador era un daemon que se despertaba cada 30 minutos para leer
+    una lista de verificación. No existía el concepto de usuarios separados —
+    la documentación listaba "solo la sesión principal escribe en MEMORY.md"
+    como una característica. El marketplace de habilidades tenía el 26% de
+    entradas con al menos una vulnerabilidad.
+  problem_3: >-
+    OpenLobster es el fork que resuelve la lista. No es un cambio de nombre —
+    es una reescritura de cada parte que estaba rota, partiendo de la premisa
+    de que la seguridad no es opcional.
+  items:
+    - title: "Seguridad por defecto"
+      body: >-
+        La autenticación del panel se exige antes del primer lanzamiento, no
+        es una opción opcional. La configuración y los secretos se cifran en
+        disco. Las claves de API viven en un backend de secretos — archivo
+        cifrado u OpenBao — nunca en YAML en texto plano. Las variables de
+        entorno con el prefijo <code>OPENLOBSTER_</code> nunca se reenvían a
+        las herramientas de terminal.
+      tag: "Reforzado contra CVE"
+    - title: "Memoria en grafo"
+      body: >-
+        MEMORY.md no escala ni razona sobre relaciones. OpenLobster usa Neo4j
+        como base de datos de grafos de primera clase: nodos tipados, aristas
+        tipadas y pesos de relación que el agente construye y actualiza al
+        conversar. Un backend GML basado en archivos está disponible para
+        configuraciones de un solo nodo donde ejecutar Neo4j no es práctico.
+      tag: "Neo4j o backend de archivo"
+    - title: "Multi-usuario de primera clase"
+      body: >-
+        Cada usuario en cada canal es una entidad separada: historial de
+        conversación propio, permisos de herramientas propios y flujo de
+        emparejamiento propio. Un usuario de Telegram y uno de Discord pueden
+        hablar con el mismo agente simultáneamente sin compartir contexto ni
+        interferir en las sesiones del otro.
+      tag: "Permisos por usuario"
+    - title: "Planificador de tareas real"
+      body: >-
+        Se elimina el bucle de latido de 30 minutos que leía una lista
+        HEARTBEAT.md. Los trabajos recurrentes usan expresiones cron. Las
+        tareas únicas usan fechas y horas ISO 8601. El estado, el tiempo de
+        siguiente ejecución y los registros de ejecución son visibles en el
+        panel sin tocar ningún archivo de configuración.
+      tag: "Cron + ISO 8601"
+    - title: "Integración MCP completa"
+      body: >-
+        Cualquier servidor MCP Streamable HTTP funciona: OAuth 2.1 se gestiona
+        de extremo a extremo, la navegación de herramientas es por servidor y
+        cada usuario obtiene una matriz de permisos explícita para controlar
+        exactamente qué puede invocar. Un marketplace con un clic cubre las
+        integraciones más comunes.
+      tag: "OAuth 2.1 + matriz por usuario"
+    - title: "Backend en Go, binario único"
+      body: >-
+        Todo el backend de Node.js ha sido reescrito en Go con una API GraphQL
+        generada por gqlgen. El resultado es un único binario estático sin
+        dependencias en tiempo de ejecución. Arranque en frío de 200 ms. 30 MB
+        de RAM. Funciona en una Raspberry Pi 3, un VPS con 512 MB o un
+        LicheeRV Nano de $15.
+      tag: "Go + gqlgen"
+
+compare:
+  label: "Comparación"
+  title: "Dónde se posiciona OpenLobster en el ecosistema."
+  subtitle: >-
+    La familia Claw y el ecosistema más amplio de agentes de IA autoalojados
+    comparten objetivos similares pero hacen elecciones muy diferentes.
+    OpenClaw, PicoClaw y NanoClaw son parientes arquitectónicos directos.
+    Open WebUI y AnythingLLM representan el enfoque alternativo: interfaces
+    de chat pulidas sin integraciones de canales ni planificación autónoma.
+  col_capability: "Capacidad"
+  sec_security: "Seguridad"
+  sec_memory: "Memoria"
+  sec_users: "Usuarios y canales"
+  sec_scheduling: "Planificación e integraciones"
+  sec_deployment: "Despliegue y uso de recursos"
+  row_auth: "Autenticación activada por defecto"
+  row_secrets: "Secretos cifrados en disco"
+  row_env: "Sin filtrado de variables de entorno al agente"
+  row_memory_model: "Modelo de memoria"
+  row_memory_ui: "Navegable desde la interfaz"
+  row_memory_concurrent: "Seguridad en sesiones concurrentes"
+  row_multiuser: "Soporte multi-usuario"
+  row_user_perms: "Permisos de herramientas por usuario"
+  row_channels: "Integraciones de canales de chat"
+  row_scheduler: "Planificador de tareas"
+  row_mcp: "Soporte MCP"
+  row_backend: "Lenguaje del backend"
+  row_deploy: "Unidad de despliegue"
+  row_ram: "RAM en reposo"
+  row_wizard: "Asistente de configuración"
+  row_arm: "Ejecuta en ARM / RISC-V"
+
+community:
+  label: "Comunidad"
+  title: "Dónde vive el proyecto."
+  subtitle: >-
+    OpenLobster es un fork mantenido por la comunidad. La conversación
+    ocurre en estos canales — elige el que mejor se adapte a tu pregunta.
+  github_disc_label: "GitHub Discussions"
+  github_disc_title: "Preguntas y propuestas"
+  github_disc_body: >-
+    Preguntas de migración, propuestas de características, discusiones de
+    arquitectura. Con hilos, buscable y permanente.
+  github_disc_arrow: "Abrir discusiones &rarr;"
+  discord_label: "Discord"
+  discord_title: "Chat en tiempo real"
+  discord_body: >-
+    Ayuda rápida, preguntas de configuración, compartir configuraciones.
+    El lugar más rápido para obtener respuesta de otro usuario o un
+    mantenedor.
+  discord_arrow: "Unirse a Discord &rarr;"
+  releases_label: "GitHub Releases"
+  releases_title: "Registro de cambios y binarios"
+  releases_body: >-
+    Cada lanzamiento incluye binarios precompilados para Linux y macOS
+    (amd64, arm64) y un registro de cambios completo. No se requiere
+    compilación.
+  releases_arrow: "Ver lanzamientos &rarr;"
+  gitbook_label: "GitBook Docs"
+  gitbook_title: "Documentación completa"
+  gitbook_body: >-
+    Panel, chat, explorador de memoria, gestión MCP, habilidades, tareas,
+    configuración — cada parte de la interfaz documentada con capturas de
+    pantalla.
+  gitbook_arrow: "Leer la documentación &rarr;"
+
+quickstart:
+  label: "Inicio rápido"
+  title: "En marcha en menos de dos minutos."
+  subtitle: >-
+    Compila desde el código fuente o descarga la imagen de Docker. Sin Node,
+    sin npm, sin node_modules. Solo un binario y un archivo de configuración.
+
+stack:
+  label: "Pila tecnológica"
+  title: "Tecnología aburrida, deliberadamente."
+  subtitle: >-
+    Sin rotación de frameworks. Cada elección se hizo para reducir la
+    sobrecarga operativa y mantener el binario lo suficientemente pequeño
+    para ejecutarse en el borde.
+  frontend: "Frontend"
+  frontend_val: "SolidJS + Vite, CSS vanilla — sin framework de componentes"
+  backend: "Backend"
+  backend_val: "Go, API GraphQL generada por gqlgen — binario estático único"
+  database: "Base de datos"
+  database_val: "SQLite (por defecto), PostgreSQL o MySQL"
+  memory: "Memoria"
+  memory_val: "Backend de archivo (GML) para uso local, o Neo4j para multi-instancia"
+  secrets: "Secretos"
+  secrets_val: "Backend de archivo cifrado, o OpenBao para producción"
+  channels: "Canales"
+  channels_val: "Telegram, Discord, WhatsApp Business, Slack, Twilio SMS"
+  ai: "Proveedores de IA"
+  ai_val: "OpenAI, Anthropic, Ollama, OpenRouter, Docker Model Runner, cualquier endpoint compatible con OpenAI"
+  license: "Licencia"
+  license_val: "Licencia Pública General GNU v3.0"
+
+footer:
+  tagline: "Asistente de IA personal y autoalojado. Funciona donde quieras, se conecta a los canales que usas."
+  col_project: "Proyecto"
+  col_resources: "Recursos"
+  link_github: "GitHub"
+  link_releases: "Lanzamientos"
+  link_issues: "Incidencias"
+  link_discussions: "Discusiones"
+  link_contributing: "Contribuir"
+  link_docs: "Documentación"
+  link_discord: "Discord"
+  link_migration: "Migración desde OpenClaw"
+  link_license: "Licencia (GPLv3)"
+  copyright: "OpenLobster es un proyecto de código abierto independiente, no afiliado con Anthropic."
+  license_prefix: "Publicado bajo la"
+  license_link: "Licencia Pública General GNU v3.0"

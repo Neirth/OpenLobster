@@ -1,10 +1,8 @@
 ---
 layout: default
 title: OpenLobster
-description: >-
-  Personal, self-hosted AI assistant. Security-first, multi-user,
-  single Go binary. The Claw family done right.
 ---
+{% assign t = site.data.i18n[site.active_lang] %}
 
 <!-- ─── Navigation ────────────────────────────────────────────── -->
 <nav class="nav">
@@ -14,12 +12,23 @@ description: >-
       OpenLobster
     </a>
     <ul class="nav__links">
-      <li><a href="#features">What changed</a></li>
-      <li><a href="#compare">Compare</a></li>
-      <li><a href="#community">Community</a></li>
-      <li><a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener">Docs</a></li>
+      <li><a href="#features">{{ t.nav.features }}</a></li>
+      <li><a href="#compare">{{ t.nav.compare }}</a></li>
+      <li><a href="#community">{{ t.nav.community }}</a></li>
+      <li><a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener">{{ t.nav.docs }}</a></li>
       <li><a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener" class="cta">GitHub</a></li>
     </ul>
+    <div class="lang-switcher">
+      {% for lang in site.languages %}
+        {% if lang == site.active_lang %}
+          <span class="lang-switcher__item lang-switcher__item--active">{{ site.data.i18n[lang].lang_name }}</span>
+        {% elsif lang == site.default_lang %}
+          <a href="{{ site.baseurl }}/" class="lang-switcher__item">{{ site.data.i18n[lang].lang_name }}</a>
+        {% else %}
+          <a href="{{ site.baseurl }}/{{ lang }}/" class="lang-switcher__item">{{ site.data.i18n[lang].lang_name }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
   </div>
 </nav>
 
@@ -27,26 +36,19 @@ description: >-
 <section class="hero">
   <div class="wrap">
     <div class="hero__copy">
-      <p class="hero__eyebrow">v0.2.0 — GPLv3</p>
+      <p class="hero__eyebrow">{{ t.hero.eyebrow }}</p>
 
-      <h1 class="hero__title">
-        The AI assistant<br>
-        built to <strong>stay secure</strong>.
-      </h1>
+      <h1 class="hero__title">{{ t.hero.title }}</h1>
 
-      <p class="hero__body">
-        OpenLobster is a personal, self-hosted AI agent. It runs as a single
-        Go binary, connects to the channels your users already use, and ships
-        with authentication on by default — unlike the project it replaces.
-      </p>
+      <p class="hero__body">{{ t.hero.body }}</p>
 
       <div class="hero__actions">
-        <a href="#quickstart" class="btn btn--primary">Quick start</a>
+        <a href="#quickstart" class="btn btn--primary">{{ t.hero.cta_primary }}</a>
         <a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener" class="btn btn--ghost">
-          View source
+          {{ t.hero.cta_source }}
         </a>
         <a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener" class="btn btn--ghost">
-          Read the docs
+          {{ t.hero.cta_docs }}
         </a>
       </div>
     </div>
@@ -77,23 +79,23 @@ description: >-
   <div class="wrap">
     <div class="bench__item">
       <div class="bench__num">200ms</div>
-      <div class="bench__label">Startup time</div>
-      <div class="bench__vs">vs <span>2–3 s</span> for OpenClaw</div>
+      <div class="bench__label">{{ t.bench.startup_label }}</div>
+      <div class="bench__vs">{{ t.bench.startup_vs }}</div>
     </div>
     <div class="bench__item">
       <div class="bench__num">30 MB</div>
-      <div class="bench__label">RAM at idle</div>
-      <div class="bench__vs">vs <span>150 MB+</span> for OpenClaw</div>
+      <div class="bench__label">{{ t.bench.ram_label }}</div>
+      <div class="bench__vs">{{ t.bench.ram_vs }}</div>
     </div>
     <div class="bench__item">
       <div class="bench__num">66 MB</div>
-      <div class="bench__label">Binary size</div>
-      <div class="bench__vs">vs <span>200 MB+</span> node_modules</div>
+      <div class="bench__label">{{ t.bench.binary_label }}</div>
+      <div class="bench__vs">{{ t.bench.binary_vs }}</div>
     </div>
     <div class="bench__item">
       <div class="bench__num">0</div>
-      <div class="bench__label">Runtime dependencies</div>
-      <div class="bench__vs"><span>single static binary, no npm</span></div>
+      <div class="bench__label">{{ t.bench.deps_label }}</div>
+      <div class="bench__vs">{{ t.bench.deps_vs }}</div>
     </div>
   </div>
 </div>
@@ -102,111 +104,25 @@ description: >-
 <section class="section" id="features">
   <div class="wrap">
     <div class="section__header">
-      <p class="section__label">What changed</p>
-      <h2 class="section__title">Every OpenClaw flaw, addressed.</h2>
+      <p class="section__label">{{ t.features.label }}</p>
+      <h2 class="section__title">{{ t.features.title }}</h2>
     </div>
 
     <div class="problem">
-      <p>
-        OpenClaw had a moment — self-hosted AI agent, fast growth, lots of
-        attention. Then the security community looked at it.
-        CVE-2026-25253 (CVSS 8.8): 1-click RCE via querystring injection in the
-        control UI. CVE-2026-25593, CVE-2026-24763, CVE-2026-25157,
-        CVE-2026-25475, and more filling a full page on RedPacket. Cisco
-        published a report calling personal AI agents like OpenClaw a security
-        nightmare. Microsoft's Security Blog recommended running it only inside
-        an isolated VM with a dedicated non-privileged account. By February
-        2026, 40,000 exposed instances were indexed on Censys — 63% of them
-        vulnerable to remote code execution.
-      </p>
-      <p>
-        Beyond security: the memory system was a MEMORY.md file. The scheduler
-        was a heartbeat daemon waking up every 30 minutes to read a checklist.
-        There was no concept of separate users — the docs listed
-        "only the main session writes to MEMORY.md" as a feature. The skills
-        marketplace shipped 26% of entries with at least one vulnerability.
-      </p>
-      <p>
-        OpenLobster is the fork that addresses the list. Not a rebranding — a
-        rewrite of every part that was broken, starting with the assumption that
-        security is not optional.
-      </p>
+      <p>{{ t.features.problem_1 }}</p>
+      <p>{{ t.features.problem_2 }}</p>
+      <p>{{ t.features.problem_3 }}</p>
     </div>
 
     <div class="features">
+      {% for item in t.features.items %}
       <div class="feature">
-        <p class="feature__num">01</p>
-        <h3 class="feature__title">Security by default</h3>
-        <p class="feature__body">
-          Dashboard auth is enforced before first launch, not an opt-in flag.
-          Config and secrets are encrypted on disk. API keys live in a secrets
-          backend — encrypted file or OpenBao — never in plain YAML. Env vars
-          with the <code>OPENLOBSTER_</code> prefix are never forwarded to
-          terminal tools.
-        </p>
-        <span class="feature__tag">CVE-hardened</span>
+        <p class="feature__num">0{{ forloop.index }}</p>
+        <h3 class="feature__title">{{ item.title }}</h3>
+        <p class="feature__body">{{ item.body }}</p>
+        <span class="feature__tag">{{ item.tag }}</span>
       </div>
-
-      <div class="feature">
-        <p class="feature__num">02</p>
-        <h3 class="feature__title">Graph memory</h3>
-        <p class="feature__body">
-          MEMORY.md does not scale and does not reason about relationships.
-          OpenLobster uses Neo4j as a first-class graph database: typed nodes,
-          typed edges, and relationship weights the agent builds and updates as
-          it converses. A file-based GML backend is available for single-node
-          setups where running Neo4j is impractical.
-        </p>
-        <span class="feature__tag">Neo4j or file backend</span>
-      </div>
-
-      <div class="feature">
-        <p class="feature__num">03</p>
-        <h3 class="feature__title">First-class multi-user</h3>
-        <p class="feature__body">
-          Each user on every channel is a separate entity: own conversation
-          history, own tool permissions, own pairing flow. A Telegram user and
-          a Discord user can talk to the same agent simultaneously without
-          sharing context or stepping on each other's sessions.
-        </p>
-        <span class="feature__tag">Per-user permissions</span>
-      </div>
-
-      <div class="feature">
-        <p class="feature__num">04</p>
-        <h3 class="feature__title">Real task scheduler</h3>
-        <p class="feature__body">
-          The 30-minute heartbeat loop reading a HEARTBEAT.md checklist is
-          removed. Recurring jobs use cron expressions. One-shot tasks use ISO
-          8601 datetimes. Status, next-run time, and execution logs are visible
-          in the dashboard without touching a config file.
-        </p>
-        <span class="feature__tag">Cron + ISO 8601</span>
-      </div>
-
-      <div class="feature">
-        <p class="feature__num">05</p>
-        <h3 class="feature__title">Full MCP integration</h3>
-        <p class="feature__body">
-          Any Streamable HTTP MCP server works: OAuth 2.1 is handled end-to-end,
-          tool browsing is per-server, and each user gets an explicit permission
-          matrix so you control exactly what they can invoke. A one-click
-          marketplace covers the most common integrations.
-        </p>
-        <span class="feature__tag">OAuth 2.1 + per-user matrix</span>
-      </div>
-
-      <div class="feature">
-        <p class="feature__num">06</p>
-        <h3 class="feature__title">Go backend, single binary</h3>
-        <p class="feature__body">
-          The entire Node.js backend has been rewritten in Go with a GraphQL
-          API generated by gqlgen. The output is a single static binary with
-          no runtime dependency. 200 ms cold start. 30 MB RAM. Runs on a
-          Raspberry Pi 3, a VPS with 512 MB, or a $15 LicheeRV Nano.
-        </p>
-        <span class="feature__tag">Go + gqlgen</span>
-      </div>
+      {% endfor %}
     </div>
   </div>
 </section>
@@ -215,22 +131,16 @@ description: >-
 <section class="section section--alt" id="compare">
   <div class="wrap">
     <div class="section__header">
-      <p class="section__label">Comparison</p>
-      <h2 class="section__title">How OpenLobster positions in the landscape.</h2>
-      <p class="section__subtitle">
-        The Claw family and the broader self-hosted AI agent ecosystem share
-        overlapping goals but make very different trade-offs. OpenClaw,
-        PicoClaw, and NanoClaw are direct architectural relatives. Open WebUI
-        and AnythingLLM represent the alternative approach: polished chat
-        interfaces with no channel integrations or autonomous scheduling.
-      </p>
+      <p class="section__label">{{ t.compare.label }}</p>
+      <h2 class="section__title">{{ t.compare.title }}</h2>
+      <p class="section__subtitle">{{ t.compare.subtitle }}</p>
     </div>
 
     <div class="table-wrap">
       <table class="cmp">
         <thead>
           <tr>
-            <th>Capability</th>
+            <th>{{ t.compare.col_capability }}</th>
             <th class="hl">OpenLobster</th>
             <th>OpenClaw</th>
             <th>PicoClaw</th>
@@ -242,10 +152,10 @@ description: >-
         <tbody>
           <!-- Security -->
           <tr class="section-row">
-            <td colspan="7">Security</td>
+            <td colspan="7">{{ t.compare.sec_security }}</td>
           </tr>
           <tr>
-            <td>Auth on by default</td>
+            <td>{{ t.compare.row_auth }}</td>
             <td class="hl"><span class="tag-y">Yes</span></td>
             <td><span class="tag-n">No</span></td>
             <td><span class="tag-n">No</span></td>
@@ -254,7 +164,7 @@ description: >-
             <td><span class="tag-p">Optional</span></td>
           </tr>
           <tr>
-            <td>Encrypted secrets on disk</td>
+            <td>{{ t.compare.row_secrets }}</td>
             <td class="hl"><span class="tag-y">Yes</span></td>
             <td><span class="tag-n">Plain YAML</span></td>
             <td><span class="tag-n">Plain YAML</span></td>
@@ -263,7 +173,7 @@ description: >-
             <td><span class="tag-n">Plain .env</span></td>
           </tr>
           <tr>
-            <td>No leaked env vars to agent</td>
+            <td>{{ t.compare.row_env }}</td>
             <td class="hl"><span class="tag-y">Enforced</span></td>
             <td><span class="tag-n">Not enforced</span></td>
             <td><span class="tag-n">Not enforced</span></td>
@@ -274,10 +184,10 @@ description: >-
 
           <!-- Memory -->
           <tr class="section-row">
-            <td colspan="7">Memory</td>
+            <td colspan="7">{{ t.compare.sec_memory }}</td>
           </tr>
           <tr>
-            <td>Memory model</td>
+            <td>{{ t.compare.row_memory_model }}</td>
             <td class="hl"><span class="tag-y">Graph (Neo4j)</span></td>
             <td><span class="tag-n">MEMORY.md file</span></td>
             <td><span class="tag-n">JSONL file</span></td>
@@ -286,7 +196,7 @@ description: >-
             <td><span class="tag-p">RAG / vector store</span></td>
           </tr>
           <tr>
-            <td>Browsable from UI</td>
+            <td>{{ t.compare.row_memory_ui }}</td>
             <td class="hl"><span class="tag-y">Graph view</span></td>
             <td><span class="tag-n">No</span></td>
             <td><span class="tag-n">No</span></td>
@@ -295,7 +205,7 @@ description: >-
             <td><span class="tag-y">Yes</span></td>
           </tr>
           <tr>
-            <td>Concurrent session safety</td>
+            <td>{{ t.compare.row_memory_concurrent }}</td>
             <td class="hl"><span class="tag-y">Graph transactions</span></td>
             <td><span class="tag-n">Single writer only</span></td>
             <td><span class="tag-n">File lock</span></td>
@@ -306,10 +216,10 @@ description: >-
 
           <!-- Multi-user & channels -->
           <tr class="section-row">
-            <td colspan="7">Users &amp; channels</td>
+            <td colspan="7">{{ t.compare.sec_users }}</td>
           </tr>
           <tr>
-            <td>Multi-user support</td>
+            <td>{{ t.compare.row_multiuser }}</td>
             <td class="hl"><span class="tag-y">Full, per-user history</span></td>
             <td><span class="tag-n">Single user</span></td>
             <td><span class="tag-n">Single user</span></td>
@@ -318,7 +228,7 @@ description: >-
             <td><span class="tag-y">Multi-workspace</span></td>
           </tr>
           <tr>
-            <td>Per-user tool permissions</td>
+            <td>{{ t.compare.row_user_perms }}</td>
             <td class="hl"><span class="tag-y">Matrix per user</span></td>
             <td><span class="tag-n">No</span></td>
             <td><span class="tag-n">No</span></td>
@@ -327,7 +237,7 @@ description: >-
             <td><span class="tag-p">Role-based</span></td>
           </tr>
           <tr>
-            <td>Chat channel integrations</td>
+            <td>{{ t.compare.row_channels }}</td>
             <td class="hl"><span class="tag-y">Telegram, Discord, Slack, WhatsApp, SMS</span></td>
             <td><span class="tag-p">Telegram, Discord</span></td>
             <td><span class="tag-p">Discord, Matrix, IRC</span></td>
@@ -338,10 +248,10 @@ description: >-
 
           <!-- Scheduling & MCP -->
           <tr class="section-row">
-            <td colspan="7">Scheduling &amp; integrations</td>
+            <td colspan="7">{{ t.compare.sec_scheduling }}</td>
           </tr>
           <tr>
-            <td>Task scheduler</td>
+            <td>{{ t.compare.row_scheduler }}</td>
             <td class="hl"><span class="tag-y">Cron + ISO 8601</span></td>
             <td><span class="tag-n">30-min heartbeat</span></td>
             <td><span class="tag-n">No</span></td>
@@ -350,7 +260,7 @@ description: >-
             <td><span class="tag-n">No</span></td>
           </tr>
           <tr>
-            <td>MCP support</td>
+            <td>{{ t.compare.row_mcp }}</td>
             <td class="hl"><span class="tag-y">Full OAuth 2.1</span></td>
             <td><span class="tag-p">Demo-level</span></td>
             <td><span class="tag-y">Protocol compliant</span></td>
@@ -361,10 +271,10 @@ description: >-
 
           <!-- Deployment -->
           <tr class="section-row">
-            <td colspan="7">Deployment &amp; resource usage</td>
+            <td colspan="7">{{ t.compare.sec_deployment }}</td>
           </tr>
           <tr>
-            <td>Backend language</td>
+            <td>{{ t.compare.row_backend }}</td>
             <td class="hl"><span class="tag-y">Go</span></td>
             <td>Node.js</td>
             <td><span class="tag-y">Go</span></td>
@@ -373,7 +283,7 @@ description: >-
             <td>Node.js</td>
           </tr>
           <tr>
-            <td>Deployment unit</td>
+            <td>{{ t.compare.row_deploy }}</td>
             <td class="hl"><span class="tag-y">Single static binary</span></td>
             <td>npm + node_modules</td>
             <td><span class="tag-y">Single binary</span></td>
@@ -382,7 +292,7 @@ description: >-
             <td>Docker / npm</td>
           </tr>
           <tr>
-            <td>RAM at idle</td>
+            <td>{{ t.compare.row_ram }}</td>
             <td class="hl"><span class="tag-y">~30 MB</span></td>
             <td>150 MB+</td>
             <td><span class="tag-y">&lt;10 MB core</span></td>
@@ -391,7 +301,7 @@ description: >-
             <td>~300 MB+</td>
           </tr>
           <tr>
-            <td>Setup wizard</td>
+            <td>{{ t.compare.row_wizard }}</td>
             <td class="hl"><span class="tag-y">Yes — first launch</span></td>
             <td><span class="tag-n">Manual YAML</span></td>
             <td><span class="tag-n">Manual config</span></td>
@@ -400,7 +310,7 @@ description: >-
             <td><span class="tag-y">Yes</span></td>
           </tr>
           <tr>
-            <td>Runs on ARM / RISC-V</td>
+            <td>{{ t.compare.row_arm }}</td>
             <td class="hl"><span class="tag-y">Yes — static binary</span></td>
             <td><span class="tag-n">Node.js required</span></td>
             <td><span class="tag-y">Yes — RISC-V, MIPS</span></td>
@@ -418,56 +328,38 @@ description: >-
 <section class="section" id="community">
   <div class="wrap">
     <div class="section__header">
-      <p class="section__label">Community</p>
-      <h2 class="section__title">Where the project lives.</h2>
-      <p class="section__subtitle">
-        OpenLobster is a community-maintained fork. The conversation happens
-        across these channels — pick the one that fits your question.
-      </p>
+      <p class="section__label">{{ t.community.label }}</p>
+      <h2 class="section__title">{{ t.community.title }}</h2>
+      <p class="section__subtitle">{{ t.community.subtitle }}</p>
     </div>
 
     <div class="community-grid">
       <a href="https://github.com/Neirth/OpenLobster/discussions" target="_blank" rel="noopener" class="community-item">
-        <p class="community-item__label">GitHub Discussions</p>
-        <p class="community-item__title">Q&amp;A and proposals</p>
-        <p class="community-item__body">
-          Migration questions, feature proposals, architecture
-          discussions. Threaded, searchable, and permanent.
-        </p>
-        <span class="community-item__arrow">Open discussions &rarr;</span>
+        <p class="community-item__label">{{ t.community.github_disc_label }}</p>
+        <p class="community-item__title">{{ t.community.github_disc_title }}</p>
+        <p class="community-item__body">{{ t.community.github_disc_body }}</p>
+        <span class="community-item__arrow">{{ t.community.github_disc_arrow }}</span>
       </a>
 
       <a href="https://discord.gg/Qx9eJcZH5v" target="_blank" rel="noopener" class="community-item">
-        <p class="community-item__label">Discord</p>
-        <p class="community-item__title">Real-time chat</p>
-        <p class="community-item__body">
-          Quick help, configuration questions, sharing setups.
-          The fastest place to get an answer from another user or
-          a maintainer.
-        </p>
-        <span class="community-item__arrow">Join Discord &rarr;</span>
+        <p class="community-item__label">{{ t.community.discord_label }}</p>
+        <p class="community-item__title">{{ t.community.discord_title }}</p>
+        <p class="community-item__body">{{ t.community.discord_body }}</p>
+        <span class="community-item__arrow">{{ t.community.discord_arrow }}</span>
       </a>
 
       <a href="https://github.com/Neirth/OpenLobster/releases" target="_blank" rel="noopener" class="community-item">
-        <p class="community-item__label">GitHub Releases</p>
-        <p class="community-item__title">Changelog and binaries</p>
-        <p class="community-item__body">
-          Every release includes pre-built binaries for Linux and
-          macOS (amd64, arm64) and a full change log. No build
-          step required.
-        </p>
-        <span class="community-item__arrow">See releases &rarr;</span>
+        <p class="community-item__label">{{ t.community.releases_label }}</p>
+        <p class="community-item__title">{{ t.community.releases_title }}</p>
+        <p class="community-item__body">{{ t.community.releases_body }}</p>
+        <span class="community-item__arrow">{{ t.community.releases_arrow }}</span>
       </a>
 
       <a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener" class="community-item">
-        <p class="community-item__label">GitBook Docs</p>
-        <p class="community-item__title">Full documentation</p>
-        <p class="community-item__body">
-          Dashboard, chat, memory browser, MCP management, skills,
-          tasks, settings — every part of the interface documented
-          with screenshots.
-        </p>
-        <span class="community-item__arrow">Read the docs &rarr;</span>
+        <p class="community-item__label">{{ t.community.gitbook_label }}</p>
+        <p class="community-item__title">{{ t.community.gitbook_title }}</p>
+        <p class="community-item__body">{{ t.community.gitbook_body }}</p>
+        <span class="community-item__arrow">{{ t.community.gitbook_arrow }}</span>
       </a>
     </div>
   </div>
@@ -477,12 +369,9 @@ description: >-
 <section class="section section--alt" id="quickstart">
   <div class="wrap">
     <div class="section__header">
-      <p class="section__label">Quick start</p>
-      <h2 class="section__title">Running in under two minutes.</h2>
-      <p class="section__subtitle">
-        Build from source or pull the Docker image. No Node, no npm,
-        no node_modules. A single binary and a config file is all it takes.
-      </p>
+      <p class="section__label">{{ t.quickstart.label }}</p>
+      <h2 class="section__title">{{ t.quickstart.title }}</h2>
+      <p class="section__subtitle">{{ t.quickstart.subtitle }}</p>
     </div>
 
     <div class="quickstart-grid">
@@ -555,47 +444,44 @@ OPENLOBSTER_PROVIDERS_OPENAI_API_KEY=<span class="ts">sk-…</span></code></pre>
 <section class="section">
   <div class="wrap">
     <div class="section__header">
-      <p class="section__label">Stack</p>
-      <h2 class="section__title">Boring technology, deliberately.</h2>
-      <p class="section__subtitle">
-        No framework churn. Each choice was made to reduce operational overhead
-        and keep the binary small enough to run at the edge.
-      </p>
+      <p class="section__label">{{ t.stack.label }}</p>
+      <h2 class="section__title">{{ t.stack.title }}</h2>
+      <p class="section__subtitle">{{ t.stack.subtitle }}</p>
     </div>
 
     <table class="stack-table">
       <tbody>
         <tr>
-          <td>Frontend</td>
-          <td>SolidJS + Vite, vanilla CSS — no component framework</td>
+          <td>{{ t.stack.frontend }}</td>
+          <td>{{ t.stack.frontend_val }}</td>
         </tr>
         <tr>
-          <td>Backend</td>
-          <td>Go, GraphQL API generated by gqlgen — single static binary</td>
+          <td>{{ t.stack.backend }}</td>
+          <td>{{ t.stack.backend_val }}</td>
         </tr>
         <tr>
-          <td>Database</td>
-          <td>SQLite (default), PostgreSQL, or MySQL</td>
+          <td>{{ t.stack.database }}</td>
+          <td>{{ t.stack.database_val }}</td>
         </tr>
         <tr>
-          <td>Memory</td>
-          <td>File backend (GML) for local use, or Neo4j for multi-instance</td>
+          <td>{{ t.stack.memory }}</td>
+          <td>{{ t.stack.memory_val }}</td>
         </tr>
         <tr>
-          <td>Secrets</td>
-          <td>Encrypted file backend, or OpenBao for production</td>
+          <td>{{ t.stack.secrets }}</td>
+          <td>{{ t.stack.secrets_val }}</td>
         </tr>
         <tr>
-          <td>Channels</td>
-          <td>Telegram, Discord, WhatsApp Business, Slack, Twilio SMS</td>
+          <td>{{ t.stack.channels }}</td>
+          <td>{{ t.stack.channels_val }}</td>
         </tr>
         <tr>
-          <td>AI providers</td>
-          <td>OpenAI, Anthropic, Ollama, OpenRouter, Docker Model Runner, any OpenAI-compatible endpoint</td>
+          <td>{{ t.stack.ai }}</td>
+          <td>{{ t.stack.ai_val }}</td>
         </tr>
         <tr>
-          <td>License</td>
-          <td>GNU General Public License v3.0</td>
+          <td>{{ t.stack.license }}</td>
+          <td>{{ t.stack.license_val }}</td>
         </tr>
       </tbody>
     </table>
@@ -611,41 +497,36 @@ OPENLOBSTER_PROVIDERS_OPENAI_API_KEY=<span class="ts">sk-…</span></code></pre>
           <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="">
           OpenLobster
         </a>
-        <p class="footer__tagline">
-          Personal, self-hosted AI assistant. Runs where you want,
-          connects to the channels you use.
-        </p>
+        <p class="footer__tagline">{{ t.footer.tagline }}</p>
       </div>
 
       <div>
-        <p class="footer__col-title">Project</p>
+        <p class="footer__col-title">{{ t.footer.col_project }}</p>
         <ul class="footer__links">
-          <li><a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener">GitHub</a></li>
-          <li><a href="https://github.com/Neirth/OpenLobster/releases" target="_blank" rel="noopener">Releases</a></li>
-          <li><a href="https://github.com/Neirth/OpenLobster/issues" target="_blank" rel="noopener">Issues</a></li>
-          <li><a href="https://github.com/Neirth/OpenLobster/discussions" target="_blank" rel="noopener">Discussions</a></li>
-          <li><a href="https://github.com/Neirth/OpenLobster/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster" target="_blank" rel="noopener">{{ t.footer.link_github }}</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/releases" target="_blank" rel="noopener">{{ t.footer.link_releases }}</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/issues" target="_blank" rel="noopener">{{ t.footer.link_issues }}</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/discussions" target="_blank" rel="noopener">{{ t.footer.link_discussions }}</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener">{{ t.footer.link_contributing }}</a></li>
         </ul>
       </div>
 
       <div>
-        <p class="footer__col-title">Resources</p>
+        <p class="footer__col-title">{{ t.footer.col_resources }}</p>
         <ul class="footer__links">
-          <li><a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener">Documentation</a></li>
-          <li><a href="https://discord.gg/Qx9eJcZH5v" target="_blank" rel="noopener">Discord</a></li>
-          <li><a href="https://github.com/Neirth/OpenLobster/discussions/44" target="_blank" rel="noopener">Migration from OpenClaw</a></li>
-          <li><a href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md" target="_blank" rel="noopener">License (GPLv3)</a></li>
+          <li><a href="https://neirth.gitbook.io/openlobster" target="_blank" rel="noopener">{{ t.footer.link_docs }}</a></li>
+          <li><a href="https://discord.gg/Qx9eJcZH5v" target="_blank" rel="noopener">{{ t.footer.link_discord }}</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/discussions/44" target="_blank" rel="noopener">{{ t.footer.link_migration }}</a></li>
+          <li><a href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md" target="_blank" rel="noopener">{{ t.footer.link_license }}</a></li>
         </ul>
       </div>
     </div>
 
     <div class="footer__bottom">
+      <p class="footer__copy">{{ t.footer.copyright }}</p>
       <p class="footer__copy">
-        OpenLobster is an independent open-source project, not affiliated with Anthropic.
-      </p>
-      <p class="footer__copy">
-        Released under the
-        <a href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md" target="_blank" rel="noopener">GNU General Public License v3.0</a>.
+        {{ t.footer.license_prefix }}
+        <a href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md" target="_blank" rel="noopener">{{ t.footer.license_link }}</a>.
       </p>
     </div>
   </div>

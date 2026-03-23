@@ -698,3 +698,35 @@ code, pre {
   .community-grid { grid-template-columns: 1fr; }
   .footer__inner { grid-template-columns: 1fr; }
 }
+
+/* ── Language switcher ────────────────────────────────────────── */
+
+.lang-switcher {
+  display: flex;
+  gap: var(--s1);
+  align-items: center;
+  margin-left: var(--s3);
+}
+
+.lang-switcher__item {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  text-decoration: none;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.lang-switcher__item:hover {
+  color: var(--fg-primary);
+  border-color: var(--border-mid);
+  text-decoration: none;
+}
+
+.lang-switcher__item--active {
+  color: var(--fg-primary);
+  border-color: var(--border-mid);
+  cursor: default;
+}

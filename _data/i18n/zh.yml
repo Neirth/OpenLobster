@@ -1,0 +1,192 @@
+lang_name: "中文"
+
+meta:
+  description: "个人自托管 AI 助手。安全优先，多用户，单一 Go 二进制。Claw 家族的正确实现。"
+
+nav:
+  features: "有何变化"
+  compare: "对比"
+  community: "社区"
+  docs: "文档"
+
+hero:
+  eyebrow: "v0.2.0 — GPLv3"
+  title: "为<strong>安全而生</strong>的<br>AI 助手"
+  body: >-
+    OpenLobster 是一款个人自托管 AI 助手。它以单个 Go 二进制文件运行，连接用户
+    已在使用的通讯渠道，并默认启用身份验证 — 与其所取代的项目不同。
+  cta_primary: "快速开始"
+  cta_source: "查看源码"
+  cta_docs: "阅读文档"
+
+bench:
+  startup_label: "启动时间"
+  startup_vs: "vs OpenClaw 的 <span>2–3 秒</span>"
+  ram_label: "空闲内存"
+  ram_vs: "vs OpenClaw 的 <span>150 MB+</span>"
+  binary_label: "二进制大小"
+  binary_vs: "vs node_modules 的 <span>200 MB+</span>"
+  deps_label: "运行时依赖"
+  deps_vs: "<span>单一静态二进制，无需 npm</span>"
+
+features:
+  label: "有何变化"
+  title: "OpenClaw 的每个缺陷，逐一修正。"
+  problem_1: >-
+    OpenClaw 曾经风光一时 — 自托管 AI 助手，快速增长，备受关注。然后安全社区对其
+    进行了审查。CVE-2026-25253（CVSS 8.8）：通过控制界面查询字符串注入实现一键
+    RCE。CVE-2026-25593、CVE-2026-24763、CVE-2026-25157、CVE-2026-25475 等，在
+    RedPacket 上占满整页。思科发布报告，称像 OpenClaw 这样的个人 AI 助手是安全
+    噩梦。微软安全博客建议仅在隔离虚拟机中使用专用非特权账户运行它。到 2026 年
+    2 月，Censys 上已索引 40,000 个暴露实例 — 其中 63% 存在远程代码执行漏洞。
+  problem_2: >-
+    除安全问题外：内存系统是一个 MEMORY.md 文件。调度器是一个每隔 30 分钟醒来
+    读取清单的心跳守护进程。没有独立用户的概念 — 文档将"只有主会话写入
+    MEMORY.md"列为一个特性。技能市场中 26% 的条目至少存在一个漏洞。
+  problem_3: >-
+    OpenLobster 是解决这一系列问题的分叉项目。这不是更名 — 而是对每个存在问题的
+    部分进行重写，从安全不是可选项这一前提出发。
+  items:
+    - title: "默认安全"
+      body: >-
+        控制面板身份验证在首次启动前强制执行，而非可选标志。配置和密钥在磁盘上
+        加密存储。API 密钥保存在密钥后端 — 加密文件或 OpenBao — 永远不会以明文
+        YAML 存储。带有 <code>OPENLOBSTER_</code> 前缀的环境变量永远不会转发给
+        终端工具。
+      tag: "CVE 加固"
+    - title: "图式内存"
+      body: >-
+        MEMORY.md 无法扩展，也无法推理关系。OpenLobster 将 Neo4j 作为一等公民图
+        数据库：类型化节点、类型化边，以及助手在对话中构建和更新的关系权重。对于
+        运行 Neo4j 不切实际的单节点部署，可使用基于文件的 GML 后端。
+      tag: "Neo4j 或文件后端"
+    - title: "一等公民多用户"
+      body: >-
+        每个渠道上的每个用户都是独立实体：独立的对话历史、独立的工具权限、独立的
+        配对流程。Telegram 用户和 Discord 用户可以同时与同一助手交谈，而不会共享
+        上下文或干扰彼此的会话。
+      tag: "按用户设置权限"
+    - title: "真正的任务调度器"
+      body: >-
+        移除了读取 HEARTBEAT.md 清单的 30 分钟心跳循环。周期性任务使用 cron 表达式。
+        一次性任务使用 ISO 8601 日期时间。状态、下次运行时间和执行日志在控制面板
+        中可见，无需修改配置文件。
+      tag: "Cron + ISO 8601"
+    - title: "完整 MCP 集成"
+      body: >-
+        任何 Streamable HTTP MCP 服务器均可使用：OAuth 2.1 端到端处理，工具浏览
+        按服务器划分，每个用户获得明确的权限矩阵，让您精确控制其可调用的内容。
+        一键式市场涵盖最常见的集成。
+      tag: "OAuth 2.1 + 按用户矩阵"
+    - title: "Go 后端，单一二进制"
+      body: >-
+        整个 Node.js 后端已用 Go 重写，GraphQL API 由 gqlgen 生成。输出是一个无
+        运行时依赖的单一静态二进制文件。冷启动 200 毫秒。30 MB 内存。可在
+        Raspberry Pi 3、512 MB VPS 或 15 美元的 LicheeRV Nano 上运行。
+      tag: "Go + gqlgen"
+
+compare:
+  label: "对比"
+  title: "OpenLobster 在生态中的定位。"
+  subtitle: >-
+    Claw 家族和更广泛的自托管 AI 助手生态系统有着共同的目标，但做出了截然不同
+    的权衡。OpenClaw、PicoClaw 和 NanoClaw 是直接的架构近亲。Open WebUI 和
+    AnythingLLM 代表了另一种方式：精致的聊天界面，但没有渠道集成或自主调度功能。
+  col_capability: "功能"
+  sec_security: "安全"
+  sec_memory: "内存"
+  sec_users: "用户与渠道"
+  sec_scheduling: "调度与集成"
+  sec_deployment: "部署与资源使用"
+  row_auth: "默认启用身份验证"
+  row_secrets: "磁盘加密密钥"
+  row_env: "不向助手泄露环境变量"
+  row_memory_model: "内存模型"
+  row_memory_ui: "可从界面浏览"
+  row_memory_concurrent: "并发会话安全"
+  row_multiuser: "多用户支持"
+  row_user_perms: "按用户工具权限"
+  row_channels: "聊天渠道集成"
+  row_scheduler: "任务调度器"
+  row_mcp: "MCP 支持"
+  row_backend: "后端语言"
+  row_deploy: "部署单元"
+  row_ram: "空闲内存"
+  row_wizard: "配置向导"
+  row_arm: "支持 ARM / RISC-V"
+
+community:
+  label: "社区"
+  title: "项目的聚集地。"
+  subtitle: >-
+    OpenLobster 是一个由社区维护的分叉项目。交流在这些渠道中进行 — 选择最适合
+    您问题的渠道。
+  github_disc_label: "GitHub Discussions"
+  github_disc_title: "问答与提案"
+  github_disc_body: >-
+    迁移问题、功能提案、架构讨论。支持线程、可搜索，且永久保存。
+  github_disc_arrow: "打开讨论 &rarr;"
+  discord_label: "Discord"
+  discord_title: "实时聊天"
+  discord_body: >-
+    快速帮助、配置问题、分享设置。从其他用户或维护者那里获得答案的最快途径。
+  discord_arrow: "加入 Discord &rarr;"
+  releases_label: "GitHub Releases"
+  releases_title: "更新日志与二进制文件"
+  releases_body: >-
+    每个版本都包含适用于 Linux 和 macOS（amd64、arm64）的预构建二进制文件以及
+    完整的更新日志。无需编译步骤。
+  releases_arrow: "查看版本 &rarr;"
+  gitbook_label: "GitBook 文档"
+  gitbook_title: "完整文档"
+  gitbook_body: >-
+    控制面板、聊天、内存浏览器、MCP 管理、技能、任务、设置 — 界面的每个部分都
+    配有截图文档。
+  gitbook_arrow: "阅读文档 &rarr;"
+
+quickstart:
+  label: "快速开始"
+  title: "两分钟内运行起来。"
+  subtitle: >-
+    从源码构建或拉取 Docker 镜像。无需 Node、npm 或 node_modules。只需一个二进制
+    文件和一个配置文件。
+
+stack:
+  label: "技术栈"
+  title: "刻意选择朴素的技术。"
+  subtitle: >-
+    没有框架的频繁更替。每个选择都是为了减少运维开销，并保持二进制文件足够小
+    以在边缘运行。
+  frontend: "前端"
+  frontend_val: "SolidJS + Vite，原生 CSS — 无组件框架"
+  backend: "后端"
+  backend_val: "Go，由 gqlgen 生成的 GraphQL API — 单一静态二进制"
+  database: "数据库"
+  database_val: "SQLite（默认）、PostgreSQL 或 MySQL"
+  memory: "内存"
+  memory_val: "本地使用的文件后端（GML），或多实例的 Neo4j"
+  secrets: "密钥"
+  secrets_val: "加密文件后端，或生产环境的 OpenBao"
+  channels: "渠道"
+  channels_val: "Telegram、Discord、WhatsApp Business、Slack、Twilio SMS"
+  ai: "AI 提供商"
+  ai_val: "OpenAI、Anthropic、Ollama、OpenRouter、Docker Model Runner，任何兼容 OpenAI 的端点"
+  license: "许可证"
+  license_val: "GNU 通用公共许可证 v3.0"
+
+footer:
+  tagline: "个人自托管 AI 助手。在您想要的地方运行，连接您使用的渠道。"
+  col_project: "项目"
+  col_resources: "资源"
+  link_github: "GitHub"
+  link_releases: "版本发布"
+  link_issues: "问题反馈"
+  link_discussions: "讨论"
+  link_contributing: "贡献指南"
+  link_docs: "文档"
+  link_discord: "Discord"
+  link_migration: "从 OpenClaw 迁移"
+  link_license: "许可证 (GPLv3)"
+  copyright: "OpenLobster 是一个独立的开源项目，与 Anthropic 无关。"
+  license_prefix: "遵循"
+  license_link: "GNU 通用公共许可证 v3.0"
