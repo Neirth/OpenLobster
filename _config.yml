@@ -1,0 +1,33 @@
+title: OpenLobster
+description: >-
+  Personal, self-hosted AI assistant — runs where you want,
+  connects to the channels you use.
+baseurl: "/OpenLobster"
+url: "https://neirth.github.io"
+repository: Neirth/OpenLobster
+
+markdown: kramdown
+kramdown:
+  input: GFM
+
+plugins:
+  - jekyll-seo-tag
+
+exclude:
+  - apps/
+  - packages/
+  - schema/
+  - docs/
+  - "*.lock"
+  - "*.log"
+  - node_modules/
+  - .docker/
+  - .github/
+  - Gemfile
+  - Gemfile.lock
+  - README.md
+  - README.en.md
+  - README.es.md
+  - README.zh.md
+  - CONTRIBUTING.md
+  - LICENSE.md
