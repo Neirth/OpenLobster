@@ -12,6 +12,7 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"strings"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
@@ -57,7 +58,7 @@ func NewAdapterWithEndpoint(baseURL, apiKey, model string, maxTokens int, reason
 func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatResponse, error) {
 	params := goOpenAI.ChatCompletionNewParams{
 		Model:               goOpenAI.ChatModel(a.model),
-		Messages:            convertMessages(req.Messages),
+		Messages:            convertMessages(sanitizeMessages(req.Messages)),
 		MaxCompletionTokens: goOpenAI.Int(int64(a.maxTokens)),
 	}
 
@@ -200,6 +201,38 @@ func convertUserContentParts(blocks []ports.ContentBlock, fallback string) []goO
 		parts = append(parts, goOpenAI.TextContentPart(fallback))
 	}
 	return parts
+}
+
+// sanitizeMessages drops tool-role messages whose ToolCallID is empty or does
+// not correspond to a tool_use block declared by a preceding assistant message,
+// preventing the OpenAI API from receiving a tool_call_id that has no matching
+// tool call.
+func sanitizeMessages(msgs []ports.ChatMessage) []ports.ChatMessage {
+	// Single forward pass: only IDs declared by a preceding assistant message
+	// are valid for a subsequent tool message.
+	validIDs := make(map[string]bool)
+	out := make([]ports.ChatMessage, 0, len(msgs))
+	for _, m := range msgs {
+		if m.Role == "tool" {
+			if m.ToolCallID == "" {
+				log.Printf("openai: dropping tool message with empty tool_call_id")
+				continue
+			}
+			if !validIDs[m.ToolCallID] {
+				log.Printf("openai: dropping orphan tool message (tool_call_id=%q)", m.ToolCallID)
+				continue
+			}
+		}
+		// Register any tool-call IDs this message declares so that subsequent
+		// tool messages can be validated against them.
+		for _, tc := range m.ToolCalls {
+			if tc.ID != "" {
+				validIDs[tc.ID] = true
+			}
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // convertMessages converts domain ChatMessages to the SDK union param slice.

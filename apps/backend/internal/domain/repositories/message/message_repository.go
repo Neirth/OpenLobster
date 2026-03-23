@@ -4,6 +4,7 @@ package message
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
@@ -37,6 +38,8 @@ func (r *repository) Save(ctx context.Context, message *domainmodels.Message) er
 		})
 	}
 
+	toolMeta := buildToolMetadata(message.ToolCallID, message.ToolCallsRaw)
+
 	m := domainmodels.MessageModel{
 		ID:             message.ID.String(),
 		ConversationID: message.ConversationID,
@@ -45,6 +48,7 @@ func (r *repository) Save(ctx context.Context, message *domainmodels.Message) er
 		AudioData:      audioData,
 		CreatedAt:      message.Timestamp,
 		Attachments:    attModels,
+		ToolMetadata:   toolMeta,
 	}
 	return r.db.WithContext(ctx).Create(&m).Error
 }
@@ -221,6 +225,9 @@ func msgModelToEntity(m domainmodels.MessageModel) *domainmodels.Message {
 		Timestamp:      m.CreatedAt,
 		IsValidated:    m.IsValidated,
 	}
+	if m.ToolMetadata != "" {
+		msg.ToolCallID, msg.ToolCallsRaw = parseToolMetadata(m.ToolMetadata)
+	}
 	if len(m.Attachments) > 0 {
 		atts := make([]domainmodels.Attachment, 0, len(m.Attachments))
 		for _, a := range m.Attachments {
@@ -234,6 +241,33 @@ func msgModelToEntity(m domainmodels.MessageModel) *domainmodels.Message {
 		msg.Attachments = atts
 	}
 	return msg
+}
+
+type toolMetadataJSON struct {
+	ToolCallID   string `json:"tool_call_id,omitempty"`
+	ToolCallsRaw string `json:"tool_calls_raw,omitempty"`
+}
+
+// buildToolMetadata serialises tool-call context to a JSON string for storage.
+// Returns an empty string when there is nothing to persist.
+func buildToolMetadata(toolCallID, toolCallsRaw string) string {
+	if toolCallID == "" && toolCallsRaw == "" {
+		return ""
+	}
+	b, err := json.Marshal(toolMetadataJSON{ToolCallID: toolCallID, ToolCallsRaw: toolCallsRaw})
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// parseToolMetadata is the inverse of buildToolMetadata.
+func parseToolMetadata(raw string) (toolCallID, toolCallsRaw string) {
+	var meta toolMetadataJSON
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return "", ""
+	}
+	return meta.ToolCallID, meta.ToolCallsRaw
 }
 
 func msgModelsToEntities(models []domainmodels.MessageModel) []domainmodels.Message {

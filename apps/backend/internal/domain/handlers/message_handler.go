@@ -162,7 +162,7 @@ func (r *agenticRunner) dispatchToolCall(ctx context.Context, tc ports.ToolCall)
 	return base
 }
 
-type intermediateMessageFunc func(role, content string)
+type intermediateMessageFunc func(msg ports.ChatMessage)
 
 const maxToolRounds = 5
 
@@ -187,19 +187,20 @@ func (r *agenticRunner) runAgenticLoop(ctx context.Context, messages []ports.Cha
 			break
 		}
 		toolsExecuted = true
-		req.Messages = append(req.Messages, ports.ChatMessage{
+		assistantMsg := ports.ChatMessage{
 			Role:      "assistant",
 			Content:   resp.Content,
 			ToolCalls: resp.ToolCalls,
-		})
+		}
+		req.Messages = append(req.Messages, assistantMsg)
 		if saveIntermediate != nil {
-			saveIntermediate("assistant", resp.Content)
+			saveIntermediate(assistantMsg)
 		}
 		for _, tc := range resp.ToolCalls {
 			msg := r.dispatchToolCall(ctx, tc)
 			req.Messages = append(req.Messages, msg)
 			if saveIntermediate != nil {
-				saveIntermediate("tool", fmt.Sprintf("[tool:%s] %s", tc.Function.Name, msg.Content))
+				saveIntermediate(msg)
 			}
 		}
 	}
@@ -710,18 +711,33 @@ func (h *MessageHandler) Handle(ctx context.Context, input HandleMessageInput) e
 
 	var saveFn intermediateMessageFunc
 	if !isLoopback {
-		saveFn = func(role, content string) {
+		saveFn = func(chatMsg ports.ChatMessage) {
+			role := chatMsg.Role
+			content := chatMsg.Content
 			trimmed := strings.TrimSpace(content)
-			if trimmed == "" {
-				if role == "assistant" {
-					log.Printf("handlers: tool_use with empty content — model produced no text before tool call (add prompt instruction to encourage brief acknowledgement)")
-				}
-				return
-			}
-			// Only persist and send assistant messages; tool results stay internal.
+
 			if role == "assistant" {
-				if mcp.ContainsNO_REPLY(trimmed) {
+				hasToolCalls := len(chatMsg.ToolCalls) > 0
+				if trimmed == "" && !hasToolCalls {
 					return
+				}
+				if trimmed != "" && mcp.ContainsNO_REPLY(trimmed) {
+					if !hasToolCalls {
+						return
+					}
+					// Suppress visible text but continue so ToolCallsRaw is persisted.
+					trimmed = ""
+					content = ""
+				}
+				// Serialise ToolCalls so the pairing is preserved across restarts.
+				var toolCallsRaw string
+				if hasToolCalls {
+					if b, err := json.Marshal(chatMsg.ToolCalls); err == nil {
+						toolCallsRaw = string(b)
+					}
+				}
+				if trimmed == "" {
+					log.Printf("handlers: tool_use with empty content — model produced no text before tool call (add prompt instruction to encourage brief acknowledgement)")
 				}
 				msg := &models.Message{
 					ID:             uuid.New(),
@@ -731,6 +747,7 @@ func (h *MessageHandler) Handle(ctx context.Context, input HandleMessageInput) e
 					Timestamp:      time.Now(),
 					Metadata:       map[string]interface{}{"channel_type": input.ChannelType},
 					ConversationID: conversationID,
+					ToolCallsRaw:   toolCallsRaw,
 				}
 				if h.messageRepo != nil {
 					_ = h.messageRepo.Save(ctx, msg)
@@ -745,8 +762,8 @@ func (h *MessageHandler) Handle(ctx context.Context, input HandleMessageInput) e
 						}))
 					}
 				}
-				// Send to channel (Telegram, Discord, etc.) so user sees intermediate messages.
-				if h.messaging != nil && !isInternal {
+				// Only send non-empty assistant messages to the channel.
+				if trimmed != "" && h.messaging != nil && !isInternal {
 					if err := h.messaging.SendMessage(ctx, msg); err != nil {
 						log.Printf("messaging: failed to send intermediate message to %s (channel_id=%q): %v", input.ChannelType, input.ChannelID, err)
 					}
@@ -760,6 +777,7 @@ func (h *MessageHandler) Handle(ctx context.Context, input HandleMessageInput) e
 					Timestamp:      time.Now(),
 					Metadata:       make(map[string]interface{}),
 					ConversationID: conversationID,
+					ToolCallID:     chatMsg.ToolCallID,
 				}
 				_ = h.messageRepo.Save(ctx, msg)
 				if h.eventBus != nil {
@@ -1103,7 +1121,14 @@ func (h *MessageHandler) buildMessages(ctx context.Context, conversationID, syst
 		history, err := h.messageRepo.GetSinceLastCompaction(ctx, conversationID)
 		if err == nil {
 			for _, m := range history {
-				messages = append(messages, ports.ChatMessage{Role: m.Role, Content: m.Content})
+				chatMsg := ports.ChatMessage{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID}
+				if m.ToolCallsRaw != "" {
+					var toolCalls []ports.ToolCall
+					if jsonErr := json.Unmarshal([]byte(m.ToolCallsRaw), &toolCalls); jsonErr == nil {
+						chatMsg.ToolCalls = toolCalls
+					}
+				}
+				messages = append(messages, chatMsg)
 			}
 		}
 	}
