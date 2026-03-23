@@ -32,7 +32,6 @@ const (
 	noReply = "NO_REPLY"
 
 	extractionSystemPrompt = `You are a memory extraction and deduplication agent. The user you are processing is "%s".
-
 Steps you MUST follow for the conversation below:
 1. Identify candidate persistent facts about "%s": preferences, habits, personal details, significant events.
    Skip greetings, questions, and transient content.

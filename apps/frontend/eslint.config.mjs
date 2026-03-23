@@ -29,6 +29,10 @@ const browserGlobals = {
   HTMLTextAreaElement: 'readonly',
   HTMLSelectElement: 'readonly',
   HTMLFormElement: 'readonly',
+  HTMLUListElement: 'readonly',
+  File: 'readonly',
+  Storage: 'readonly',
+  NodeListOf: 'readonly',
   // Events
   Event: 'readonly',
   KeyboardEvent: 'readonly',

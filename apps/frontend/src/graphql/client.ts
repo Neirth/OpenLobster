@@ -33,19 +33,39 @@ export const GRAPHQL_ENDPOINT = getGraphqlEndpoint();
 const _client = createGraphqlClient(GRAPHQL_ENDPOINT, getStoredToken);
 
 // Wrap request() to surface 401 errors as the auth modal trigger.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _originalRequest = _client.request.bind(_client) as (...args: any[]) => Promise<any>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(_client as any).request = async (...args: any[]) => {
-	try {
-		return await _originalRequest(...args);
-	} catch (err: unknown) {
-		const status = (err as { response?: { status?: number } })?.response?.status;
-		if (status === 401) {
-			setNeedsAuth(true);
-		}
-		throw err;
-	}
-};
+// Be defensive: in test environments the mocked factory may return an object
+// without a function on `request` at module evaluation time. Guard the bind
+// to avoid a runtime TypeError.
 
-export const client = _client;
+
+export const client = new Proxy(_client, {
+  get(target, prop, receiver) {
+    if (prop === 'request') {
+      return async (...args: unknown[]) => {
+        let fn = (target as { request?: (...args: unknown[]) => Promise<unknown> }).request;
+        if (typeof fn !== 'function') {
+          try {
+            const real = createGraphqlClient(GRAPHQL_ENDPOINT, getStoredToken);
+            try { Object.assign(target as object, real); } catch {
+              // Ignore property assignment errors (likely in test mocks)
+            }
+            fn = (target as { request?: (...args: unknown[]) => Promise<unknown> }).request;
+          } catch {
+            throw new Error('GraphQL client has no request method');
+          }
+        }
+        try {
+          return await fn!.apply(target, args);
+        } catch (err: unknown) {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 401) {
+            setNeedsAuth(true);
+          }
+          throw err;
+        }
+      };
+    }
+    // Forward other properties directly.
+    return Reflect.get(target, prop, receiver);
+  },
+});

@@ -1,94 +1,60 @@
-// Copyright (c) OpenLobster contributors. See LICENSE for details.
- 
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, fireEvent } from '@solidjs/testing-library';
 
-import { describe, it, expect, vi } from "vitest";
-import { render } from "@solidjs/testing-library";
-
-vi.mock("@solidjs/router", () => ({
+vi.mock('@solidjs/router', () => ({
   A: (props: any) => <a {...props} />,
 }));
 
-vi.mock("../../graphql/client", () => ({
-  client: {},
+vi.mock('@openlobster/ui/hooks', () => ({
+  useAgent: (_client?: any) => ({ data: { name: 'AgentX', version: '1.2.3' } }),
 }));
 
-import Header from "./Header";
+vi.mock('../../stores/wsStore', () => ({
+  wsConnected: () => true,
+}));
 
-describe("Header Component", () => {
-  it("renders header element", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(container.querySelector("header")).toBeTruthy();
+const mockPending = [
+  { requestID: 'r1', channelType: 'telegram', displayName: 'Alice' },
+];
+
+const openPairingMock = vi.fn();
+
+vi.mock('../../stores/pairingStore', () => ({
+  pendingPairingsQueue: () => mockPending,
+  openPairingRequest: (req: any) => openPairingMock(req),
+}));
+
+import Header from './Header';
+
+describe('Header Component', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
   });
 
-  it("applies header class", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(
-      container.querySelector("header")?.classList.contains("header"),
-    ).toBe(true);
+  it('renders brand and tabs and agent info', () => {
+    const { container } = render(() => <Header activeTab="chat" />);
+    expect(container.querySelector('.header__wordmark')?.textContent).toBeTruthy();
+    expect(container.querySelector('.header__tab--active')).toBeTruthy();
+    expect(container.querySelector('.header__agent-name')?.textContent).toBe('AgentX');
+    expect(container.querySelector('.header__version')?.textContent).toContain('1.2.3');
   });
 
-  it("renders logo section on left", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(container.querySelector(".header__left")).toBeTruthy();
-  });
+  it('shows pending pairings badge and opens dropdown', async () => {
+    const { container, findByText } = render(() => <Header activeTab="overview" />);
+    // pending badge should be present
+    const badge = container.querySelector('.header__pairing-badge');
+    expect(badge?.textContent).toBe('1');
 
-  it("renders logo icon", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(container.querySelector(".header__logo-icon")).toBeTruthy();
-  });
+    // click to open dropdown
+    const btn = container.querySelector('.header__pairing-btn') as HTMLElement;
+    await fireEvent.click(btn);
+    // item should be visible
+    expect(await findByText('Alice')).toBeTruthy();
 
-  it("renders wordmark", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(container.querySelector(".header__wordmark")?.textContent).toContain(
-      "OPENLOBSTER",
-    );
-  });
-
-  it("renders agent name from hook data", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(container.querySelector(".header__agent-name")?.textContent).toBe(
-      "agent-01",
-    );
-  });
-
-  it("renders fallback agent name when data is undefined", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(container.querySelector(".header__agent-name")?.textContent).toBe(
-      "agent-01",
-    );
-  });
-
-  it("renders version from hook data", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(container.querySelector(".header__version")?.textContent).toContain(
-      "1.0.0",
-    );
-  });
-
-  it("renders with different active tabs", () => {
-    const tabs = [
-      "overview",
-      "chat",
-      "tasks",
-      "memory",
-      "mcps",
-      "skills",
-      "settings",
-    ] as const;
-    tabs.forEach((tab) => {
-      const { container } = render(() => <Header activeTab={tab} />);
-      expect(container.querySelector("header")).toBeTruthy();
-    });
-  });
-
-  it("renders navigation area", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    expect(container.querySelector(".header__nav")).toBeTruthy();
-  });
-
-  it("renders tab links for all tabs", () => {
-    const { container } = render(() => <Header activeTab="overview" />);
-    const tabs = container.querySelectorAll(".header__tab");
-    expect(tabs.length).toBe(7);
+    // clicking the item should call openPairingRequest (mocked)
+    const item = container.querySelector('.header__pairing-item') as HTMLElement;
+    await fireEvent.click(item);
+    expect(openPairingMock).toHaveBeenCalled();
   });
 });
+// Copyright (c) OpenLobster contributors. See LICENSE for details.

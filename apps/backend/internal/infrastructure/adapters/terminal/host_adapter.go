@@ -33,13 +33,9 @@ func (a *HostAdapter) Execute(ctx context.Context, cmd string, opts ...ports.Ter
 		opt(options)
 	}
 
-	parts := strings.Fields(cmd)
-	if len(parts) == 0 {
+	if strings.TrimSpace(cmd) == "" {
 		return ports.TerminalOutput{}, fmt.Errorf("empty command")
 	}
-
-	executable := parts[0]
-	args := parts[1:]
 
 	if options.Timeout > 0 {
 		var cancel context.CancelFunc
@@ -47,7 +43,9 @@ func (a *HostAdapter) Execute(ctx context.Context, cmd string, opts ...ports.Ter
 		defer cancel()
 	}
 
-	c := exec.CommandContext(ctx, executable, args...)
+	// Use the user's shell to execute the command so shell-builtins and
+	// simple commands like "echo hello" work regardless of PATH.
+	c := exec.CommandContext(ctx, "/bin/sh", "-c", cmd)
 	c.Env = FilterOpenLobsterFromEnv(os.Environ())
 	if options.WorkingDir != "" {
 		c.Dir = options.WorkingDir
