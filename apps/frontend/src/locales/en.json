@@ -127,6 +127,7 @@
   "memory.noProperties": "No properties. Click \"Add property\" to begin.",
   "memory.saving": "Saving…",
   "memory.deleteNode": "Delete Memory Node",
+  "memory.deleteRelation": "Delete relation",
   "memory.deleteConfirm": "Are you sure you want to delete {{name}}?",
   "memory.deleteWarning": "This action cannot be undone.",
   "memory.deleting": "Deleting…",

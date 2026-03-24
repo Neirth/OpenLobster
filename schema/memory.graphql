@@ -80,6 +80,7 @@ extend type Mutation {
     properties: String
   ): MemoryNode!
   deleteMemoryNode(id: String!): Boolean!
+  deleteRelation(from: String!, to: String!): Boolean!
   addRelation(
     from:         String!
     to:           String!

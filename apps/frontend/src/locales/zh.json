@@ -119,6 +119,7 @@
   "memory.noProperties": "无属性。点击「添加属性」开始。",
   "memory.saving": "保存中…",
   "memory.deleteNode": "删除记忆节点",
+  "memory.deleteRelation": "删除关系",
   "memory.deleteConfirm": "确定要删除 {{name}} 吗？",
   "memory.deleteWarning": "此操作不可撤销。",
   "memory.deleting": "删除中…",

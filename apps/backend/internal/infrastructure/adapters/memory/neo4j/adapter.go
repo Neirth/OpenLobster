@@ -397,6 +397,22 @@ func (a *Adapter) AddRelation(ctx context.Context, from, to string, relType stri
 	return nil
 }
 
+func (a *Adapter) DeleteRelation(ctx context.Context, from, to string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	session := a.driver.NewSession(context.Background(), neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	defer session.Close(context.Background())
+
+	cypher := "MATCH (a {id: $from})-[r]->(b {id: $to}) DELETE r"
+	result, err := session.Run(ctx, cypher, map[string]interface{}{"from": from, "to": to})
+	if err != nil {
+		return err
+	}
+	result.Consume(ctx)
+	return nil
+}
+
 func (a *Adapter) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()

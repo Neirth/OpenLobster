@@ -142,6 +142,12 @@ export const DELETE_MEMORY_NODE_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const DELETE_RELATION_MUTATION = /* GraphQL */ `
+  mutation DeleteRelation($from: String!, $to: String!) {
+    deleteRelation(from: $from, to: $to)
+  }
+`;
+
 // ─── Skills ────────────────────────────────────────────────────────────────────
 
 export const ENABLE_SKILL_MUTATION = /* GraphQL */ `

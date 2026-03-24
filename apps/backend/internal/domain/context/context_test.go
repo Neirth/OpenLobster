@@ -134,6 +134,10 @@ func (m *mockMemoryPort) AddRelation(ctx context.Context, from, to string, relTy
 	return m.err
 }
 
+func (m *mockMemoryPort) DeleteRelation(ctx context.Context, from, to string) error {
+	return nil
+}
+
 func (m *mockMemoryPort) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
 	return ports.GraphResult{}, m.err
 }
@@ -388,6 +392,7 @@ func (m *mockMemoryPortPartial) SearchSimilar(context.Context, string, int) ([]p
 func (m *mockMemoryPortPartial) AddRelation(context.Context, string, string, string) error {
 	return nil
 }
+func (m *mockMemoryPortPartial) DeleteRelation(context.Context, string, string) error { return nil }
 func (m *mockMemoryPortPartial) QueryGraph(context.Context, string) (ports.GraphResult, error) {
 	return ports.GraphResult{}, nil
 }

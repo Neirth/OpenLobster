@@ -708,6 +708,14 @@ func (d *Deps) AddRelation(ctx context.Context, from, to, relType string) error 
 	return d.CommandSvc.AddRelation(ctx, from, to, relType)
 }
 
+// DeleteRelation implements memory.Provider.
+func (d *Deps) DeleteRelation(ctx context.Context, from, to string) error {
+	if d.CommandSvc == nil {
+		return nil
+	}
+	return d.CommandSvc.DeleteRelation(ctx, from, to)
+}
+
 // ExecuteCypher implements memory.Provider.
 func (d *Deps) ExecuteCypher(ctx context.Context, cypher string) (*dto.GraphSnapshot, error) {
 	if d.QuerySvc == nil {

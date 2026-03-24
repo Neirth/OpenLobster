@@ -26,6 +26,9 @@ func (m *testMemoryPort) GetUserGraph(ctx context.Context, userID string) (ports
 func (m *testMemoryPort) AddRelation(ctx context.Context, from, to string, relType string) error {
 	return nil
 }
+func (m *testMemoryPort) DeleteRelation(ctx context.Context, from, to string) error {
+	return nil
+}
 func (m *testMemoryPort) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
 	return ports.GraphResult{}, nil
 }
@@ -203,6 +206,7 @@ func (m *testMemoryPortWithGraph) GetUserGraph(ctx context.Context, userID strin
 func (m *testMemoryPortWithGraph) AddRelation(context.Context, string, string, string) error {
 	return nil
 }
+func (m *testMemoryPortWithGraph) DeleteRelation(context.Context, string, string) error { return nil }
 func (m *testMemoryPortWithGraph) QueryGraph(context.Context, string) (ports.GraphResult, error) {
 	return ports.GraphResult{}, nil
 }
@@ -228,6 +232,7 @@ func (m *testMemoryPortErr) GetUserGraph(context.Context, string) (ports.Graph, 
 	return ports.Graph{}, errors.New("backend error")
 }
 func (m *testMemoryPortErr) AddRelation(context.Context, string, string, string) error { return nil }
+func (m *testMemoryPortErr) DeleteRelation(context.Context, string, string) error       { return nil }
 func (m *testMemoryPortErr) QueryGraph(context.Context, string) (ports.GraphResult, error) {
 	return ports.GraphResult{}, nil
 }

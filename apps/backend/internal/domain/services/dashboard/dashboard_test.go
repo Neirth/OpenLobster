@@ -90,6 +90,10 @@ func (g *testGraphCommandPort) AddRelation(ctx context.Context, from, to, relTyp
 	return g.err
 }
 
+func (g *testGraphCommandPort) DeleteRelation(ctx context.Context, from, to string) error {
+	return g.err
+}
+
 type testMemoryPort struct{}
 
 func (m *testMemoryPort) AddKnowledge(ctx context.Context, userID string, content string, label string, relation string, entityType string, embedding []float64) error {
@@ -105,6 +109,9 @@ func (m *testMemoryPort) GetUserGraph(ctx context.Context, userID string) (ports
 	return ports.Graph{}, nil
 }
 func (m *testMemoryPort) AddRelation(ctx context.Context, from, to string, relType string) error {
+	return nil
+}
+func (m *testMemoryPort) DeleteRelation(ctx context.Context, from, to string) error {
 	return nil
 }
 func (m *testMemoryPort) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
@@ -340,6 +347,9 @@ func (m *testMemoryPortWithError) GetUserGraph(ctx context.Context, userID strin
 func (m *testMemoryPortWithError) AddRelation(ctx context.Context, from, to string, relType string) error {
 	return m.err
 }
+func (m *testMemoryPortWithError) DeleteRelation(ctx context.Context, from, to string) error {
+	return m.err
+}
 func (m *testMemoryPortWithError) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
 	return ports.GraphResult{}, m.err
 }
@@ -392,6 +402,9 @@ func (t *testNodeMutator) GetUserGraph(ctx context.Context, userID string) (port
 	return ports.Graph{}, nil
 }
 func (t *testNodeMutator) AddRelation(ctx context.Context, from, to string, relType string) error {
+	return nil
+}
+func (t *testNodeMutator) DeleteRelation(ctx context.Context, from, to string) error {
 	return nil
 }
 func (t *testNodeMutator) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
