@@ -5,9 +5,11 @@
     "moduleResolution": "bundler",
     "strict": true,
     "skipLibCheck": true,
+    "types": ["vitest/globals", "node"],
     "noEmit": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js"
   },
-  "include": ["src", "index.tsx"]
+  "include": ["src", "index.tsx"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

@@ -10,17 +10,17 @@ import type { ContextMenuItem } from './ContextMenu';
  * HTMLElement.prototype before each test and restore them afterwards.
  */
 
-let showPopoverSpy: (...args: any[]) => void;
-let hidePopoverSpy: (...args: any[]) => void;
+let showPopoverSpy: (...args: unknown[]) => void;
+let hidePopoverSpy: (...args: unknown[]) => void;
 let originalMatches: typeof HTMLElement.prototype.matches;
 
 beforeEach(() => {
-  showPopoverSpy = vi.fn() as unknown as (...args: any[]) => void;
-  hidePopoverSpy = vi.fn() as unknown as (...args: any[]) => void;
+  showPopoverSpy = vi.fn();
+  hidePopoverSpy = vi.fn();
   originalMatches = HTMLElement.prototype.matches;
 
-  HTMLElement.prototype.showPopover = showPopoverSpy;
-  HTMLElement.prototype.hidePopover = hidePopoverSpy;
+  (HTMLElement.prototype as any).showPopover = showPopoverSpy;
+  (HTMLElement.prototype as any).hidePopover = hidePopoverSpy;
   HTMLElement.prototype.matches = function (selector: string) {
     if (selector === ':popover-open') return false;
     return originalMatches.call(this, selector);
@@ -30,10 +30,15 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   HTMLElement.prototype.matches = originalMatches;
-  // Remove the stubs added in beforeEach
-  delete (HTMLElement.prototype as unknown as any).showPopover;
-  delete (HTMLElement.prototype as unknown as any).hidePopover;
+  delete (HTMLElement.prototype as any).showPopover;
+  delete (HTMLElement.prototype as any).hidePopover;
 });
+
+/** Fire a right-click (mousedown + mouseup with button=2) on an element. */
+function rightClick(el: HTMLElement) {
+  fireEvent.mouseDown(el, { button: 2 });
+  fireEvent.mouseUp(el, { button: 2 });
+}
 
 const baseItems: ContextMenuItem[] = [
   { label: 'Edit', icon: 'edit', onClick: vi.fn() },
@@ -123,15 +128,38 @@ describe('ContextMenu', () => {
     expect(icons.length).toBe(0);
   });
 
-  it('calls showPopover on right-click', () => {
+  it('calls showPopover on right-click (mouseup)', () => {
     const { container } = render(() => (
       <ContextMenu items={baseItems}>
         <span>Trigger</span>
       </ContextMenu>
     ));
     const trigger = container.querySelector('.ctx-trigger') as HTMLElement;
-    fireEvent.contextMenu(trigger);
+    rightClick(trigger);
     expect(showPopoverSpy).toHaveBeenCalled();
+  });
+
+  it('does not open menu on mousedown alone (before mouseup)', () => {
+    const { container } = render(() => (
+      <ContextMenu items={baseItems}>
+        <span>Trigger</span>
+      </ContextMenu>
+    ));
+    const trigger = container.querySelector('.ctx-trigger') as HTMLElement;
+    fireEvent.mouseDown(trigger, { button: 2 });
+    expect(showPopoverSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not open menu on left-click mouseup', () => {
+    const { container } = render(() => (
+      <ContextMenu items={baseItems}>
+        <span>Trigger</span>
+      </ContextMenu>
+    ));
+    const trigger = container.querySelector('.ctx-trigger') as HTMLElement;
+    fireEvent.mouseDown(trigger, { button: 0 });
+    fireEvent.mouseUp(trigger, { button: 0 });
+    expect(showPopoverSpy).not.toHaveBeenCalled();
   });
 
   it('prevents default on context menu event', () => {
@@ -187,8 +215,8 @@ describe('ContextMenu', () => {
       </ContextMenu>
     ));
     const trigger = container.querySelector('.ctx-trigger') as HTMLElement;
-    fireEvent.contextMenu(trigger, { clientX: 100, clientY: 200 });
-    // showPopover is called first to let the browser compute size, then position is set
+    fireEvent.mouseDown(trigger, { button: 2 });
+    fireEvent.mouseUp(trigger, { button: 2, clientX: 100, clientY: 200 });
     expect(showPopoverSpy).toHaveBeenCalled();
   });
 

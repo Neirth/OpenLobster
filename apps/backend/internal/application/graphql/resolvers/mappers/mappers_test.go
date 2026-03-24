@@ -898,17 +898,17 @@ func TestUpdateConfigInputToMap_AgentFields(t *testing.T) {
 	dmrModel := "ai/mistral"
 
 	result := UpdateConfigInputToMap(generated.UpdateConfigInput{
-		AgentName:                  &name,
-		SystemPrompt:               &sp,
-		Provider:                   &prov,
-		Model:                      &model,
-		APIKey:                     &apiKey,
-		BaseURL:                    &baseURL,
-		OllamaHost:                 &ollamaHost,
-		OllamaAPIKey:               &ollamaKey,
-		AnthropicAPIKey:            &anthropicKey,
-		DockerModelRunnerEndpoint:  &dmrEndpoint,
-		DockerModelRunnerModel:     &dmrModel,
+		AgentName:                 &name,
+		SystemPrompt:              &sp,
+		Provider:                  &prov,
+		Model:                     &model,
+		APIKey:                    &apiKey,
+		BaseURL:                   &baseURL,
+		OllamaHost:                &ollamaHost,
+		OllamaAPIKey:              &ollamaKey,
+		AnthropicAPIKey:           &anthropicKey,
+		DockerModelRunnerEndpoint: &dmrEndpoint,
+		DockerModelRunnerModel:    &dmrModel,
 	})
 
 	assert.Equal(t, "NewBot", result["agentName"])
@@ -975,10 +975,10 @@ func TestUpdateConfigInputToMap_MemoryFields(t *testing.T) {
 	neo4jUser := "neo4j"
 	neo4jPwd := "pass"
 	result := UpdateConfigInputToMap(generated.UpdateConfigInput{
-		MemoryBackend:      &backend,
-		MemoryFilePath:     &filePath,
-		MemoryNeo4jURI:     &neo4jURI,
-		MemoryNeo4jUser:    &neo4jUser,
+		MemoryBackend:       &backend,
+		MemoryFilePath:      &filePath,
+		MemoryNeo4jURI:      &neo4jURI,
+		MemoryNeo4jUser:     &neo4jUser,
 		MemoryNeo4jPassword: &neo4jPwd,
 	})
 
@@ -1075,20 +1075,20 @@ func TestUpdateConfigInputToMap_ChannelFields(t *testing.T) {
 	slBot := "xoxb-bot"
 	slApp := "xapp-app"
 	result := UpdateConfigInputToMap(generated.UpdateConfigInput{
-		ChannelTelegramEnabled: &tgEnabled,
-		ChannelTelegramToken:   &tgToken,
-		ChannelDiscordEnabled:  &dcEnabled,
-		ChannelDiscordToken:    &dcToken,
-		ChannelWhatsAppEnabled: &waEnabled,
-		ChannelWhatsAppPhoneID: &waPhoneID,
+		ChannelTelegramEnabled:  &tgEnabled,
+		ChannelTelegramToken:    &tgToken,
+		ChannelDiscordEnabled:   &dcEnabled,
+		ChannelDiscordToken:     &dcToken,
+		ChannelWhatsAppEnabled:  &waEnabled,
+		ChannelWhatsAppPhoneID:  &waPhoneID,
 		ChannelWhatsAppAPIToken: &waToken,
-		ChannelTwilioEnabled:   &twEnabled,
+		ChannelTwilioEnabled:    &twEnabled,
 		ChannelTwilioAccountSid: &twSid,
-		ChannelTwilioAuthToken: &twAuth,
+		ChannelTwilioAuthToken:  &twAuth,
 		ChannelTwilioFromNumber: &twFrom,
-		ChannelSlackEnabled:    &slEnabled,
-		ChannelSlackBotToken:   &slBot,
-		ChannelSlackAppToken:   &slApp,
+		ChannelSlackEnabled:     &slEnabled,
+		ChannelSlackBotToken:    &slBot,
+		ChannelSlackAppToken:    &slApp,
 	})
 	assert.True(t, result["channelTelegramEnabled"].(bool))
 	assert.Equal(t, "tg-bot-token", result["channelTelegramToken"])
@@ -1499,4 +1499,222 @@ func TestSystemFilesToGenerated_Multiple(t *testing.T) {
 	result := SystemFilesToGenerated(list)
 	require.Len(t, result, 2)
 	assert.Equal(t, "f1", result[0].Name)
+}
+
+// ─── Regression: editable agent config field coverage ────────────────────────
+//
+// CANONICAL LIST — add new backend-editable agent config fields here.
+// Each entry is automatically checked for both mapper directions:
+//   1. UpdateConfigInputToMap    – GraphQL input key → viper map key
+//   2. AppConfigSnapshotToGenerated – snapshot field → GraphQL generated type
+//
+// To add a new field: append a row to agentFieldMapCases / agentSnapshotCases.
+// If either mapper direction is missing the tests will fail automatically.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// agentFieldMapCases defines the canonical mapping from GraphQL UpdateConfigInput
+// field to the viper map key produced by UpdateConfigInputToMap.
+var agentFieldMapCases = []struct {
+	name   string
+	setter func(*generated.UpdateConfigInput, string)
+	mapKey string
+}{
+	{
+		name:   "agentName",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.AgentName = &v },
+		mapKey: "agentName",
+	},
+	{
+		name:   "provider",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.Provider = &v },
+		mapKey: "provider",
+	},
+	{
+		name:   "model",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.Model = &v },
+		mapKey: "model",
+	},
+	{
+		name:   "apiKey",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.APIKey = &v },
+		mapKey: "apiKey",
+	},
+	{
+		name:   "baseURL",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.BaseURL = &v },
+		mapKey: "baseURL",
+	},
+	{
+		name:   "ollamaHost",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.OllamaHost = &v },
+		mapKey: "ollamaHost",
+	},
+	{
+		name:   "ollamaApiKey",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.OllamaAPIKey = &v },
+		mapKey: "ollamaApiKey",
+	},
+	{
+		name:   "anthropicApiKey",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.AnthropicAPIKey = &v },
+		mapKey: "anthropicApiKey",
+	},
+	{
+		name:   "dockerModelRunnerEndpoint",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.DockerModelRunnerEndpoint = &v },
+		mapKey: "dockerModelRunnerEndpoint",
+	},
+	{
+		name:   "reasoningLevel",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.ReasoningLevel = &v },
+		mapKey: "reasoningLevel",
+	},
+	{
+		name:   "systemPrompt",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.SystemPrompt = &v },
+		mapKey: "systemPrompt",
+	},
+	{
+		name:   "dockerModelRunnerModel",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.DockerModelRunnerModel = &v },
+		mapKey: "dockerModelRunnerModel",
+	},
+}
+
+// TestUpdateConfigInputToMap_AllAgentFields verifies that every entry in the
+// canonical list is correctly mapped to its viper key.
+func TestUpdateConfigInputToMap_AllAgentFields(t *testing.T) {
+	const sentinel = "test-value"
+	for _, tc := range agentFieldMapCases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := generated.UpdateConfigInput{}
+			tc.setter(&input, sentinel)
+			m := UpdateConfigInputToMap(input)
+			val, ok := m[tc.mapKey]
+			assert.True(t, ok, "key %q must be present in the output map", tc.mapKey)
+			assert.Equal(t, sentinel, val, "value must be forwarded unchanged")
+		})
+	}
+}
+
+// TestUpdateConfigInputToMap_NilFieldsAbsent verifies that unset (nil) fields
+// are never written to the map (no accidental zero-value overwrites).
+func TestUpdateConfigInputToMap_NilFieldsAbsent(t *testing.T) {
+	m := UpdateConfigInputToMap(generated.UpdateConfigInput{})
+	for _, tc := range agentFieldMapCases {
+		_, ok := m[tc.mapKey]
+		assert.False(t, ok, "nil field %q must not appear in the map", tc.mapKey)
+	}
+}
+
+// agentSnapshotCases defines the canonical mapping from AgentConfigSnapshot
+// field to the *string field on generated.AgentConfig.
+var agentSnapshotCases = []struct {
+	name     string
+	snapshot func() *dto.AgentConfigSnapshot
+	getter   func(*generated.AgentConfig) *string
+}{
+	{
+		name:     "name",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{Name: "bot"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.Name },
+	},
+	{
+		name:     "provider",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{Provider: "anthropic"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.Provider },
+	},
+	{
+		name:     "model",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{Model: "claude-sonnet"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.Model },
+	},
+	{
+		name:     "apiKey",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{APIKey: "sk-key"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.APIKey },
+	},
+	{
+		name:     "baseURL",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{BaseURL: "https://api.example.com"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.BaseURL },
+	},
+	{
+		name:     "ollamaHost",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{OllamaHost: "http://localhost:11434"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.OllamaHost },
+	},
+	{
+		name:     "ollamaApiKey",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{OllamaApiKey: "ollama-key"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.OllamaAPIKey },
+	},
+	{
+		name:     "anthropicApiKey",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{AnthropicApiKey: "sk-ant"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.AnthropicAPIKey },
+	},
+	{
+		name: "dockerModelRunnerEndpoint",
+		snapshot: func() *dto.AgentConfigSnapshot {
+			return &dto.AgentConfigSnapshot{DockerModelRunnerEndpoint: "http://dmr"}
+		},
+		getter: func(a *generated.AgentConfig) *string { return a.DockerModelRunnerEndpoint },
+	},
+	{
+		name:     "reasoningLevel",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{ReasoningLevel: "high"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.ReasoningLevel },
+	},
+	{
+		name:     "systemPrompt",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{SystemPrompt: "Be helpful."} },
+		getter:   func(a *generated.AgentConfig) *string { return a.SystemPrompt },
+	},
+	{
+		name:     "dockerModelRunnerModel",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{DockerModelRunnerModel: "ai/mistral"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.DockerModelRunnerModel },
+	},
+}
+
+// TestAppConfigSnapshotToGenerated_AllAgentFields verifies that every entry in the
+// canonical list is correctly mapped from snapshot to the generated GraphQL type.
+func TestAppConfigSnapshotToGenerated_AllAgentFields(t *testing.T) {
+	for _, tc := range agentSnapshotCases {
+		t.Run(tc.name, func(t *testing.T) {
+			snap := &dto.AppConfigSnapshot{Agent: tc.snapshot()}
+			result := AppConfigSnapshotToGenerated(snap)
+			require.NotNil(t, result.Agent, "Agent must be mapped")
+			ptr := tc.getter(result.Agent)
+			require.NotNil(t, ptr, "field %q must be non-nil in generated output", tc.name)
+			// Retrieve expected value from the original snapshot via the same getter.
+			expected := tc.getter(&generated.AgentConfig{
+				Name:                      strOrNilExported(snap.Agent.Name),
+				Provider:                  strOrNilExported(snap.Agent.Provider),
+				Model:                     strOrNilExported(snap.Agent.Model),
+				APIKey:                    strOrNilExported(snap.Agent.APIKey),
+				BaseURL:                   strOrNilExported(snap.Agent.BaseURL),
+				OllamaHost:                strOrNilExported(snap.Agent.OllamaHost),
+				OllamaAPIKey:              strOrNilExported(snap.Agent.OllamaApiKey),
+				AnthropicAPIKey:           strOrNilExported(snap.Agent.AnthropicApiKey),
+				DockerModelRunnerEndpoint: strOrNilExported(snap.Agent.DockerModelRunnerEndpoint),
+				ReasoningLevel:            strOrNilExported(snap.Agent.ReasoningLevel),
+				SystemPrompt:              strOrNilExported(snap.Agent.SystemPrompt),
+				DockerModelRunnerModel:    strOrNilExported(snap.Agent.DockerModelRunnerModel),
+			})
+			if expected != nil {
+				assert.Equal(t, *expected, *ptr, "field %q value must be forwarded unchanged", tc.name)
+			}
+		})
+	}
+}
+
+// strOrNilExported returns a pointer to s, or nil if s is empty (mirrors the
+// unexported strOrNil helper used by AppConfigSnapshotToGenerated).
+func strOrNilExported(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

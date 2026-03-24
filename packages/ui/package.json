@@ -35,6 +35,7 @@
     "@tanstack/solid-query": "^5.0.0"
   },
   "devDependencies": {
+    "graphql-ws": "^5.14.0",
     "@turbo/gen": "^2.8.17",
     "@types/eslint": "^8.56.12",
     "@types/node": "^25.5.0",

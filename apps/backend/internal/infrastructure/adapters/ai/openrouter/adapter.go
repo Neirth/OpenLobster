@@ -22,8 +22,8 @@ const baseURL = "https://openrouter.ai/api/v1"
 type Adapter = aiopenai.Adapter
 
 // NewAdapter creates an Adapter targeting the OpenRouter API.
-func NewAdapter(apiKey, model string, maxTokens int) *Adapter {
-	return aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxTokens, "")
+func NewAdapter(apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
+	return aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxTokens, reasoningLevel)
 }
 
 var _ ports.AIProviderPort = (*Adapter)(nil)

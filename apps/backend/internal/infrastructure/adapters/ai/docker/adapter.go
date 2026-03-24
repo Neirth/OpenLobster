@@ -26,12 +26,12 @@ type Adapter = aiopenai.Adapter
 // NewAdapter creates an Adapter targeting the Docker Model Runner endpoint.
 // If endpoint is empty, DefaultEndpoint is used. The model field should be a
 // Docker Hub model path such as "ai/mistral-nemo".
-func NewAdapter(endpoint, model string, maxTokens int) *Adapter {
+func NewAdapter(endpoint, model string, maxTokens int, reasoningLevel string) *Adapter {
 	if endpoint == "" {
 		endpoint = DefaultEndpoint
 	}
 	// Docker Model Runner does not require an API key.
-	return aiopenai.NewAdapterWithEndpoint(endpoint, "not-needed", model, maxTokens, "")
+	return aiopenai.NewAdapterWithEndpoint(endpoint, "not-needed", model, maxTokens, reasoningLevel)
 }
 
 var _ ports.AIProviderPort = (*Adapter)(nil)

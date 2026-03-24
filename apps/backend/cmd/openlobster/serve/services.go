@@ -16,7 +16,7 @@ import (
 	inframc "github.com/neirth/openlobster/internal/infrastructure/adapters/mcp"
 	browser "github.com/neirth/openlobster/internal/infrastructure/adapters/browser/chromedp"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
-	aifactory "github.com/neirth/openlobster/internal/infrastructure/adapters/ai/factory"
+	aifactory "github.com/neirth/openlobster/internal/infrastructure/adapters/ai"
 	memfile "github.com/neirth/openlobster/internal/infrastructure/adapters/memory/file"
 	memneo4j "github.com/neirth/openlobster/internal/infrastructure/adapters/memory/neo4j"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/terminal"

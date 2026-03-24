@@ -4,6 +4,11 @@ import (
 	"context"
 )
 
+// DefaultMaxOutputChars is the default character budget for model responses.
+// DefaultMaxTokens is the equivalent token limit (1 token ≈ 4 chars).
+const DefaultMaxOutputChars = 2000
+const DefaultMaxTokens = DefaultMaxOutputChars / 4 // 500
+
 type AIProviderPort interface {
 	Chat(ctx context.Context, req ChatRequest) (ChatResponse, error)
 	ChatWithAudio(ctx context.Context, req ChatRequestWithAudio) (ChatResponse, error)

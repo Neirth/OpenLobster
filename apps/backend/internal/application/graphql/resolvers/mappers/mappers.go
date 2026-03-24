@@ -317,6 +317,7 @@ func AppConfigSnapshotToGenerated(cfg *dto.AppConfigSnapshot) *generated.AppConf
 			AnthropicAPIKey:           strOrNil(cfg.Agent.AnthropicApiKey),
 			DockerModelRunnerEndpoint: strOrNil(cfg.Agent.DockerModelRunnerEndpoint),
 			DockerModelRunnerModel:    strOrNil(cfg.Agent.DockerModelRunnerModel),
+			ReasoningLevel:            strOrNil(cfg.Agent.ReasoningLevel),
 		}
 	}
 	if cfg.Capabilities != nil {
@@ -514,6 +515,9 @@ func UpdateConfigInputToMap(input generated.UpdateConfigInput) map[string]interf
 	}
 	if input.DockerModelRunnerModel != nil {
 		m["dockerModelRunnerModel"] = *input.DockerModelRunnerModel
+	}
+	if input.ReasoningLevel != nil {
+		m["reasoningLevel"] = *input.ReasoningLevel
 	}
 	if input.Capabilities != nil {
 		caps := make(map[string]interface{})

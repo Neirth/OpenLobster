@@ -39,6 +39,7 @@ function getDefaultFormValues(): Record<string, unknown> {
     ollamaApiKey: "",
     anthropicApiKey: "",
     dockerModelRunnerEndpoint: "http://localhost:12434/engines/v1",
+    reasoningLevel: "medium",
     capabilities: {
       browser: false,
       terminal: false,
@@ -83,6 +84,9 @@ function getDefaultFormValues(): Record<string, unknown> {
     channelTwilioAccountSid: "",
     channelTwilioAuthToken: "",
     channelTwilioFromNumber: "",
+    channelSlackEnabled: false,
+    channelSlackBotToken: "",
+    channelSlackAppToken: "",
   };
 }
 
@@ -112,7 +116,7 @@ const SettingsView: Component = () => {
   } | null>(null);
 
   // Workspace files state
-  const WORKSPACE_FILES = ["AGENTS.md", "SOUL.md", "IDENTITY.md"] as const;
+  const WORKSPACE_FILES = ["AGENTS.md", "SOUL.md", "IDENTITY.md", "BOOTSTRAP.md", "MEMORY.md"] as const;
   const [activeFile, setActiveFile] = createSignal<string>("AGENTS.md");
   const [fileContents, setFileContents] = createSignal<Record<string, string>>(
     {},
@@ -184,6 +188,7 @@ const SettingsView: Component = () => {
           ollamaApiKey: config.agent?.ollamaApiKey || "",
           anthropicApiKey: config.agent?.anthropicApiKey || "",
           dockerModelRunnerEndpoint: config.agent?.dockerModelRunnerEndpoint || "http://localhost:12434/engines/v1",
+          reasoningLevel: config.agent?.reasoningLevel || "medium",
           capabilities: config.capabilities || {
             browser: false,
             terminal: false,
@@ -234,6 +239,9 @@ const SettingsView: Component = () => {
           channelTwilioAccountSid:
             config.channelSecrets?.twilioAccountSid || "",
           channelTwilioAuthToken: config.channelSecrets?.twilioAuthToken || "",
+          channelSlackEnabled: config.channelSecrets?.slackEnabled ?? false,
+          channelSlackBotToken: config.channelSecrets?.slackBotToken || "",
+          channelSlackAppToken: config.channelSecrets?.slackAppToken || "",
           channelTwilioFromNumber:
             config.channelSecrets?.twilioFromNumber || "",
         });
@@ -322,6 +330,7 @@ const SettingsView: Component = () => {
               ollamaApiKey: v.ollamaApiKey,
               anthropicApiKey: v.anthropicApiKey,
               dockerModelRunnerEndpoint: v.dockerModelRunnerEndpoint,
+              reasoningLevel: v.reasoningLevel,
               capabilities: v.capabilities ?? {},
               databaseDriver: v.databaseDriver,
               databaseDSN: v.databaseDSN,
@@ -358,6 +367,9 @@ const SettingsView: Component = () => {
               channelTwilioAccountSid: v.channelTwilioAccountSid,
               channelTwilioAuthToken: v.channelTwilioAuthToken,
               channelTwilioFromNumber: v.channelTwilioFromNumber,
+              channelSlackEnabled: v.channelSlackEnabled,
+              channelSlackBotToken: v.channelSlackBotToken,
+              channelSlackAppToken: v.channelSlackAppToken,
             },
           },
         }),

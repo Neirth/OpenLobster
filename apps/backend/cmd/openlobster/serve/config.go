@@ -81,6 +81,14 @@ func (a *App) initConfig() {
 		}
 	}
 
+	// Resolve all relative paths to absolute now, before initServices() uses
+	// them to build the ContextInjector. ResolvePaths() rebases relative
+	// paths against cfg.BaseDir (see ResolvePaths in
+	// apps/backend/internal/infrastructure/config/config.go) so paths are
+	// normalized before initServices() constructs the ContextInjector and
+	// before startAndWait() potentially changes the working directory.
+	cfg.ResolvePaths()
+
 	logFile := filepath.Join(cfg.Logging.Path, "openlobster.log")
 	if err := logging.Init(logFile, cfg.Logging.Level); err != nil {
 		log.Fatalf("failed to initialize logger: %v", err)

@@ -12,7 +12,7 @@ package openai
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
@@ -44,6 +44,9 @@ func NewAdapterWithEndpoint(baseURL, apiKey, model string, maxTokens int, reason
 	if baseURL != "" {
 		opts = append(opts, option.WithBaseURL(baseURL))
 	}
+	if maxTokens <= 0 {
+		maxTokens = ports.DefaultMaxTokens
+	}
 	return &Adapter{
 		client:         goOpenAI.NewClient(opts...),
 		model:          model,
@@ -56,10 +59,15 @@ func NewAdapterWithEndpoint(baseURL, apiKey, model string, maxTokens int, reason
 // Stop reason "tool_calls" is normalised to "tool_use" so upper layers remain
 // provider-agnostic.
 func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatResponse, error) {
+	maxTokens := a.maxTokens
+	if req.MaxTokens > 0 {
+		maxTokens = req.MaxTokens
+	}
+
 	params := goOpenAI.ChatCompletionNewParams{
 		Model:               goOpenAI.ChatModel(a.model),
 		Messages:            convertMessages(sanitizeMessages(req.Messages)),
-		MaxCompletionTokens: goOpenAI.Int(int64(a.maxTokens)),
+		MaxCompletionTokens: goOpenAI.Int(int64(maxTokens)),
 	}
 
 	if a.reasoningLevel != "" && a.reasoningLevel != "none" {
@@ -215,11 +223,11 @@ func sanitizeMessages(msgs []ports.ChatMessage) []ports.ChatMessage {
 	for _, m := range msgs {
 		if m.Role == "tool" {
 			if m.ToolCallID == "" {
-				log.Printf("openai: dropping tool message with empty tool_call_id")
+				slog.Debug("openai: dropping tool message with empty tool_call_id")
 				continue
 			}
 			if !validIDs[m.ToolCallID] {
-				log.Printf("openai: dropping orphan tool message (tool_call_id=%q)", m.ToolCallID)
+				slog.Debug("openai: dropping orphan tool message", "tool_call_id", m.ToolCallID)
 				continue
 			}
 		}

@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -45,7 +46,7 @@ func (c *MCPClientSDK) connectHTTP(ctx context.Context, server ServerConfig) err
 	if server.Name != "" {
 		tokenKey := fmt.Sprintf("mcp/remote/%s/token", server.Name)
 		token, err := c.secrets.Get(ctx, tokenKey)
-		if err != nil {
+		if err != nil && !errors.Is(err, secrets.ErrNotFound) {
 			return fmt.Errorf("failed to read OAuth token from secrets backend for server %q (key %s): %w", server.Name, tokenKey, err)
 		}
 		if token != "" {

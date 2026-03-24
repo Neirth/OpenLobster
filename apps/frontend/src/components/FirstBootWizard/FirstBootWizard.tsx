@@ -513,13 +513,22 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                       onInput={(e) => handleFieldChange("ollamaApiKey", e.currentTarget.value)}
                     />
                   </Show>
-                  <Show when={["openai", "openrouter", "anthropic"].includes((formValues().provider as string) ?? "")}>
+                  <Show when={["openai", "openrouter", "opencode-zen"].includes((formValues().provider as string) ?? "")}>
                     <Input
                       label={t("settings.field.apiKey")}
                       type="password"
                       value={(formValues().apiKey as string) ?? ""}
                       onInput={(e) => handleFieldChange("apiKey", e.currentTarget.value)}
                       placeholder="sk-..."
+                    />
+                  </Show>
+                  <Show when={(formValues().provider as string) === "anthropic"}>
+                    <Input
+                      label={t("settings.field.anthropicApiKey")}
+                      type="password"
+                      value={(formValues().anthropicApiKey as string) ?? ""}
+                      onInput={(e) => handleFieldChange("anthropicApiKey", e.currentTarget.value)}
+                      placeholder="sk-ant-..."
                     />
                   </Show>
                   <Show when={(formValues().provider as string) === "openai-compatible"}>

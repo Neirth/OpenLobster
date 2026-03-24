@@ -28,9 +28,6 @@ func (a *App) startAndWait() {
 	a.ChannelStartCtx = ctx
 	defer cancel()
 
-	// Ensure all paths are absolute before potentially changing the working directory.
-	a.Cfg.ResolvePaths()
-
 	// Ensure workspace exists.
 	if err := os.MkdirAll(a.Cfg.Workspace.Path, 0755); err != nil {
 		log.Printf("lifecycle: failed to create workspace: %v", err)
