@@ -17,6 +17,9 @@ inputs:
   dhi-registry-password:
     required: false
     description: 'Password for dhi.io registry'
+  github-token:
+    required: false
+    description: 'GitHub token for ghcr.io registry login'
 outputs:
   image-name:
     description: 'Lowercase image name for Docker registry'
@@ -47,7 +50,7 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ inputs.github-token }}
 
     - name: Extract Docker metadata
       id: meta
