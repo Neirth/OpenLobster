@@ -125,6 +125,7 @@
   "memory.noProperties": "Sin propiedades. Haz clic en \"Añadir propiedad\" para empezar.",
   "memory.saving": "Guardando…",
   "memory.deleteNode": "Eliminar nodo de memoria",
+  "memory.deleteRelation": "Eliminar relación",
   "memory.deleteConfirm": "¿Estás seguro de que quieres eliminar {{name}}?",
   "memory.deleteWarning": "Esta acción no se puede deshacer.",
   "memory.deleting": "Eliminando…",

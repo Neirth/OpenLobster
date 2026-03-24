@@ -20,6 +20,7 @@ type MemoryPort interface {
 	SearchSimilar(ctx context.Context, query string, limit int) ([]Knowledge, error)
 	GetUserGraph(ctx context.Context, userID string) (Graph, error)
 	AddRelation(ctx context.Context, from, to string, relType string) error
+	DeleteRelation(ctx context.Context, from, to string) error
 	QueryGraph(ctx context.Context, cypher string) (GraphResult, error)
 	InvalidateMemoryCache(ctx context.Context, userID string) error
 	// SetUserProperty upserts an arbitrary key/value property on the user node

@@ -173,9 +173,13 @@ func (s *service) processUserBatch(ctx context.Context, userID string, msgs []mo
 	// The DB query already excludes validated messages, but we guard here too
 	// to avoid unnecessary API calls if the flag was set concurrently.
 	// Tool outputs and system messages carry no user-attributable memory.
+	// Skip group messages as they should not contribute to individual user memory.
 	var conversational []models.Message
 	for _, m := range msgs {
 		if m.IsValidated {
+			continue
+		}
+		if m.IsGroup {
 			continue
 		}
 		if m.Role == "user" || m.Role == "assistant" {
@@ -237,17 +241,11 @@ func (s *service) extractSummary(ctx context.Context, msgs []models.Message, use
 		fmt.Fprintf(&sb, "[%s] %s: %s\n", m.ID, label, m.Content)
 	}
 
-	// Cap output to ~20 tokens per message in the chunk (one short fact each).
-	maxOutputTokens := len(msgs) * 20
-
 	s.logPhase("extraction", userName, sb.String())
-	resp, err := s.aiProvider.Chat(ctx, ports.ChatRequest{
-		Messages: []ports.ChatMessage{
-			{Role: "system", Content: fmt.Sprintf(extractionSystemPrompt, userName, userName)},
-			{Role: "user", Content: fmt.Sprintf("Extract persistent facts about %s from the following conversation:\n\n%s", userName, sb.String())},
-		},
-		MaxTokens: maxOutputTokens,
-	})
+	resp, err := s.runAgenticLoop(ctx, []ports.ChatMessage{
+		{Role: "system", Content: fmt.Sprintf(extractionSystemPrompt, userName, userName)},
+		{Role: "user", Content: fmt.Sprintf("Extract persistent facts about %s from the following conversation:\n\n%s", userName, sb.String())},
+	}, s.buildTools())
 	if err != nil {
 		logging.Printf("memory_consolidation: extraction failed for %s: %v", userName, err)
 		return "", err

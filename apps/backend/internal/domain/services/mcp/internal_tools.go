@@ -713,7 +713,8 @@ func (t *AddMemoryTool) Definition() ToolDefinition {
 			"User likes electronic music → content='User loves electronic music', label='Electronica', relation='LIKES'. " +
 			"User works as X → label='Software Engineer', relation='IS'. " +
 			"For the user's own attributes (name, phone, birthday) use set_user_property instead. " +
-			"For a relation between two users (e.g. friends) use add_user_relation instead.",
+			"For a relation between two users (e.g. friends) use add_user_relation instead. " +
+			"For memory consolidation agents processing multiple users, use for_user parameter to specify which user's memory to store the fact in.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -886,7 +887,8 @@ func (t *SetUserPropertyTool) Definition() ToolDefinition {
 			"Call it proactively whenever you learn something concrete about the user. " +
 			"Examples: key='real_name' value='Alice'; key='phone' value='+34 600 000 000'; " +
 			"key='birthday' value='15 March'; key='preferred_language' value='Spanish'; key='timezone' value='Europe/Madrid'; " +
-			"key='occupation' value='software engineer'. Use snake_case for keys.",
+			"key='occupation' value='software engineer'. Use snake_case for keys. " +
+			"For memory consolidation agents processing multiple users, use for_user parameter to specify which user's property to set.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -943,7 +945,8 @@ func (t *SearchMemoryTool) Definition() ToolDefinition {
 		Description: "Search the current user's long-term memory for stored facts and preferences. " +
 			"Pass a topic keyword or short phrase (e.g. 'music', 'work', 'location', 'preferences'). " +
 			"Returns matching facts previously saved with add_memory. " +
-			"Use this before making assumptions about the user — check memory first.",
+			"Use this before making assumptions about the user — check memory first. " +
+			"For memory consolidation agents processing multiple users, use for_user parameter to specify which user's memory to search.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -1568,7 +1571,7 @@ type EditMemoryNodeTool struct {
 func (t *EditMemoryNodeTool) Definition() ToolDefinition {
 	return ToolDefinition{
 		Name:        "edit_memory_node",
-		Description: "Edit the text value of an existing memory node (fact) by its node ID. Use search_memory first to discover the node ID. Only fact nodes belonging to the current user can be edited.",
+		Description: "Edit the text value of an existing memory node (fact) by its node ID. Use search_memory first to discover the node ID. Only fact nodes belonging to the current user can be edited. For memory consolidation agents processing multiple users, use for_user parameter to specify which user's memory to edit.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

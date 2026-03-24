@@ -351,7 +351,9 @@ type ComplexityRoot struct {
 		ApprovePairing        func(childComplexity int, code string, userID *string, displayName *string) int
 		CompleteTask          func(childComplexity int, taskID string) int
 		ConnectMcp            func(childComplexity int, name string, transport string, url string, clientID *string) int
+		DeleteGroup           func(childComplexity int, conversationID string) int
 		DeleteMemoryNode      func(childComplexity int, id string) int
+		DeleteRelation        func(childComplexity int, from string, to string) int
 		DeleteSkill           func(childComplexity int, name string) int
 		DeleteToolPermission  func(childComplexity int, userID string, toolName string) int
 		DeleteUser            func(childComplexity int, conversationID string) int
@@ -578,11 +580,13 @@ type MutationResolver interface {
 	KillSubAgent(ctx context.Context, id string) (*KillSubAgentResult, error)
 	UpdateConfig(ctx context.Context, input UpdateConfigInput) (*UpdateConfigResult, error)
 	DeleteUser(ctx context.Context, conversationID string) (*MutationResult, error)
+	DeleteGroup(ctx context.Context, conversationID string) (*MutationResult, error)
 	SendMessage(ctx context.Context, conversationID *string, channelID *string, content string) (*MessageSentResult, error)
 	AddMemory(ctx context.Context, content string) (*MutationResult, error)
 	AddMemoryNode(ctx context.Context, label string, typeArg string, value string) (*MemoryNode, error)
 	UpdateMemoryNode(ctx context.Context, id string, label *string, typeArg *string, value *string, properties *string) (*MemoryNode, error)
 	DeleteMemoryNode(ctx context.Context, id string) (bool, error)
+	DeleteRelation(ctx context.Context, from string, to string) (bool, error)
 	AddRelation(ctx context.Context, from string, to string, relationType string) (*AddRelationResult, error)
 	ExecuteCypher(ctx context.Context, cypher string) (*CypherResult, error)
 	ConnectMcp(ctx context.Context, name string, transport string, url string, clientID *string) (*MCPConnectResult, error)
@@ -795,12 +799,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AgentConfig.DockerModelRunnerModel(childComplexity), true
-	case "AgentConfig.reasoningLevel":
-		if e.ComplexityRoot.AgentConfig.ReasoningLevel == nil {
-			break
-		}
-
-		return e.ComplexityRoot.AgentConfig.ReasoningLevel(childComplexity), true
 	case "AgentConfig.model":
 		if e.ComplexityRoot.AgentConfig.Model == nil {
 			break
@@ -831,6 +829,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AgentConfig.Provider(childComplexity), true
+	case "AgentConfig.reasoningLevel":
+		if e.ComplexityRoot.AgentConfig.ReasoningLevel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfig.ReasoningLevel(childComplexity), true
 	case "AgentConfig.systemPrompt":
 		if e.ComplexityRoot.AgentConfig.SystemPrompt == nil {
 			break
@@ -1945,6 +1949,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ConnectMcp(childComplexity, args["name"].(string), args["transport"].(string), args["url"].(string), args["clientId"].(*string)), true
+	case "Mutation.deleteGroup":
+		if e.ComplexityRoot.Mutation.DeleteGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteGroup(childComplexity, args["conversationId"].(string)), true
 	case "Mutation.deleteMemoryNode":
 		if e.ComplexityRoot.Mutation.DeleteMemoryNode == nil {
 			break
@@ -1956,6 +1971,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteMemoryNode(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteRelation":
+		if e.ComplexityRoot.Mutation.DeleteRelation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteRelation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteRelation(childComplexity, args["from"].(string), args["to"].(string)), true
 	case "Mutation.deleteSkill":
 		if e.ComplexityRoot.Mutation.DeleteSkill == nil {
 			break
@@ -3095,10 +3121,7 @@ func newExecutionContext(
 }
 
 var sources = []*ast.Source{
-	{Name: "../../../../../../schema/root.graphql", Input: `# Root schema — scalar y schema directive
-# Query, Mutation, Subscription se definen/extienden en los archivos por dominio
-
-scalar JSON
+	{Name: "../../../../../../schema/root.graphql", Input: `scalar JSON
 
 schema {
   query:        Query
@@ -3106,9 +3129,7 @@ schema {
   subscription: Subscription
 }
 `, BuiltIn: false},
-	{Name: "../../../../../../schema/shared.graphql", Input: `# Tipos compartidos (result types, inputs) usados por múltiples dominios
-
-type MutationResult {
+	{Name: "../../../../../../schema/shared.graphql", Input: `type MutationResult {
   success: Boolean!
   error:   String
 }
@@ -3202,7 +3223,6 @@ type KillSubAgentResult {
   error:   String
 }
 
-# Agent define Query/Mutation base; otros dominios usan extend
 type Query {
   agent:     Agent
   channels:  [Channel!]!
@@ -3478,6 +3498,7 @@ extend type Query {
 
 extend type Mutation {
   deleteUser(conversationId: String!): MutationResult!
+  deleteGroup(conversationId: String!): MutationResult!
   sendMessage(
     conversationId: String
     channelId:      String
@@ -3567,6 +3588,7 @@ extend type Mutation {
     properties: String
   ): MemoryNode!
   deleteMemoryNode(id: String!): Boolean!
+  deleteRelation(from: String!, to: String!): Boolean!
   addRelation(
     from:         String!
     to:           String!
@@ -3805,7 +3827,6 @@ type EventPayload {
   data:      JSON
 }
 
-# Subscription se define aquí; otros dominios no añaden subscriptions
 type Subscription {
   events(eventType: String): EventPayload
 
@@ -3963,6 +3984,17 @@ func (ec *executionContext) field_Mutation_connectMcp_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversationId", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["conversationId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteMemoryNode_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3971,6 +4003,22 @@ func (ec *executionContext) field_Mutation_deleteMemoryNode_args(ctx context.Con
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteRelation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "from", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["from"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "to", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["to"] = arg1
 	return args, nil
 }
 
@@ -10486,6 +10534,53 @@ func (ec *executionContext) fieldContext_Mutation_deleteUser(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_deleteGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteGroup,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteGroup(ctx, fc.Args["conversationId"].(string))
+		},
+		nil,
+		ec.marshalNMutationResult2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_MutationResult_success(ctx, field)
+			case "error":
+				return ec.fieldContext_MutationResult_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MutationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_sendMessage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10735,6 +10830,47 @@ func (ec *executionContext) fieldContext_Mutation_deleteMemoryNode(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteMemoryNode_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteRelation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteRelation,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteRelation(ctx, fc.Args["from"].(string), fc.Args["to"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteRelation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteRelation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -17550,6 +17686,10 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 func (ec *executionContext) unmarshalInputCapabilitiesInput(ctx context.Context, obj any) (CapabilitiesInput, error) {
 	var it CapabilitiesInput
+	if obj == nil {
+		return it, nil
+	}
+
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
@@ -17618,6 +17758,10 @@ func (ec *executionContext) unmarshalInputCapabilitiesInput(ctx context.Context,
 
 func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context, obj any) (UpdateConfigInput, error) {
 	var it UpdateConfigInput
+	if obj == nil {
+		return it, nil
+	}
+
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
@@ -19938,6 +20082,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "deleteGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "sendMessage":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_sendMessage(ctx, field)
@@ -19969,6 +20120,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteMemoryNode":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteMemoryNode(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteRelation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteRelation(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

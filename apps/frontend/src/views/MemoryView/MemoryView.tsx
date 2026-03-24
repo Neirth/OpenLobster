@@ -16,7 +16,7 @@ import { For, Index, createMemo, createSignal, Show } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
 import { useMemory } from '@openlobster/ui/hooks';
 import type { MemoryNode } from '@openlobster/ui/types';
-import { UPDATE_MEMORY_NODE_MUTATION, DELETE_MEMORY_NODE_MUTATION } from '@openlobster/ui/graphql/mutations';
+import { UPDATE_MEMORY_NODE_MUTATION, DELETE_MEMORY_NODE_MUTATION, DELETE_RELATION_MUTATION } from '@openlobster/ui/graphql/mutations';
 import { client } from '../../graphql/client';
 import AppShell from '../../components/AppShell';
 import Modal from '../../components/Modal';
@@ -85,6 +85,13 @@ const MemoryView: Component = () => {
       void queryClient.invalidateQueries({ queryKey: ['memory'] });
       setSelectedNode(null);
       setDeleteModalOpen(false);
+    },
+  }));
+
+  const deleteRelation = createMutation(() => ({
+    mutationFn: (vars: { from: string; to: string }) => client.request(DELETE_RELATION_MUTATION, vars),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['memory'] });
     },
   }));
 
@@ -292,6 +299,13 @@ const MemoryView: Component = () => {
                                 <span class="edge-arrow">→</span>
                                 <span class="edge-target">{targetNode?.label ?? edge.targetId}</span>
                                 <span class="edge-type">({targetNode?.type ?? t('memory.unknown')})</span>
+                                <button
+                                  class="edge-delete-btn"
+                                  title={t('memory.deleteRelation')}
+                                  onClick={(e) => { e.stopPropagation(); deleteRelation.mutate({ from: edge.sourceId, to: edge.targetId }); }}
+                                >
+                                  <span class="material-symbols-outlined">close</span>
+                                </button>
                               </li>
                             );
                           }}
@@ -313,6 +327,13 @@ const MemoryView: Component = () => {
                                 <span class="edge-type">({sourceNode?.type ?? t('memory.unknown')})</span>
                                 <span class="edge-arrow">→</span>
                                 <span class="edge-relation">{edge.relation ?? ''}</span>
+                                <button
+                                  class="edge-delete-btn"
+                                  title={t('memory.deleteRelation')}
+                                  onClick={(e) => { e.stopPropagation(); deleteRelation.mutate({ from: edge.sourceId, to: edge.targetId }); }}
+                                >
+                                  <span class="material-symbols-outlined">close</span>
+                                </button>
                               </li>
                             );
                           }}
@@ -360,6 +381,7 @@ const MemoryView: Component = () => {
               <option value="event">event</option>
               <option value="thing">thing</option>
               <option value="story">story</option>
+              <option value="user">user</option>
             </select>
           </div>
 
