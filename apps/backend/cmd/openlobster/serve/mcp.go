@@ -11,6 +11,7 @@ import (
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 	"github.com/neirth/openlobster/internal/infrastructure/secrets"
+	"github.com/spf13/viper"
 )
 
 // initMCP configures the secrets provider, MCP client SDK and OAuth 2.1
@@ -54,19 +55,16 @@ func (a *App) initMCP() {
 	// MCP client SDK
 	a.MCPClientSDK = mcp.NewMCPClientSDK(a.SecretsProvider)
 
-	// OAuth 2.1 manager — determine the callback URL
-	oauthCallbackURL := cfg.GraphQL.BaseURL
-	if oauthCallbackURL != "" && (strings.HasPrefix(oauthCallbackURL, "http://") || strings.HasPrefix(oauthCallbackURL, "https://")) {
-		oauthCallbackURL = strings.TrimSuffix(oauthCallbackURL, "/") + "/oauth/callback"
-	} else {
-		oauthCallbackURL = fmt.Sprintf("http://%s:%d/oauth/callback", cfg.GraphQL.Host, cfg.GraphQL.Port)
-		if cfg.GraphQL.BaseURL != "" {
-			log.Printf("oauth: graphql.base_url %q is not a full URL; using %q for redirect_uri.", cfg.GraphQL.BaseURL, oauthCallbackURL)
-		} else if cfg.GraphQL.Host == "0.0.0.0" || cfg.GraphQL.Host == "" {
-			log.Printf("oauth: redirect_uri is %q. For OAuth behind a reverse proxy, set OPENLOBSTER_GRAPHQL_BASE_URL.", oauthCallbackURL)
+	// OAuth 2.1 manager — callback URL is resolved on every InitiateOAuth call so
+	// that runtime changes via updateConfig(graphqlBaseUrl) take effect immediately.
+	oauthCallbackURLFn := func() string {
+		baseURL := viper.GetString("graphql.base_url")
+		if baseURL != "" && (strings.HasPrefix(baseURL, "http://") || strings.HasPrefix(baseURL, "https://")) {
+			return strings.TrimSuffix(baseURL, "/") + "/oauth/callback"
 		}
+		return fmt.Sprintf("http://%s:%d/oauth/callback", cfg.GraphQL.Host, cfg.GraphQL.Port)
 	}
-	a.OAuthMgr = mcp.NewOAuthManager(a.SecretsProvider, oauthCallbackURL)
+	a.OAuthMgr = mcp.NewOAuthManager(a.SecretsProvider, oauthCallbackURLFn)
 
 	// Reconnect saved MCP servers
 	if savedServers, err := a.MCPServerRepo.ListAll(context.Background()); err == nil {

@@ -257,29 +257,30 @@ const (
 // OAuthManager orchestrates the OAuth 2.1 Authorization Code + PKCE flow for
 // Streamable HTTP MCP servers.
 type OAuthManager struct {
-	secrets         secrets.SecretsProvider
-	callbackBaseURL string // redirect_uri; must match the daemon's /oauth/callback
-	pending         map[string]*oauthPendingEntry
-	statuses        map[string]OAuthStatus
-	errs            map[string]string
-	serverURLs      map[string]string
-	mu              sync.Mutex
+	secrets       secrets.SecretsProvider
+	callbackURLFn func() string // returns current redirect_uri; evaluated on each InitiateOAuth call
+	pending       map[string]*oauthPendingEntry
+	statuses      map[string]OAuthStatus
+	errs          map[string]string
+	serverURLs    map[string]string
+	mu            sync.Mutex
 }
 
 // NewOAuthManager creates an OAuthManager backed by the given SecretsProvider.
-// callbackBaseURL is the redirect_uri for OAuth callbacks (e.g. http://127.0.0.1:8080/oauth/callback).
-// If empty, DefaultCallbackBaseURL is used.
-func NewOAuthManager(sp secrets.SecretsProvider, callbackBaseURL string) *OAuthManager {
-	if callbackBaseURL == "" {
-		callbackBaseURL = DefaultCallbackBaseURL
+// callbackURLFn is called on every InitiateOAuth invocation to obtain the
+// current redirect_uri (e.g. after the user updates graphqlBaseUrl at runtime).
+// If nil, DefaultCallbackBaseURL is always used.
+func NewOAuthManager(sp secrets.SecretsProvider, callbackURLFn func() string) *OAuthManager {
+	if callbackURLFn == nil {
+		callbackURLFn = func() string { return DefaultCallbackBaseURL }
 	}
 	return &OAuthManager{
-		secrets:         sp,
-		callbackBaseURL: callbackBaseURL,
-		pending:         make(map[string]*oauthPendingEntry),
-		statuses:        make(map[string]OAuthStatus),
-		errs:            make(map[string]string),
-		serverURLs:      make(map[string]string),
+		secrets:       sp,
+		callbackURLFn: callbackURLFn,
+		pending:       make(map[string]*oauthPendingEntry),
+		statuses:      make(map[string]OAuthStatus),
+		errs:          make(map[string]string),
+		serverURLs:    make(map[string]string),
 	}
 }
 
@@ -343,7 +344,7 @@ func (m *OAuthManager) InitiateOAuth(ctx context.Context, serverName, mcpURL str
 		clientID = existing
 	} else {
 		// Try dynamic client registration; use "openlobster" as fallback client_id
-		clientID, err = registerClient(ctx, meta.RegistrationEndpoint, m.callbackBaseURL)
+		clientID, err = registerClient(ctx, meta.RegistrationEndpoint, m.callbackURLFn())
 		if err != nil || clientID == "" {
 			if err != nil {
 				log.Printf("oauth: dynamic registration failed for %s: %v (using client_id openlobster)", serverName, err)
@@ -374,7 +375,7 @@ func (m *OAuthManager) InitiateOAuth(ctx context.Context, serverName, mcpURL str
 		CodeVerifier:    verifier,
 		TokenEndpoint:   meta.TokenEndpoint,
 		ClientID:        clientID,
-		CallbackBaseURL: m.callbackBaseURL,
+		CallbackBaseURL: m.callbackURLFn(),
 		CreatedAt:       time.Now(),
 	}
 	m.serverURLs[serverName] = mcpURL
@@ -386,7 +387,7 @@ func (m *OAuthManager) InitiateOAuth(ctx context.Context, serverName, mcpURL str
 	params := url.Values{}
 	params.Set("response_type", "code")
 	params.Set("client_id", clientID)
-	params.Set("redirect_uri", m.callbackBaseURL)
+	params.Set("redirect_uri", m.callbackURLFn())
 	params.Set("state", state)
 	params.Set("code_challenge", codeChallenge(verifier))
 	params.Set("code_challenge_method", "S256")

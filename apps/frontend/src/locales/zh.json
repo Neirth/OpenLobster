@@ -467,5 +467,15 @@
   "wizard.provider.anthropic": "Anthropic",
   "wizard.provider.openrouter": "OpenRouter",
   "wizard.provider.docker": "Docker Model Runner",
-  "wizard.provider.openaiCompatible": "OpenAI 兼容"
+  "wizard.provider.openaiCompatible": "OpenAI 兼容",
+  "wizard.channel.telegram.hint": "在 Telegram 上通过 @BotFather (/newbot) 创建机器人以获取此令牌",
+  "wizard.channel.telegram.placeholder": "如 1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxx",
+  "wizard.channel.discord.hint": "前往 discord.com/developers → Applications → 选择应用 → Bot → Token 获取",
+  "wizard.channel.discord.placeholder": "如 MTk4NjQ0NjI2ODg5NjI2NjI...",
+  "wizard.channel.slack.hint": "在 api.slack.com → OAuth & Permissions 获取 Bot Token (xoxb-...)；Socket Mode 还需在设置中配置 App-Level Token (xapp-...)",
+  "wizard.channel.slack.placeholder": "xoxb-...",
+  "wizard.channel.whatsapp.hint": "在 Meta Business Suite → WhatsApp → API 设置 中获取 Access Token 和 Phone Number ID",
+  "wizard.channel.whatsapp.placeholder": "EAAxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "wizard.channel.twilio.hint": "在 console.twilio.com → 控制台 中获取 Account SID、Auth Token 和电话号码",
+  "wizard.channel.twilio.placeholder": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 }

@@ -404,8 +404,13 @@ func (a *Adapter) DeleteRelation(ctx context.Context, from, to string) error {
 	session := a.driver.NewSession(context.Background(), neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(context.Background())
 
+	// Strip the synthetic "user:" prefix used in graph API responses so the
+	// Cypher query matches the real id property stored in Neo4j.
+	fromID := strings.TrimPrefix(from, "user:")
+	toID := strings.TrimPrefix(to, "user:")
+
 	cypher := "MATCH (a {id: $from})-[r]->(b {id: $to}) DELETE r"
-	result, err := session.Run(ctx, cypher, map[string]interface{}{"from": from, "to": to})
+	result, err := session.Run(ctx, cypher, map[string]interface{}{"from": fromID, "to": toID})
 	if err != nil {
 		return err
 	}
