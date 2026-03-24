@@ -2,55 +2,52 @@
 // Polyfill a minimal Popover API used by ContextMenu component.
 
 if (typeof window !== "undefined") {
-  interface PopoverProto extends HTMLElement {
-    __popoverOpen?: boolean;
-    dataset?: { popoverOpen?: string };
-    showPopover?: () => void;
-    hidePopover?: () => void;
-  }
-  const proto = (window as unknown as { HTMLElement?: { prototype?: PopoverProto } }).HTMLElement?.prototype;
-  if (proto) {
-    if (!proto.showPopover) {
-      proto.showPopover = function showPopover() {
-        // mark as open
-        try {
-          this.__popoverOpen = true;
-          // reflect to dataset for matches polyfill
-          if (this.dataset) this.dataset.popoverOpen = "true";
-        } catch {
-          // ignore
-        }
-      };
-    }
+  // Cast to `any` to avoid conflicts with lib.dom.d.ts, which in modern TypeScript
+  // declares showPopover/hidePopover as non-optional on HTMLElement. The polyfill
+  // only installs the methods when happy-dom omits them at runtime.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const proto = HTMLElement.prototype as any;
 
-    if (!proto.hidePopover) {
-      proto.hidePopover = function hidePopover() {
-        try {
-          this.__popoverOpen = false;
-          if (this.dataset) this.dataset.popoverOpen = "false";
-        } catch {
-          // Ignore error
-        }
-      };
-    }
+  type PopoverEl = HTMLElement & { __popoverOpen?: boolean };
 
-    // Patch matches to understand ':popover-open' pseudo
-    const originalMatches = proto.matches;
-    proto.matches = function matches(this: PopoverProto, selector: string) {
-      if (selector === ":popover-open") {
-        try {
-          if (this.__popoverOpen !== undefined) return !!this.__popoverOpen;
-          if (this.dataset && this.dataset.popoverOpen !== undefined) {
-            return this.dataset.popoverOpen === "true";
-          }
-          return false;
-        } catch {
-          return false;
-        }
+  if (!proto.showPopover) {
+    proto.showPopover = function (this: PopoverEl) {
+      try {
+        this.__popoverOpen = true;
+        if (this.dataset) this.dataset["popoverOpen"] = "true";
+      } catch {
+        // ignore
       }
-      return originalMatches.call(this, selector);
     };
   }
+
+  if (!proto.hidePopover) {
+    proto.hidePopover = function (this: PopoverEl) {
+      try {
+        this.__popoverOpen = false;
+        if (this.dataset) this.dataset["popoverOpen"] = "false";
+      } catch {
+        // ignore
+      }
+    };
+  }
+
+  // Patch matches to understand ':popover-open' pseudo-class.
+  const originalMatches = HTMLElement.prototype.matches;
+  proto.matches = function (this: PopoverEl, selector: string): boolean {
+    if (selector === ":popover-open") {
+      try {
+        if (this.__popoverOpen !== undefined) return !!this.__popoverOpen;
+        if (this.dataset && this.dataset["popoverOpen"] !== undefined) {
+          return this.dataset["popoverOpen"] === "true";
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }
+    return originalMatches.call(this, selector);
+  };
 }
 
 export {};

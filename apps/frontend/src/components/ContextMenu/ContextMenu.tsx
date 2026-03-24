@@ -37,9 +37,15 @@ interface ContextMenuProps {
 
 const ContextMenu: Component<ContextMenuProps> = (props) => {
   let menuEl: HTMLUListElement | undefined;
+  let pendingRightClick = false;
 
-  function open(e: MouseEvent) {
-    e.preventDefault();
+  function handleMouseDown(e: MouseEvent) {
+    if (e.button === 2) pendingRightClick = true;
+  }
+
+  function handleMouseUp(e: MouseEvent) {
+    if (e.button !== 2 || !pendingRightClick) return;
+    pendingRightClick = false;
     if (!menuEl) return;
 
     // Position at (0,0) first so the browser can compute the rendered size,
@@ -53,6 +59,10 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
     const y = Math.min(e.clientY, window.innerHeight - h - 4);
     menuEl.style.left = `${x}px`;
     menuEl.style.top = `${y}px`;
+  }
+
+  function preventNativeMenu(e: MouseEvent) {
+    e.preventDefault();
   }
 
   function select(item: ContextMenuItem) {
@@ -71,7 +81,12 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
 
   return (
     <>
-      <div class="ctx-trigger" onContextMenu={open}>
+      <div
+        class="ctx-trigger"
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onContextMenu={preventNativeMenu}
+      >
         {props.children}
       </div>
 
