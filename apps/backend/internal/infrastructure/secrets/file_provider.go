@@ -116,7 +116,7 @@ func (p *FileSecretsProvider) Get(ctx context.Context, key string) (string, erro
 
 	val, ok := p.data[key]
 	if !ok {
-		return "", fmt.Errorf("secret %q not found", key)
+		return "", fmt.Errorf("secret %q: %w", key, ErrNotFound)
 	}
 	return val, nil
 }

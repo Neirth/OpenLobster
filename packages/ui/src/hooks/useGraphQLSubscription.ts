@@ -13,7 +13,7 @@ interface UseGraphQLSubscriptionOptions<T> {
   onDisconnected?: () => void;
 }
 
-export function useGraphQLSubscription<T>(options: UseGraphQLSubscriptionOptions<T>) {
+export function useGraphQLSubscription<T extends object>(options: UseGraphQLSubscriptionOptions<T>) {
   const [data, setData] = createSignal<T | null>(null);
   const [error, setError] = createSignal<Error | null>(null);
   const [isConnected, setIsConnected] = createSignal(false);
@@ -59,7 +59,8 @@ export function useGraphQLSubscription<T>(options: UseGraphQLSubscriptionOptions
           if (m?.type === 'next' && m.payload?.data && typeof m.payload.data === 'object') {
             const first = Object.values(m.payload.data as Record<string, unknown>)[0];
             const subscriptionData = first as T;
-            setData(subscriptionData);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+            setData(subscriptionData as Exclude<T, Function>);
             options.onData?.(subscriptionData);
           }
         },

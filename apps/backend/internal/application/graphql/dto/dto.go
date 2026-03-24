@@ -222,6 +222,7 @@ type AgentConfigSnapshot struct {
 	AnthropicApiKey           string
 	DockerModelRunnerEndpoint string
 	DockerModelRunnerModel    string
+	ReasoningLevel            string
 }
 
 type CapabilitiesSnapshot struct {

@@ -77,20 +77,30 @@ func ensureOllamaPrivateKey() {
 
 // Adapter implements ports.AIProviderPort using the official Ollama Go SDK.
 type Adapter struct {
-	client        chatClient
-	initErr       error
-	model         string
-	maxTokens     int
-	contextWindow int
+	client         chatClient
+	initErr        error
+	model          string
+	maxTokens      int
+	contextWindow  int
+	reasoningLevel string
 }
 
 // NewAdapter constructs an Adapter pointing at the given Ollama endpoint.
 func NewAdapter(baseURL, model string, maxTokens int) *Adapter {
-	return NewAdapterWithAuth(baseURL, "", model, maxTokens)
+	return NewAdapterWithOptions(baseURL, "", model, maxTokens, "")
 }
 
 // NewAdapterWithAuth constructs an Adapter with an optional Bearer token.
 func NewAdapterWithAuth(baseURL, apiKey, model string, maxTokens int) *Adapter {
+	return NewAdapterWithOptions(baseURL, apiKey, model, maxTokens, "")
+}
+
+// NewAdapterWithOptions constructs an Adapter with all options.
+// reasoningLevel is stored for future use; debug verbosity is controlled by the global logging level.
+func NewAdapterWithOptions(baseURL, apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
+	if maxTokens <= 0 {
+		maxTokens = ports.DefaultMaxTokens
+	}
 	ensureOllamaPrivateKey()
 
 	u, err := url.Parse(baseURL)
@@ -99,9 +109,9 @@ func NewAdapterWithAuth(baseURL, apiKey, model string, maxTokens int) *Adapter {
 		c, envErr := ollamaapi.ClientFromEnvironment()
 		if envErr != nil {
 			log.Printf("ollama: ClientFromEnvironment failed: %v", envErr)
-			return &Adapter{initErr: envErr, model: model, maxTokens: maxTokens}
+			return &Adapter{initErr: envErr, model: model, maxTokens: maxTokens, reasoningLevel: reasoningLevel}
 		}
-		a := &Adapter{client: c, model: model, maxTokens: maxTokens}
+		a := &Adapter{client: c, model: model, maxTokens: maxTokens, reasoningLevel: reasoningLevel}
 		a.probeContextWindow()
 		return a
 	}
@@ -113,15 +123,9 @@ func NewAdapterWithAuth(baseURL, apiKey, model string, maxTokens int) *Adapter {
 		}
 	}
 	c := ollamaapi.NewClient(u, httpClient)
-	a := &Adapter{client: c, model: model, maxTokens: maxTokens}
+	a := &Adapter{client: c, model: model, maxTokens: maxTokens, reasoningLevel: reasoningLevel}
 	a.probeContextWindow()
 	return a
-}
-
-// NewAdapterWithOptions constructs an Adapter with all options.
-// Kept for backwards compatibility; debug verbosity is controlled by the global logging level.
-func NewAdapterWithOptions(baseURL, apiKey, model string, maxTokens int, _ string) *Adapter {
-	return NewAdapterWithAuth(baseURL, apiKey, model, maxTokens)
 }
 
 // probeContextWindow calls Show to determine the model's actual context window.

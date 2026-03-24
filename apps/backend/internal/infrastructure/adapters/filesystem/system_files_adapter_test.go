@@ -16,8 +16,8 @@ func TestSystemFilesAdapter_ListFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListFiles: %v", err)
 	}
-	if len(files) != 3 {
-		t.Errorf("expected 3 files, got %d", len(files))
+	if len(files) != len(AllowedWorkspaceFiles) {
+		t.Errorf("expected %d files, got %d", len(AllowedWorkspaceFiles), len(files))
 	}
 	for _, f := range files {
 		if f.Name == "" || f.Path == "" {

@@ -197,8 +197,11 @@ func (p *OpenBAOProvider) Get(ctx context.Context, key string) (string, error) {
 			}
 		}
 
-		v, _, err := p.readOnce(ctx, key)
+		v, found, err := p.readOnce(ctx, key)
 		if err == nil {
+			if !found {
+				return "", fmt.Errorf("openbao key %q: %w", key, ErrNotFound)
+			}
 			return v, nil
 		}
 		if !isTransient(err) {

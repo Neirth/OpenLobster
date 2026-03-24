@@ -50,6 +50,7 @@ func BuildConfigSnapshot(cfg *config.Config, providerNameFn func(*config.Config)
 			AnthropicApiKey:           anthropicApiKey,
 			DockerModelRunnerEndpoint: cfg.Providers.DockerModelRunner.Endpoint,
 			DockerModelRunnerModel:    cfg.Providers.DockerModelRunner.DefaultModel,
+			ReasoningLevel:            cfg.Agent.ReasoningLevel,
 		},
 		Capabilities: &CapabilitiesSnapshot{
 			Browser: cfg.Agent.Capabilities.Browser, Terminal: cfg.Agent.Capabilities.Terminal,

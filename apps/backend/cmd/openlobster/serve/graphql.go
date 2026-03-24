@@ -10,7 +10,7 @@ import (
 	"github.com/neirth/openlobster/internal/application/registry"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/repositories"
-	aifactory "github.com/neirth/openlobster/internal/infrastructure/adapters/ai/factory"
+	aifactory "github.com/neirth/openlobster/internal/infrastructure/adapters/ai"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 )

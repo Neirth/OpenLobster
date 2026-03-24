@@ -41,7 +41,7 @@ func BuildFromConfig(cfg *config.Config) ports.AIProviderPort {
 		if model == "" {
 			model = "openai/gpt-4o"
 		}
-		a := aiopenrouter.NewAdapter(cfg.Providers.OpenRouter.APIKey, model, MaxOutputTokens)
+		a := aiopenrouter.NewAdapter(cfg.Providers.OpenRouter.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
 		if cfg.Providers.OpenRouter.ContextWindow > 0 {
 			a.OverrideContextWindow(cfg.Providers.OpenRouter.ContextWindow)
 		}
@@ -56,6 +56,7 @@ func BuildFromConfig(cfg *config.Config) ports.AIProviderPort {
 			cfg.Providers.OpenAICompat.APIKey,
 			model,
 			MaxOutputTokens,
+			cfg.Agent.ReasoningLevel,
 		)
 		if cfg.Providers.OpenAICompat.ContextWindow > 0 {
 			a.OverrideContextWindow(cfg.Providers.OpenAICompat.ContextWindow)
@@ -66,7 +67,7 @@ func BuildFromConfig(cfg *config.Config) ports.AIProviderPort {
 		if model == "" {
 			model = "llama3"
 		}
-		a := aiollama.NewAdapterWithOptions(cfg.Providers.Ollama.Endpoint, cfg.Providers.Ollama.APIKey, model, MaxOutputTokens, cfg.Logging.Level)
+		a := aiollama.NewAdapterWithOptions(cfg.Providers.Ollama.Endpoint, cfg.Providers.Ollama.APIKey, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
 		if cfg.Providers.Ollama.ContextWindow > 0 {
 			a.OverrideContextWindow(cfg.Providers.Ollama.ContextWindow)
 		}
@@ -92,7 +93,7 @@ func BuildFromConfig(cfg *config.Config) ports.AIProviderPort {
 		if model == "" {
 			model = "ai/mistral-nemo"
 		}
-		a := aidockermodelrunner.NewAdapter(cfg.Providers.DockerModelRunner.Endpoint, model, MaxOutputTokens)
+		a := aidockermodelrunner.NewAdapter(cfg.Providers.DockerModelRunner.Endpoint, model, MaxOutputTokens, cfg.Agent.ReasoningLevel)
 		if cfg.Providers.DockerModelRunner.ContextWindow > 0 {
 			a.OverrideContextWindow(cfg.Providers.DockerModelRunner.ContextWindow)
 		}

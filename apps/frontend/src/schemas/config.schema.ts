@@ -595,6 +595,8 @@ export const configGroups = [
       // Ollama
       "ollamaHost",
       "ollamaApiKey",
+      // Anthropic
+      "anthropicApiKey",
       // Docker Model Runner
       "dockerModelRunnerEndpoint",
       // Reasoning

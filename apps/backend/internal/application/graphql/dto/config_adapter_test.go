@@ -105,9 +105,9 @@ func TestConfigAdapter_ProviderAnthropic(t *testing.T) {
 	a, _ := newAdapter(t)
 
 	_, err := a.Apply(context.Background(), map[string]interface{}{
-		"provider": "anthropic",
-		"model":    "claude-sonnet-4-6",
-		"apiKey":   "sk-ant",
+		"provider":       "anthropic",
+		"model":          "claude-sonnet-4-6",
+		"apiKey":         "sk-ant",
 		"reasoningLevel": "high",
 	})
 	require.NoError(t, err)
@@ -221,10 +221,10 @@ func TestConfigAdapter_Memory(t *testing.T) {
 	a, _ := newAdapter(t)
 
 	_, err := a.Apply(context.Background(), map[string]interface{}{
-		"memoryBackend":   "neo4j",
-		"memoryFilePath":  "./data/memory.gml",
-		"memoryNeo4jURI":  "bolt://localhost:7687",
-		"memoryNeo4jUser": "neo4j",
+		"memoryBackend":       "neo4j",
+		"memoryFilePath":      "./data/memory.gml",
+		"memoryNeo4jURI":      "bolt://localhost:7687",
+		"memoryNeo4jUser":     "neo4j",
 		"memoryNeo4jPassword": "password",
 	})
 	require.NoError(t, err)
@@ -291,9 +291,9 @@ func TestConfigAdapter_Secrets(t *testing.T) {
 	a, _ := newAdapter(t)
 
 	_, err := a.Apply(context.Background(), map[string]interface{}{
-		"secretsBackend":     "openbao",
-		"secretsFilePath":    "./data/secrets.json",
-		"secretsOpenbaoURL":  "https://vault.example.com",
+		"secretsBackend":      "openbao",
+		"secretsFilePath":     "./data/secrets.json",
+		"secretsOpenbaoURL":   "https://vault.example.com",
 		"secretsOpenbaoToken": "hvs.token",
 	})
 	require.NoError(t, err)
@@ -444,9 +444,10 @@ func TestConfigAdapter_ProviderFallback(t *testing.T) {
 func makeFullConfig() *config.Config {
 	return &config.Config{
 		Agent: config.AgentConfig{
-			Name:         "TestBot",
-			SystemPrompt: "Be helpful.",
-			Provider:     "anthropic",
+			Name:           "TestBot",
+			SystemPrompt:   "Be helpful.",
+			Provider:       "anthropic",
+			ReasoningLevel: "medium",
 			Capabilities: config.CapabilitiesConfig{
 				Browser:    true,
 				Terminal:   true,
@@ -458,12 +459,12 @@ func makeFullConfig() *config.Config {
 			},
 		},
 		Providers: config.ProvidersConfig{
-			Anthropic: config.AnthropicConfig{APIKey: "sk-ant", Model: "claude-sonnet-4-6"},
-			OpenAI:    config.OpenAIConfig{APIKey: "sk-oai", Model: "gpt-4o", BaseURL: "https://api.openai.com/v1"},
-			Ollama:    config.OllamaConfig{Endpoint: "http://localhost:11434", DefaultModel: "llama3", APIKey: "olk"},
-			OpenRouter: config.OpenRouterConfig{APIKey: "sk-or", DefaultModel: "openai/gpt-4o"},
-			OpenAICompat: config.OpenAICompatConfig{APIKey: "sk-c", BaseURL: "https://compat.example.com", Model: "mistral"},
-			OpenCode:  config.OpenCodeConfig{APIKey: "sk-zen", Model: "kimi-k2.5"},
+			Anthropic:         config.AnthropicConfig{APIKey: "sk-ant", Model: "claude-sonnet-4-6"},
+			OpenAI:            config.OpenAIConfig{APIKey: "sk-oai", Model: "gpt-4o", BaseURL: "https://api.openai.com/v1"},
+			Ollama:            config.OllamaConfig{Endpoint: "http://localhost:11434", DefaultModel: "llama3", APIKey: "olk"},
+			OpenRouter:        config.OpenRouterConfig{APIKey: "sk-or", DefaultModel: "openai/gpt-4o"},
+			OpenAICompat:      config.OpenAICompatConfig{APIKey: "sk-c", BaseURL: "https://compat.example.com", Model: "mistral"},
+			OpenCode:          config.OpenCodeConfig{APIKey: "sk-zen", Model: "kimi-k2.5"},
 			DockerModelRunner: config.DockerModelRunnerConfig{Endpoint: "http://dmr:12434", DefaultModel: "ai/mistral-nemo"},
 		},
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: "./db.sqlite", MaxOpenConns: 10, MaxIdleConns: 2},
@@ -677,4 +678,273 @@ func TestApplyProviderKeys_EmptyModelDoesNotOverwrite(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "gpt-4-turbo", viper.GetString("providers.openai.model"))
+}
+
+// ─── Regression: editable agent config field coverage ────────────────────────
+//
+// CANONICAL LIST — add new backend-editable agent config fields here.
+// Each entry is automatically verified end-to-end through the config adapter:
+//   Apply(ctx, input map) → viper key must be set with the expected value.
+//
+// To add a new field: append a row to agentViperCases below.
+// If the adapter is missing the mapping the test will fail automatically.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// agentViperCases maps a frontend input key to its expected viper path and value.
+// The baseInput provides the minimum required provider context for each test.
+var agentViperCases = []struct {
+	name      string
+	baseInput map[string]interface{}
+	viperKey  string
+	viperVal  string
+}{
+	{
+		name:      "agentName",
+		baseInput: map[string]interface{}{"provider": "openai", "apiKey": "sk-x", "agentName": "mybot"},
+		viperKey:  "agent.name",
+		viperVal:  "mybot",
+	},
+	{
+		name:      "provider",
+		baseInput: map[string]interface{}{"provider": "openai", "apiKey": "sk-x"},
+		viperKey:  "agent.provider",
+		viperVal:  "openai",
+	},
+	{
+		name:      "model (openai)",
+		baseInput: map[string]interface{}{"provider": "openai", "apiKey": "sk-x", "model": "gpt-4o"},
+		viperKey:  "providers.openai.model",
+		viperVal:  "gpt-4o",
+	},
+	{
+		name:      "apiKey (openai)",
+		baseInput: map[string]interface{}{"provider": "openai", "apiKey": "sk-openai"},
+		viperKey:  "providers.openai.api_key",
+		viperVal:  "sk-openai",
+	},
+	{
+		name:      "baseURL (openai-compatible)",
+		baseInput: map[string]interface{}{"provider": "openai-compatible", "apiKey": "sk-x", "baseURL": "https://api.example.com"},
+		viperKey:  "providers.openaicompat.base_url",
+		viperVal:  "https://api.example.com",
+	},
+	{
+		name:      "ollamaHost",
+		baseInput: map[string]interface{}{"provider": "ollama", "ollamaHost": "http://localhost:11434"},
+		viperKey:  "providers.ollama.endpoint",
+		viperVal:  "http://localhost:11434",
+	},
+	{
+		name:      "ollamaApiKey",
+		baseInput: map[string]interface{}{"provider": "ollama", "ollamaApiKey": "ollama-key"},
+		viperKey:  "providers.ollama.api_key",
+		viperVal:  "ollama-key",
+	},
+	{
+		name:      "anthropicApiKey",
+		baseInput: map[string]interface{}{"provider": "anthropic", "anthropicApiKey": "sk-ant-test"},
+		viperKey:  "providers.anthropic.api_key",
+		viperVal:  "sk-ant-test",
+	},
+	{
+		name:      "dockerModelRunnerEndpoint",
+		baseInput: map[string]interface{}{"provider": "docker-model-runner", "dockerModelRunnerEndpoint": "http://dmr:8080"},
+		viperKey:  "providers.docker_model_runner.endpoint",
+		viperVal:  "http://dmr:8080",
+	},
+	{
+		name:      "reasoningLevel",
+		baseInput: map[string]interface{}{"provider": "openai", "apiKey": "sk-x", "reasoningLevel": "high"},
+		viperKey:  "agent.reasoning_level",
+		viperVal:  "high",
+	},
+	{
+		name:      "systemPrompt",
+		baseInput: map[string]interface{}{"provider": "openai", "apiKey": "sk-x", "systemPrompt": "You are helpful."},
+		viperKey:  "agent.system_prompt",
+		viperVal:  "You are helpful.",
+	},
+	{
+		name:      "dockerModelRunnerModel",
+		baseInput: map[string]interface{}{"provider": "docker-model-runner", "dockerModelRunnerModel": "ai/mistral"},
+		viperKey:  "providers.docker_model_runner.default_model",
+		viperVal:  "ai/mistral",
+	},
+}
+
+// TestConfigAdapter_AllAgentFields verifies that every entry in the canonical list
+// is persisted to the correct viper key by the config adapter.
+func TestConfigAdapter_AllAgentFields(t *testing.T) {
+	for _, tc := range agentViperCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resetViper()
+			a, _ := newAdapter(t)
+			_, err := a.Apply(context.Background(), tc.baseInput)
+			require.NoError(t, err, "Apply must not return an error")
+			assert.Equal(t, tc.viperVal, viper.GetString(tc.viperKey),
+				"viper key %q must equal expected value after Apply", tc.viperKey)
+		})
+	}
+}
+
+// TestBuildConfigSnapshot_AnthropicApiKey_OnlyWhenProviderAnthropic verifies that
+// anthropicApiKey is exposed in the snapshot only when the active provider is "anthropic".
+func TestBuildConfigSnapshot_AnthropicApiKey_OnlyWhenProviderAnthropic(t *testing.T) {
+	cfg := makeFullConfig()
+
+	snap := BuildConfigSnapshot(cfg, func(c *config.Config) string { return "anthropic" })
+	require.NotNil(t, snap.Agent)
+	assert.Equal(t, "sk-ant", snap.Agent.AnthropicApiKey)
+
+	snapOllama := BuildConfigSnapshot(cfg, func(c *config.Config) string { return "ollama" })
+	require.NotNil(t, snapOllama.Agent)
+	assert.Equal(t, "", snapOllama.Agent.AnthropicApiKey,
+		"anthropicApiKey must be hidden when provider is not anthropic")
+}
+
+// ── Gap 3: BuildConfigSnapshot must expose every editable field ───────────────
+//
+// CANONICAL LIST — each entry verifies the read path:
+//   Config struct field → BuildConfigSnapshot → AgentConfigSnapshot field
+//
+// Provider-dependent fields (apiKey, baseURL, …) are tested with the matching
+// provider so the switch-case in BuildConfigSnapshot actually populates them.
+// Fields that are always exposed (agentName, reasoningLevel, …) use "openai".
+//
+// Add a new row here when a new agent config field is introduced.
+
+var agentSnapshotBuildCases = []struct {
+	name     string
+	provider string
+	setupCfg func(*config.Config)
+	getter   func(*AgentConfigSnapshot) string
+	expected string
+}{
+	{
+		name:     "agentName",
+		provider: "openai",
+		setupCfg: func(c *config.Config) { c.Agent.Name = "CanonicalBot" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.Name },
+		expected: "CanonicalBot",
+	},
+	{
+		name:     "provider",
+		provider: "openai",
+		setupCfg: func(_ *config.Config) {},
+		getter:   func(s *AgentConfigSnapshot) string { return s.Provider },
+		expected: "openai",
+	},
+	{
+		name:     "model (openai)",
+		provider: "openai",
+		setupCfg: func(c *config.Config) { c.Providers.OpenAI.Model = "gpt-canonical" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.Model },
+		expected: "gpt-canonical",
+	},
+	{
+		name:     "apiKey (openai)",
+		provider: "openai",
+		setupCfg: func(c *config.Config) { c.Providers.OpenAI.APIKey = "sk-canonical" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.APIKey },
+		expected: "sk-canonical",
+	},
+	{
+		name:     "baseURL (openai-compatible)",
+		provider: "openai-compatible",
+		setupCfg: func(c *config.Config) { c.Providers.OpenAICompat.BaseURL = "https://canonical.example.com" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.BaseURL },
+		expected: "https://canonical.example.com",
+	},
+	{
+		name:     "ollamaHost",
+		provider: "ollama",
+		setupCfg: func(c *config.Config) { c.Providers.Ollama.Endpoint = "http://canonical-ollama:11434" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.OllamaHost },
+		expected: "http://canonical-ollama:11434",
+	},
+	{
+		name:     "ollamaApiKey",
+		provider: "ollama",
+		setupCfg: func(c *config.Config) { c.Providers.Ollama.APIKey = "ollama-canonical" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.OllamaApiKey },
+		expected: "ollama-canonical",
+	},
+	{
+		name:     "anthropicApiKey",
+		provider: "anthropic",
+		setupCfg: func(c *config.Config) { c.Providers.Anthropic.APIKey = "sk-ant-canonical" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.AnthropicApiKey },
+		expected: "sk-ant-canonical",
+	},
+	{
+		name:     "dockerModelRunnerEndpoint",
+		provider: "openai", // always exposed regardless of active provider
+		setupCfg: func(c *config.Config) { c.Providers.DockerModelRunner.Endpoint = "http://dmr-canonical:12434" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.DockerModelRunnerEndpoint },
+		expected: "http://dmr-canonical:12434",
+	},
+	{
+		name:     "reasoningLevel",
+		provider: "openai",
+		setupCfg: func(c *config.Config) { c.Agent.ReasoningLevel = "high" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.ReasoningLevel },
+		expected: "high",
+	},
+	{
+		name:     "systemPrompt",
+		provider: "openai",
+		setupCfg: func(c *config.Config) { c.Agent.SystemPrompt = "You are helpful." },
+		getter:   func(s *AgentConfigSnapshot) string { return s.SystemPrompt },
+		expected: "You are helpful.",
+	},
+	{
+		name:     "dockerModelRunnerModel",
+		provider: "openai",
+		setupCfg: func(c *config.Config) { c.Providers.DockerModelRunner.DefaultModel = "ai/mistral" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.DockerModelRunnerModel },
+		expected: "ai/mistral",
+	},
+}
+
+// expectedViperKeyCount is the authoritative count of fields in InputToViperKeyMap.
+//
+// If this test fails, a config field was added or removed without updating the
+// integration tests. If you are an AI agent, you must:
+//
+//  1. Identify the new/removed field in InputToViperKeyMap()
+//     (apps/backend/internal/application/graphql/dto/config_adapter.go).
+//  2. Add/remove it in the sendUpdateConfig() call inside TestConfigRoundTrip_*
+//     (apps/backend/tests/integration/config_roundtrip_integration_test.go).
+//  3. Add/remove the corresponding assertion after queryConfig() in that same test.
+//  4. Update expectedViperKeyCount below to the new total.
+const expectedViperKeyCount = 42
+
+func TestInputToViperKeyMap_FieldCount(t *testing.T) {
+	keys := InputToViperKeyMap()
+	require.Equal(t, expectedViperKeyCount, len(keys),
+		"InputToViperKeyMap() has %d entries but expectedViperKeyCount=%d.\n\n"+
+			"A config field was added or removed without updating the integration tests.\n"+
+			"If you are an AI agent, you must:\n"+
+			"  1. Identify the new/removed field in InputToViperKeyMap() (config_adapter.go).\n"+
+			"  2. Add/remove it in sendUpdateConfig() in TestConfigRoundTrip_* (config_roundtrip_integration_test.go).\n"+
+			"  3. Add/remove the corresponding assertion after queryConfig() in that test.\n"+
+			"  4. Update expectedViperKeyCount in this file to %d.",
+		len(keys), len(keys))
+}
+
+// TestBuildConfigSnapshot_AllAgentFields verifies that every field in the
+// canonical list is correctly exposed in the snapshot returned by BuildConfigSnapshot.
+func TestBuildConfigSnapshot_AllAgentFields(t *testing.T) {
+	for _, tc := range agentSnapshotBuildCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := makeFullConfig()
+			tc.setupCfg(cfg)
+			provider := tc.provider
+			snap := BuildConfigSnapshot(cfg, func(_ *config.Config) string { return provider })
+			require.NotNil(t, snap.Agent, "Agent must be present in snapshot")
+			got := tc.getter(snap.Agent)
+			assert.Equal(t, tc.expected, got,
+				"BuildConfigSnapshot must expose field %q with the value from Config", tc.name)
+		})
+	}
 }

@@ -12,6 +12,7 @@ type AgentConfig {
   anthropicApiKey:           String
   dockerModelRunnerEndpoint: String
   dockerModelRunnerModel:    String
+  reasoningLevel:            String
 }
 
 type CapabilitiesConfig {
@@ -147,6 +148,7 @@ input UpdateConfigInput {
   anthropicApiKey:           String
   dockerModelRunnerEndpoint: String
   dockerModelRunnerModel:    String
+  reasoningLevel:            String
   capabilities:               CapabilitiesInput
 
   databaseDriver:       String

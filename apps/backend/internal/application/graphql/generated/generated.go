@@ -71,6 +71,7 @@ type ComplexityRoot struct {
 		OllamaAPIKey              func(childComplexity int) int
 		OllamaHost                func(childComplexity int) int
 		Provider                  func(childComplexity int) int
+		ReasoningLevel            func(childComplexity int) int
 		SystemPrompt              func(childComplexity int) int
 	}
 
@@ -794,6 +795,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AgentConfig.DockerModelRunnerModel(childComplexity), true
+	case "AgentConfig.reasoningLevel":
+		if e.ComplexityRoot.AgentConfig.ReasoningLevel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfig.ReasoningLevel(childComplexity), true
 	case "AgentConfig.model":
 		if e.ComplexityRoot.AgentConfig.Model == nil {
 			break
@@ -3229,6 +3236,7 @@ type AgentConfig {
   anthropicApiKey:           String
   dockerModelRunnerEndpoint: String
   dockerModelRunnerModel:    String
+  reasoningLevel:            String
 }
 
 type CapabilitiesConfig {
@@ -3364,6 +3372,7 @@ input UpdateConfigInput {
   anthropicApiKey:           String
   dockerModelRunnerEndpoint: String
   dockerModelRunnerModel:    String
+  reasoningLevel:            String
   capabilities:               CapabilitiesInput
 
   databaseDriver:       String
@@ -5226,6 +5235,35 @@ func (ec *executionContext) fieldContext_AgentConfig_dockerModelRunnerModel(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _AgentConfig_reasoningLevel(ctx context.Context, field graphql.CollectedField, obj *AgentConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentConfig_reasoningLevel,
+		func(ctx context.Context) (any, error) {
+			return obj.ReasoningLevel, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentConfig_reasoningLevel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AppConfig_agent(ctx context.Context, field graphql.CollectedField, obj *AppConfig) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5272,6 +5310,8 @@ func (ec *executionContext) fieldContext_AppConfig_agent(_ context.Context, fiel
 				return ec.fieldContext_AgentConfig_dockerModelRunnerEndpoint(ctx, field)
 			case "dockerModelRunnerModel":
 				return ec.fieldContext_AgentConfig_dockerModelRunnerModel(ctx, field)
+			case "reasoningLevel":
+				return ec.fieldContext_AgentConfig_reasoningLevel(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentConfig", field.Name)
 		},
@@ -17583,7 +17623,7 @@ func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context,
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"agentName", "systemPrompt", "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey", "anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel", "capabilities", "databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns", "memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword", "subagentsMaxConcurrent", "subagentsDefaultTimeout", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "loggingLevel", "loggingPath", "secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken", "schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "channelTelegramEnabled", "channelTelegramToken", "channelDiscordEnabled", "channelDiscordToken", "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken", "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber", "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken", "wizardCompleted"}
+	fieldsInOrder := [...]string{"agentName", "systemPrompt", "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey", "anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel", "reasoningLevel", "capabilities", "databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns", "memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword", "subagentsMaxConcurrent", "subagentsDefaultTimeout", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "loggingLevel", "loggingPath", "secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken", "schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "channelTelegramEnabled", "channelTelegramToken", "channelDiscordEnabled", "channelDiscordToken", "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken", "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber", "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken", "wizardCompleted"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -17667,6 +17707,13 @@ func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context,
 				return it, err
 			}
 			it.DockerModelRunnerModel = data
+		case "reasoningLevel":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reasoningLevel"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReasoningLevel = data
 		case "capabilities":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("capabilities"))
 			data, err := ec.unmarshalOCapabilitiesInput2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐCapabilitiesInput(ctx, v)
@@ -18151,6 +18198,8 @@ func (ec *executionContext) _AgentConfig(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = ec._AgentConfig_dockerModelRunnerEndpoint(ctx, field, obj)
 		case "dockerModelRunnerModel":
 			out.Values[i] = ec._AgentConfig_dockerModelRunnerModel(ctx, field, obj)
+		case "reasoningLevel":
+			out.Values[i] = ec._AgentConfig_reasoningLevel(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

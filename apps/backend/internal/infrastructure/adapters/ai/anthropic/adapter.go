@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
@@ -22,7 +23,7 @@ import (
 	"github.com/neirth/openlobster/internal/domain/ports"
 )
 
-const defaultMaxTokens = 4096
+const defaultMaxTokens = ports.DefaultMaxTokens
 
 // Adapter implements [ports.AIProviderPort] using the official Anthropic SDK.
 type Adapter struct {
@@ -102,9 +103,14 @@ func (a *Adapter) Chat(ctx context.Context, req ports.ChatRequest) (ports.ChatRe
 
 	systemBlocks, messages := convertMessages(sanitizeMessages(req.Messages))
 
+	maxTokens := a.maxTokens
+	if req.MaxTokens > 0 {
+		maxTokens = req.MaxTokens
+	}
+
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),
-		MaxTokens: int64(a.maxTokens),
+		MaxTokens: int64(maxTokens),
 		Messages:  messages,
 	}
 	thinkingBudget := 0
@@ -244,11 +250,11 @@ func sanitizeMessages(msgs []ports.ChatMessage) []ports.ChatMessage {
 	for _, m := range msgs {
 		if m.Role == "tool" {
 			if m.ToolCallID == "" {
-				log.Printf("anthropic: dropping tool message with empty tool_call_id")
+				slog.Debug("anthropic: dropping tool message with empty tool_call_id")
 				continue
 			}
 			if !validIDs[m.ToolCallID] {
-				log.Printf("anthropic: dropping orphan tool message (tool_call_id=%q)", m.ToolCallID)
+				slog.Debug("anthropic: dropping orphan tool message", "tool_call_id", m.ToolCallID)
 				continue
 			}
 		}
