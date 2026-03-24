@@ -39,6 +39,7 @@ type AgentConfig struct {
 	AnthropicAPIKey           *string `json:"anthropicApiKey,omitempty"`
 	DockerModelRunnerEndpoint *string `json:"dockerModelRunnerEndpoint,omitempty"`
 	DockerModelRunnerModel    *string `json:"dockerModelRunnerModel,omitempty"`
+	ReasoningLevel            *string `json:"reasoningLevel,omitempty"`
 }
 
 type AppConfig struct {
@@ -468,6 +469,7 @@ type UpdateConfigInput struct {
 	AnthropicAPIKey           *string            `json:"anthropicApiKey,omitempty"`
 	DockerModelRunnerEndpoint *string            `json:"dockerModelRunnerEndpoint,omitempty"`
 	DockerModelRunnerModel    *string            `json:"dockerModelRunnerModel,omitempty"`
+	ReasoningLevel            *string            `json:"reasoningLevel,omitempty"`
 	Capabilities              *CapabilitiesInput `json:"capabilities,omitempty"`
 	DatabaseDriver            *string            `json:"databaseDriver,omitempty"`
 	DatabaseDsn               *string            `json:"databaseDSN,omitempty"`

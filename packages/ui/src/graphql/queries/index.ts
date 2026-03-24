@@ -214,6 +214,7 @@ export const CONFIG_QUERY = /* GraphQL */ `
         anthropicApiKey
         dockerModelRunnerEndpoint
         dockerModelRunnerModel
+        reasoningLevel
       }
       capabilities {
         browser
@@ -292,6 +293,9 @@ export const CONFIG_QUERY = /* GraphQL */ `
         twilioAccountSid
         twilioAuthToken
         twilioFromNumber
+        slackEnabled
+        slackBotToken
+        slackAppToken
       }
       wizardCompleted
     }

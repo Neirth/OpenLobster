@@ -81,6 +81,11 @@ func (a *App) initConfig() {
 		}
 	}
 
+	// Resolve all relative paths to absolute now, before initServices() uses
+	// them to build the ContextInjector. Without this, the CWD change in
+	// startAndWait() would make relative paths resolve to the wrong location.
+	cfg.ResolvePaths()
+
 	logFile := filepath.Join(cfg.Logging.Path, "openlobster.log")
 	if err := logging.Init(logFile, cfg.Logging.Level); err != nil {
 		log.Fatalf("failed to initialize logger: %v", err)

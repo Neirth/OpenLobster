@@ -12,7 +12,7 @@ import (
 )
 
 // AllowedWorkspaceFiles are the workspace files exposed for read/write via the dashboard.
-var AllowedWorkspaceFiles = []string{"AGENTS.md", "SOUL.md", "IDENTITY.md"}
+var AllowedWorkspaceFiles = []string{"AGENTS.md", "SOUL.md", "IDENTITY.md", "BOOTSTRAP.md", "MEMORY.md"}
 
 // SystemFilesAdapter reads and writes workspace files (AGENTS.md, SOUL.md, IDENTITY.md).
 type SystemFilesAdapter struct {
