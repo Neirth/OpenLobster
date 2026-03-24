@@ -41,6 +41,7 @@ jobs:
           for-push: 'true'
           dhi-registry-username: ${{ secrets.DHI_USERNAME }}
           dhi-registry-password: ${{ secrets.DHI_PASSWORD }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set image variables
         run: |
