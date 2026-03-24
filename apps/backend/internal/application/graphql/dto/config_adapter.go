@@ -28,9 +28,24 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 	a.applyProviderKeys(input)
 
 	if caps, ok := input["capabilities"].(map[string]interface{}); ok {
-		for k, v := range caps {
-			viper.Set("agent.capabilities."+k, v)
+		// Read the full current capabilities map and merge incoming changes into
+		// it, then set the parent key as a whole. Setting sub-keys individually
+		// (e.g. "agent.capabilities.browser") can interact poorly with viper's
+		// nested-map merging when AllSettings() is called for serialisation —
+		// setting the parent map atomically avoids the issue.
+		merged := map[string]interface{}{
+			"browser":    viper.GetBool("agent.capabilities.browser"),
+			"terminal":   viper.GetBool("agent.capabilities.terminal"),
+			"subagents":  viper.GetBool("agent.capabilities.subagents"),
+			"memory":     viper.GetBool("agent.capabilities.memory"),
+			"mcp":        viper.GetBool("agent.capabilities.mcp"),
+			"filesystem": viper.GetBool("agent.capabilities.filesystem"),
+			"sessions":   viper.GetBool("agent.capabilities.sessions"),
 		}
+		for k, v := range caps {
+			merged[k] = v
+		}
+		viper.Set("agent.capabilities", merged)
 	}
 
 	for inputKey, val := range input {
@@ -83,7 +98,7 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 func (a *ConfigUpdateAdapter) isProviderInputKey(k string) bool {
 	switch k {
 	case "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey",
-		"anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel",
+		"anthropicApiKey", "dockerModelRunnerEndpoint",
 		"reasoningLevel":
 		return true
 	}
@@ -157,7 +172,7 @@ func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
 		if v, ok := input["dockerModelRunnerEndpoint"].(string); ok && v != "" {
 			viper.Set("providers.docker_model_runner.endpoint", v)
 		}
-		if v, ok := input["dockerModelRunnerModel"].(string); ok && v != "" {
+		if v, ok := input["model"].(string); ok && v != "" {
 			viper.Set("providers.docker_model_runner.default_model", v)
 		}
 	}

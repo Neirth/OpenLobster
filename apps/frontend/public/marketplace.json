@@ -10,17 +10,6 @@
     "category": "Automation"
   },
   {
-    "id": "github",
-    "name": "GitHub",
-    "company": "GitHub",
-    "description": "Interact with repositories, pull requests, issues, and code search on GitHub. Requires a GitHub OAuth App — register one at github.com/settings/apps and configure its client ID, or use a Personal Access Token as the server token.",
-    "url": "https://api.githubcopilot.com/mcp/",
-    "homepage": "https://github.com",
-    "transport": "http",
-    "category": "Development",
-    "oauth": true
-  },
-  {
     "id": "atlassian",
     "name": "Atlassian",
     "company": "Atlassian",

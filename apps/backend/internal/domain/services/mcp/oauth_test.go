@@ -31,13 +31,13 @@ func TestCodeChallenge(t *testing.T) {
 
 func TestNewOAuthManager(t *testing.T) {
 	sp := newTestSecretsProvider(t)
-	m := NewOAuthManager(sp, "")
+	m := NewOAuthManager(sp, nil)
 	require.NotNil(t, m)
 }
 
 func TestOAuthManager_RegisterPendingServer(t *testing.T) {
 	sp := newTestSecretsProvider(t)
-	m := NewOAuthManager(sp, "")
+	m := NewOAuthManager(sp, nil)
 
 	m.RegisterPendingServer("server1", "https://mcp.example.com")
 	m.RegisterPendingServer("server2", "https://other.example.com")
@@ -49,7 +49,7 @@ func TestOAuthManager_RegisterPendingServer(t *testing.T) {
 
 func TestOAuthManager_RemovePendingServer(t *testing.T) {
 	sp := newTestSecretsProvider(t)
-	m := NewOAuthManager(sp, "")
+	m := NewOAuthManager(sp, nil)
 
 	m.RegisterPendingServer("s1", "https://a.com")
 	m.RemovePendingServer("s1")
@@ -60,7 +60,7 @@ func TestOAuthManager_RemovePendingServer(t *testing.T) {
 
 func TestOAuthManager_Status_None(t *testing.T) {
 	sp := newTestSecretsProvider(t)
-	m := NewOAuthManager(sp, "")
+	m := NewOAuthManager(sp, nil)
 
 	status, errMsg := m.Status("unknown")
 	assert.Equal(t, OAuthStatusNone, status)
@@ -69,7 +69,7 @@ func TestOAuthManager_Status_None(t *testing.T) {
 
 func TestOAuthManager_HandleCallback_UnknownState(t *testing.T) {
 	sp := newTestSecretsProvider(t)
-	m := NewOAuthManager(sp, "")
+	m := NewOAuthManager(sp, nil)
 
 	serverName, err := m.HandleCallback(context.Background(), "code", "invalid-state", "")
 	assert.Error(t, err)
@@ -79,7 +79,7 @@ func TestOAuthManager_HandleCallback_UnknownState(t *testing.T) {
 
 func TestOAuthManager_HandleCallback_AuthorizationDenied(t *testing.T) {
 	sp := newTestSecretsProvider(t)
-	m := NewOAuthManager(sp, "")
+	m := NewOAuthManager(sp, nil)
 
 	authURL, err := m.InitiateOAuth(context.Background(), "test-server", "https://example.com/mcp")
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestInitiateOAuth_WithDynamicRegistration(t *testing.T) {
 	srvURL = srv.URL
 
 	sp := newTestSecretsProvider(t)
-	m := NewOAuthManager(sp, "")
+	m := NewOAuthManager(sp, nil)
 	u, _ := url.Parse(srvURL)
 	mcpURL := u.Scheme + "://" + u.Host + "/mcp"
 
@@ -205,7 +205,7 @@ func TestHandleCallback_WithTokenExchange(t *testing.T) {
 	defer srv.Close()
 
 	sp := newTestSecretsProvider(t)
-	m := NewOAuthManager(sp, "")
+	m := NewOAuthManager(sp, nil)
 	u, _ := url.Parse(srv.URL)
 	mcpURL := u.Scheme + "://" + u.Host + "/mcp"
 

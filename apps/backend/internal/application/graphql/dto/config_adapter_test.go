@@ -143,7 +143,7 @@ func TestConfigAdapter_ProviderDockerModelRunner(t *testing.T) {
 	_, err := a.Apply(context.Background(), map[string]interface{}{
 		"provider":                  "docker-model-runner",
 		"dockerModelRunnerEndpoint": "http://localhost:12434/engines/v1",
-		"dockerModelRunnerModel":    "ai/mistral-nemo",
+		"model":                     "ai/mistral-nemo",
 	})
 	require.NoError(t, err)
 
@@ -766,7 +766,7 @@ var agentViperCases = []struct {
 	},
 	{
 		name:      "dockerModelRunnerModel",
-		baseInput: map[string]interface{}{"provider": "docker-model-runner", "dockerModelRunnerModel": "ai/mistral"},
+		baseInput: map[string]interface{}{"provider": "docker-model-runner", "model": "ai/mistral"},
 		viperKey:  "providers.docker_model_runner.default_model",
 		viperVal:  "ai/mistral",
 	},

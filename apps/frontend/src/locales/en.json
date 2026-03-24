@@ -473,5 +473,15 @@
   "wizard.provider.anthropic": "Anthropic",
   "wizard.provider.openrouter": "OpenRouter",
   "wizard.provider.docker": "Docker Model Runner",
-  "wizard.provider.openaiCompatible": "OpenAI-compatible"
+  "wizard.provider.openaiCompatible": "OpenAI-compatible",
+  "wizard.channel.telegram.hint": "Create a bot with @BotFather on Telegram (/newbot) to get this token",
+  "wizard.channel.telegram.placeholder": "e.g. 1234567890:AAFxxxxxxxxxxxxxxxxxxxxxxxx",
+  "wizard.channel.discord.hint": "Get it from discord.com/developers → Applications → select your app → Bot → Token",
+  "wizard.channel.discord.placeholder": "e.g. MTk4NjQ0NjI2ODg5NjI2NjI...",
+  "wizard.channel.slack.hint": "Get the Bot Token from api.slack.com → OAuth & Permissions (xoxb-...); also set the App-Level Token for Socket Mode (xapp-...) in Settings",
+  "wizard.channel.slack.placeholder": "xoxb-...",
+  "wizard.channel.whatsapp.hint": "Get the Access Token and Phone Number ID from Meta Business Suite → WhatsApp → API Setup",
+  "wizard.channel.whatsapp.placeholder": "EAAxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "wizard.channel.twilio.hint": "Get Account SID, Auth Token and your phone number from console.twilio.com → Dashboard",
+  "wizard.channel.twilio.placeholder": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 }

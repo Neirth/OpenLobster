@@ -346,7 +346,7 @@ func TestConfigRoundTrip_DockerModelRunner(t *testing.T) {
 	sendUpdateConfig(t, handler, map[string]interface{}{
 		"provider":                  "docker-model-runner",
 		"dockerModelRunnerEndpoint": "http://dmr.integ:12434",
-		"dockerModelRunnerModel":    "ai/mistral-v2",
+		"model":                     "ai/mistral-v2",
 	})
 
 	cfg := queryConfig(t, handler)
