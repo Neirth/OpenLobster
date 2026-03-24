@@ -898,17 +898,17 @@ func TestUpdateConfigInputToMap_AgentFields(t *testing.T) {
 	dmrModel := "ai/mistral"
 
 	result := UpdateConfigInputToMap(generated.UpdateConfigInput{
-		AgentName:                  &name,
-		SystemPrompt:               &sp,
-		Provider:                   &prov,
-		Model:                      &model,
-		APIKey:                     &apiKey,
-		BaseURL:                    &baseURL,
-		OllamaHost:                 &ollamaHost,
-		OllamaAPIKey:               &ollamaKey,
-		AnthropicAPIKey:            &anthropicKey,
-		DockerModelRunnerEndpoint:  &dmrEndpoint,
-		DockerModelRunnerModel:     &dmrModel,
+		AgentName:                 &name,
+		SystemPrompt:              &sp,
+		Provider:                  &prov,
+		Model:                     &model,
+		APIKey:                    &apiKey,
+		BaseURL:                   &baseURL,
+		OllamaHost:                &ollamaHost,
+		OllamaAPIKey:              &ollamaKey,
+		AnthropicAPIKey:           &anthropicKey,
+		DockerModelRunnerEndpoint: &dmrEndpoint,
+		DockerModelRunnerModel:    &dmrModel,
 	})
 
 	assert.Equal(t, "NewBot", result["agentName"])
@@ -975,10 +975,10 @@ func TestUpdateConfigInputToMap_MemoryFields(t *testing.T) {
 	neo4jUser := "neo4j"
 	neo4jPwd := "pass"
 	result := UpdateConfigInputToMap(generated.UpdateConfigInput{
-		MemoryBackend:      &backend,
-		MemoryFilePath:     &filePath,
-		MemoryNeo4jURI:     &neo4jURI,
-		MemoryNeo4jUser:    &neo4jUser,
+		MemoryBackend:       &backend,
+		MemoryFilePath:      &filePath,
+		MemoryNeo4jURI:      &neo4jURI,
+		MemoryNeo4jUser:     &neo4jUser,
 		MemoryNeo4jPassword: &neo4jPwd,
 	})
 
@@ -1075,20 +1075,20 @@ func TestUpdateConfigInputToMap_ChannelFields(t *testing.T) {
 	slBot := "xoxb-bot"
 	slApp := "xapp-app"
 	result := UpdateConfigInputToMap(generated.UpdateConfigInput{
-		ChannelTelegramEnabled: &tgEnabled,
-		ChannelTelegramToken:   &tgToken,
-		ChannelDiscordEnabled:  &dcEnabled,
-		ChannelDiscordToken:    &dcToken,
-		ChannelWhatsAppEnabled: &waEnabled,
-		ChannelWhatsAppPhoneID: &waPhoneID,
+		ChannelTelegramEnabled:  &tgEnabled,
+		ChannelTelegramToken:    &tgToken,
+		ChannelDiscordEnabled:   &dcEnabled,
+		ChannelDiscordToken:     &dcToken,
+		ChannelWhatsAppEnabled:  &waEnabled,
+		ChannelWhatsAppPhoneID:  &waPhoneID,
 		ChannelWhatsAppAPIToken: &waToken,
-		ChannelTwilioEnabled:   &twEnabled,
+		ChannelTwilioEnabled:    &twEnabled,
 		ChannelTwilioAccountSid: &twSid,
-		ChannelTwilioAuthToken: &twAuth,
+		ChannelTwilioAuthToken:  &twAuth,
 		ChannelTwilioFromNumber: &twFrom,
-		ChannelSlackEnabled:    &slEnabled,
-		ChannelSlackBotToken:   &slBot,
-		ChannelSlackAppToken:   &slApp,
+		ChannelSlackEnabled:     &slEnabled,
+		ChannelSlackBotToken:    &slBot,
+		ChannelSlackAppToken:    &slApp,
 	})
 	assert.True(t, result["channelTelegramEnabled"].(bool))
 	assert.Equal(t, "tg-bot-token", result["channelTelegramToken"])
@@ -1569,6 +1569,16 @@ var agentFieldMapCases = []struct {
 		setter: func(i *generated.UpdateConfigInput, v string) { i.ReasoningLevel = &v },
 		mapKey: "reasoningLevel",
 	},
+	{
+		name:   "systemPrompt",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.SystemPrompt = &v },
+		mapKey: "systemPrompt",
+	},
+	{
+		name:   "dockerModelRunnerModel",
+		setter: func(i *generated.UpdateConfigInput, v string) { i.DockerModelRunnerModel = &v },
+		mapKey: "dockerModelRunnerModel",
+	},
 }
 
 // TestUpdateConfigInputToMap_AllAgentFields verifies that every entry in the
@@ -1645,14 +1655,26 @@ var agentSnapshotCases = []struct {
 		getter:   func(a *generated.AgentConfig) *string { return a.AnthropicAPIKey },
 	},
 	{
-		name:     "dockerModelRunnerEndpoint",
-		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{DockerModelRunnerEndpoint: "http://dmr"} },
-		getter:   func(a *generated.AgentConfig) *string { return a.DockerModelRunnerEndpoint },
+		name: "dockerModelRunnerEndpoint",
+		snapshot: func() *dto.AgentConfigSnapshot {
+			return &dto.AgentConfigSnapshot{DockerModelRunnerEndpoint: "http://dmr"}
+		},
+		getter: func(a *generated.AgentConfig) *string { return a.DockerModelRunnerEndpoint },
 	},
 	{
 		name:     "reasoningLevel",
 		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{ReasoningLevel: "high"} },
 		getter:   func(a *generated.AgentConfig) *string { return a.ReasoningLevel },
+	},
+	{
+		name:     "systemPrompt",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{SystemPrompt: "Be helpful."} },
+		getter:   func(a *generated.AgentConfig) *string { return a.SystemPrompt },
+	},
+	{
+		name:     "dockerModelRunnerModel",
+		snapshot: func() *dto.AgentConfigSnapshot { return &dto.AgentConfigSnapshot{DockerModelRunnerModel: "ai/mistral"} },
+		getter:   func(a *generated.AgentConfig) *string { return a.DockerModelRunnerModel },
 	},
 }
 
@@ -1678,6 +1700,8 @@ func TestAppConfigSnapshotToGenerated_AllAgentFields(t *testing.T) {
 				AnthropicAPIKey:           strOrNilExported(snap.Agent.AnthropicApiKey),
 				DockerModelRunnerEndpoint: strOrNilExported(snap.Agent.DockerModelRunnerEndpoint),
 				ReasoningLevel:            strOrNilExported(snap.Agent.ReasoningLevel),
+				SystemPrompt:              strOrNilExported(snap.Agent.SystemPrompt),
+				DockerModelRunnerModel:    strOrNilExported(snap.Agent.DockerModelRunnerModel),
 			})
 			if expected != nil {
 				assert.Equal(t, *expected, *ptr, "field %q value must be forwarded unchanged", tc.name)

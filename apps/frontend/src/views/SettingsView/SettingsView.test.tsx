@@ -654,10 +654,13 @@ describe("SettingsView — editable agent config field coverage", () => {
     "CONFIG_QUERY requests field '%s' from the server",
     (field) => {
       const queryField = QUERY_FIELD_NAME[field] ?? field;
+      // Ensure the field appears specifically inside the `agent { ... }` selection
+      // block to avoid false positives from matching common tokens elsewhere.
+      const regex = new RegExp(`agent\\s*{[\\s\\S]*?\\b${queryField}\\b`);
       expect(
-        CONFIG_QUERY,
-        `CONFIG_QUERY must include '${queryField}' (form field '${field}') — otherwise it is never loaded from the server`
-      ).toContain(queryField);
+        CONFIG_QUERY.match(regex),
+        `CONFIG_QUERY must include field '${queryField}' inside the 'agent { ... }' block (form field '${field}') — otherwise it is never loaded from the server`
+      ).toBeTruthy();
     }
   );
 
@@ -1340,14 +1343,19 @@ describe("SettingsView — editable field count sentinel", () => {
       ALL_OTHER_EDITABLE_FIELDS.length;
 
     expect(total).toBe(
-      EXPECTED_EDITABLE_FIELD_COUNT,
-      `Found ${total} fields across all canonical arrays but expected ${EXPECTED_EDITABLE_FIELD_COUNT}.\n\n` +
+      EXPECTED_EDITABLE_FIELD_COUNT
+    );
+    // Si falla, muestra instrucciones detalladas:
+    if (total !== EXPECTED_EDITABLE_FIELD_COUNT) {
+      console.error(
+        `Found ${total} fields across all canonical arrays but expected ${EXPECTED_EDITABLE_FIELD_COUNT}.\n\n` +
         `A config field was added or removed from a canonical array without updating the tests.\n` +
         `If you are an AI agent, you must:\n` +
         `  1. Identify the new/removed field in its canonical array.\n` +
         `  2. Add/remove it in the mock server response in the "all groups round-trip" describe block.\n` +
         `  3. Add/remove the corresponding expect() assertion in that waitFor block.\n` +
         `  4. Update EXPECTED_EDITABLE_FIELD_COUNT in this file to ${total}.`
-    );
+      );
+    }
   });
 });

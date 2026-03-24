@@ -105,9 +105,9 @@ func TestConfigAdapter_ProviderAnthropic(t *testing.T) {
 	a, _ := newAdapter(t)
 
 	_, err := a.Apply(context.Background(), map[string]interface{}{
-		"provider": "anthropic",
-		"model":    "claude-sonnet-4-6",
-		"apiKey":   "sk-ant",
+		"provider":       "anthropic",
+		"model":          "claude-sonnet-4-6",
+		"apiKey":         "sk-ant",
 		"reasoningLevel": "high",
 	})
 	require.NoError(t, err)
@@ -221,10 +221,10 @@ func TestConfigAdapter_Memory(t *testing.T) {
 	a, _ := newAdapter(t)
 
 	_, err := a.Apply(context.Background(), map[string]interface{}{
-		"memoryBackend":   "neo4j",
-		"memoryFilePath":  "./data/memory.gml",
-		"memoryNeo4jURI":  "bolt://localhost:7687",
-		"memoryNeo4jUser": "neo4j",
+		"memoryBackend":       "neo4j",
+		"memoryFilePath":      "./data/memory.gml",
+		"memoryNeo4jURI":      "bolt://localhost:7687",
+		"memoryNeo4jUser":     "neo4j",
 		"memoryNeo4jPassword": "password",
 	})
 	require.NoError(t, err)
@@ -291,9 +291,9 @@ func TestConfigAdapter_Secrets(t *testing.T) {
 	a, _ := newAdapter(t)
 
 	_, err := a.Apply(context.Background(), map[string]interface{}{
-		"secretsBackend":     "openbao",
-		"secretsFilePath":    "./data/secrets.json",
-		"secretsOpenbaoURL":  "https://vault.example.com",
+		"secretsBackend":      "openbao",
+		"secretsFilePath":     "./data/secrets.json",
+		"secretsOpenbaoURL":   "https://vault.example.com",
 		"secretsOpenbaoToken": "hvs.token",
 	})
 	require.NoError(t, err)
@@ -459,12 +459,12 @@ func makeFullConfig() *config.Config {
 			},
 		},
 		Providers: config.ProvidersConfig{
-			Anthropic: config.AnthropicConfig{APIKey: "sk-ant", Model: "claude-sonnet-4-6"},
-			OpenAI:    config.OpenAIConfig{APIKey: "sk-oai", Model: "gpt-4o", BaseURL: "https://api.openai.com/v1"},
-			Ollama:    config.OllamaConfig{Endpoint: "http://localhost:11434", DefaultModel: "llama3", APIKey: "olk"},
-			OpenRouter: config.OpenRouterConfig{APIKey: "sk-or", DefaultModel: "openai/gpt-4o"},
-			OpenAICompat: config.OpenAICompatConfig{APIKey: "sk-c", BaseURL: "https://compat.example.com", Model: "mistral"},
-			OpenCode:  config.OpenCodeConfig{APIKey: "sk-zen", Model: "kimi-k2.5"},
+			Anthropic:         config.AnthropicConfig{APIKey: "sk-ant", Model: "claude-sonnet-4-6"},
+			OpenAI:            config.OpenAIConfig{APIKey: "sk-oai", Model: "gpt-4o", BaseURL: "https://api.openai.com/v1"},
+			Ollama:            config.OllamaConfig{Endpoint: "http://localhost:11434", DefaultModel: "llama3", APIKey: "olk"},
+			OpenRouter:        config.OpenRouterConfig{APIKey: "sk-or", DefaultModel: "openai/gpt-4o"},
+			OpenAICompat:      config.OpenAICompatConfig{APIKey: "sk-c", BaseURL: "https://compat.example.com", Model: "mistral"},
+			OpenCode:          config.OpenCodeConfig{APIKey: "sk-zen", Model: "kimi-k2.5"},
 			DockerModelRunner: config.DockerModelRunnerConfig{Endpoint: "http://dmr:12434", DefaultModel: "ai/mistral-nemo"},
 		},
 		Database: config.DatabaseConfig{Driver: "sqlite", DSN: "./db.sqlite", MaxOpenConns: 10, MaxIdleConns: 2},
@@ -758,6 +758,18 @@ var agentViperCases = []struct {
 		viperKey:  "agent.reasoning_level",
 		viperVal:  "high",
 	},
+	{
+		name:      "systemPrompt",
+		baseInput: map[string]interface{}{"provider": "openai", "apiKey": "sk-x", "systemPrompt": "You are helpful."},
+		viperKey:  "agent.system_prompt",
+		viperVal:  "You are helpful.",
+	},
+	{
+		name:      "dockerModelRunnerModel",
+		baseInput: map[string]interface{}{"provider": "docker-model-runner", "dockerModelRunnerModel": "ai/mistral"},
+		viperKey:  "providers.docker_model_runner.default_model",
+		viperVal:  "ai/mistral",
+	},
 }
 
 // TestConfigAdapter_AllAgentFields verifies that every entry in the canonical list
@@ -877,6 +889,20 @@ var agentSnapshotBuildCases = []struct {
 		setupCfg: func(c *config.Config) { c.Agent.ReasoningLevel = "high" },
 		getter:   func(s *AgentConfigSnapshot) string { return s.ReasoningLevel },
 		expected: "high",
+	},
+	{
+		name:     "systemPrompt",
+		provider: "openai",
+		setupCfg: func(c *config.Config) { c.Agent.SystemPrompt = "You are helpful." },
+		getter:   func(s *AgentConfigSnapshot) string { return s.SystemPrompt },
+		expected: "You are helpful.",
+	},
+	{
+		name:     "dockerModelRunnerModel",
+		provider: "openai",
+		setupCfg: func(c *config.Config) { c.Providers.DockerModelRunner.DefaultModel = "ai/mistral" },
+		getter:   func(s *AgentConfigSnapshot) string { return s.DockerModelRunnerModel },
+		expected: "ai/mistral",
 	},
 }
 

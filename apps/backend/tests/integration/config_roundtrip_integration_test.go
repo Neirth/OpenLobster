@@ -18,9 +18,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/go-viper/mapstructure/v2"
 	graphqlapp "github.com/neirth/openlobster/internal/application/graphql"
 	"github.com/neirth/openlobster/internal/application/graphql/dto"
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -71,9 +71,9 @@ func setupConfigIntegTest(t *testing.T) (handler http.Handler, snapshot *dto.App
 	return handler, snapshot
 }
 
-func strPtr(s string) *string  { return &s }
-func boolPtr(b bool) *bool     { return &b }
-func intPtr(i int) *int        { return &i }
+func strPtr(s string) *string { return &s }
+func boolPtr(b bool) *bool    { return &b }
+func intPtr(i int) *int       { return &i }
 
 // sendUpdateConfig sends the updateConfig mutation with the given input and
 // asserts no GraphQL errors are returned.
@@ -97,7 +97,7 @@ func sendUpdateConfig(t *testing.T, handler http.Handler, input map[string]inter
 // queryConfig sends the config query and returns the config data map.
 func queryConfig(t *testing.T, handler http.Handler) map[string]interface{} {
 	t.Helper()
-	const q = `{"query": "query { config { agent { name provider model apiKey baseURL ollamaHost ollamaApiKey anthropicApiKey dockerModelRunnerEndpoint dockerModelRunnerModel reasoningLevel } capabilities { browser terminal subagents memory mcp filesystem sessions } database { driver dsn maxOpenConns maxIdleConns } memory { backend filePath neo4j { uri user password } } subagents { maxConcurrent defaultTimeout } graphql { enabled port host baseUrl } logging { level path } secrets { backend file { path } openbao { url token } } scheduler { enabled memoryEnabled memoryInterval } channelSecrets { telegramEnabled telegramToken discordEnabled discordToken slackEnabled slackBotToken slackAppToken whatsAppEnabled whatsAppPhoneId whatsAppApiToken twilioEnabled twilioAccountSid twilioAuthToken twilioFromNumber } wizardCompleted } }"}`
+	const q = `{"query": "query { config { agent { name systemPrompt provider model apiKey baseURL ollamaHost ollamaApiKey anthropicApiKey dockerModelRunnerEndpoint dockerModelRunnerModel reasoningLevel } capabilities { browser terminal subagents memory mcp filesystem sessions } database { driver dsn maxOpenConns maxIdleConns } memory { backend filePath neo4j { uri user password } } subagents { maxConcurrent defaultTimeout } graphql { enabled port host baseUrl } logging { level path } secrets { backend file { path } openbao { url token } } scheduler { enabled memoryEnabled memoryInterval } channelSecrets { telegramEnabled telegramToken discordEnabled discordToken slackEnabled slackBotToken slackAppToken whatsAppEnabled whatsAppPhoneId whatsAppApiToken twilioEnabled twilioAccountSid twilioAuthToken twilioFromNumber } wizardCompleted } }"}`
 	resp := gqlPost(t, handler, q)
 	assert.Nil(t, resp["errors"], "config query returned errors: %v", resp["errors"])
 	d := dataOf(t, resp)
@@ -128,11 +128,11 @@ func TestConfigRoundTrip_OpenAI(t *testing.T) {
 
 	sendUpdateConfig(t, handler, map[string]interface{}{
 		// Agent — provider-specific (openai)
-		"agentName":  "IntegBot",
-		"provider":   "openai",
-		"model":      "gpt-4o-mini",
-		"apiKey":     "sk-openai-test",
-		"baseURL":    "https://openai.example.com",
+		"agentName":      "IntegBot",
+		"provider":       "openai",
+		"model":          "gpt-4o-mini",
+		"apiKey":         "sk-openai-test",
+		"baseURL":        "https://openai.example.com",
 		"reasoningLevel": "high",
 
 		// Capabilities (handled as nested map by Apply)
@@ -153,10 +153,10 @@ func TestConfigRoundTrip_OpenAI(t *testing.T) {
 		"databaseMaxIdleConns": 2,
 
 		// Memory
-		"memoryBackend":    "neo4j",
-		"memoryFilePath":   "./mem.gml",
-		"memoryNeo4jURI":   "bolt://neo4j:7687",
-		"memoryNeo4jUser":  "neo4j",
+		"memoryBackend":       "neo4j",
+		"memoryFilePath":      "./mem.gml",
+		"memoryNeo4jURI":      "bolt://neo4j:7687",
+		"memoryNeo4jUser":     "neo4j",
 		"memoryNeo4jPassword": "neo4j-pass",
 
 		// Subagents
@@ -174,9 +174,9 @@ func TestConfigRoundTrip_OpenAI(t *testing.T) {
 		"loggingPath":  "./integ.log",
 
 		// Secrets
-		"secretsBackend":     "openbao",
-		"secretsFilePath":    "./integ-secrets.json",
-		"secretsOpenbaoURL":  "https://vault.integ.test",
+		"secretsBackend":      "openbao",
+		"secretsFilePath":     "./integ-secrets.json",
+		"secretsOpenbaoURL":   "https://vault.integ.test",
 		"secretsOpenbaoToken": "hvs.integ",
 
 		// Scheduler
@@ -344,8 +344,9 @@ func TestConfigRoundTrip_DockerModelRunner(t *testing.T) {
 	handler, _ := setupConfigIntegTest(t)
 
 	sendUpdateConfig(t, handler, map[string]interface{}{
-		"provider":                   "docker-model-runner",
-		"dockerModelRunnerEndpoint":  "http://dmr.integ:12434",
+		"provider":                  "docker-model-runner",
+		"dockerModelRunnerEndpoint": "http://dmr.integ:12434",
+		"dockerModelRunnerModel":    "ai/mistral-v2",
 	})
 
 	cfg := queryConfig(t, handler)
@@ -353,4 +354,5 @@ func TestConfigRoundTrip_DockerModelRunner(t *testing.T) {
 
 	assert.Equal(t, "docker-model-runner", str(agent, "provider"), "agent.provider")
 	assert.Equal(t, "http://dmr.integ:12434", str(agent, "dockerModelRunnerEndpoint"), "agent.dockerModelRunnerEndpoint")
+	assert.Equal(t, "ai/mistral-v2", str(agent, "dockerModelRunnerModel"), "agent.dockerModelRunnerModel")
 }

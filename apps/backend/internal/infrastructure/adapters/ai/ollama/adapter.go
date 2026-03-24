@@ -98,6 +98,9 @@ func NewAdapterWithAuth(baseURL, apiKey, model string, maxTokens int) *Adapter {
 // NewAdapterWithOptions constructs an Adapter with all options.
 // reasoningLevel is stored for future use; debug verbosity is controlled by the global logging level.
 func NewAdapterWithOptions(baseURL, apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
+	if maxTokens <= 0 {
+		maxTokens = ports.DefaultMaxTokens
+	}
 	ensureOllamaPrivateKey()
 
 	u, err := url.Parse(baseURL)
