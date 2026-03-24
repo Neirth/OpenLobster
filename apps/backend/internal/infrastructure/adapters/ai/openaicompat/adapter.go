@@ -23,8 +23,8 @@ type Adapter = aiopenai.Adapter
 // NewAdapter creates an Adapter that sends requests to the provided baseURL.
 // The apiKey and model fields map directly to the Authorization header and
 // the Model field of each ChatCompletion request.
-func NewAdapter(baseURL, apiKey, model string, maxTokens int) *Adapter {
-	return aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxTokens, "")
+func NewAdapter(baseURL, apiKey, model string, maxTokens int, reasoningLevel string) *Adapter {
+	return aiopenai.NewAdapterWithEndpoint(baseURL, apiKey, model, maxTokens, reasoningLevel)
 }
 
 var _ ports.AIProviderPort = (*Adapter)(nil)
