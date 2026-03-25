@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	appcontext "github.com/neirth/openlobster/internal/domain/context"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,6 +36,41 @@ func TestBuildMemoryConsolidationSystemPrompt_ContainsInstructions(t *testing.T)
 func TestBuildMemoryConsolidationSystemPrompt_NonEmpty(t *testing.T) {
 	prompt := buildMemoryConsolidationSystemPrompt()
 	require.NotEmpty(t, prompt)
+}
+
+// ─── buildLoopbackSystemPrompt ────────────────────────────────────────────────
+
+func TestBuildLoopbackSystemPrompt_ContainsRole(t *testing.T) {
+	agentCtx := &appcontext.AgentLLMContext{
+		AgentName: "TestAgent",
+	}
+	prompt := buildLoopbackSystemPrompt(agentCtx)
+	assert.Contains(t, prompt, "autonomous agent")
+	assert.Contains(t, prompt, "TestAgent")
+}
+
+func TestBuildLoopbackSystemPrompt_ContainsDate(t *testing.T) {
+	agentCtx := &appcontext.AgentLLMContext{}
+	prompt := buildLoopbackSystemPrompt(agentCtx)
+	// The prompt embeds the current year, so verify it starts with a plausible year.
+	currentYear := time.Now().Format("2006")
+	assert.Contains(t, prompt, currentYear)
+}
+
+func TestBuildLoopbackSystemPrompt_NoUserReferences(t *testing.T) {
+	agentCtx := &appcontext.AgentLLMContext{}
+	prompt := buildLoopbackSystemPrompt(agentCtx)
+	// Should not contain user-focused instructions
+	assert.NotContains(t, prompt, "MUST send a brief acknowledgement to the user")
+	assert.NotContains(t, prompt, "you MUST send a follow-up message to the user")
+	assert.NotContains(t, prompt, "NO_REPLY")
+}
+
+func TestBuildLoopbackSystemPrompt_ContainsTaskExecution(t *testing.T) {
+	agentCtx := &appcontext.AgentLLMContext{}
+	prompt := buildLoopbackSystemPrompt(agentCtx)
+	assert.Contains(t, prompt, "Task Execution")
+	assert.Contains(t, prompt, "Focus on completing the assigned objective")
 }
 
 // ─── NewLoopbackDispatcher ───────────────────────────────────────────────────

@@ -809,6 +809,9 @@ func (m *sendMessageFullRepoMock) ResolveChannelByStoredUsername(ctx context.Con
 func (m *sendMessageFullRepoMock) UpdateLastSeen(ctx context.Context, channelType, platformUserID string) error {
 	return nil
 }
+func (m *sendMessageFullRepoMock) ListKnownUsers(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
 
 type mockLastChannelResolver struct {
 	getLastChannel func(ctx context.Context, userID string) (channelType, platformChannelID string, err error)
@@ -832,6 +835,10 @@ func (m *mockUserNameResolver) GetUserIDByName(ctx context.Context, name string)
 		return m.getUserIDByName(ctx, name)
 	}
 	return "", nil
+}
+
+func (m *mockUserNameResolver) ListKnownUsers(ctx context.Context) ([]string, error) {
+	return nil, nil
 }
 
 func TestSendFileTool_Definition(t *testing.T) {
@@ -1041,7 +1048,8 @@ func TestAddMemoryTool_Definition(t *testing.T) {
 
 func TestAddMemoryTool_Execute_Success(t *testing.T) {
 	mockMem := new(MockMemoryService)
-	mockMem.On("AddKnowledge", mock.Anything, "", "Important info", mock.Anything, mock.Anything, "fact").Return(nil)
+	mockMem.On("AddKnowledge", mock.Anything, "alice", "Important info", mock.Anything, mock.Anything, "fact").Return(nil)
+	mockMem.On("UpdateUserLabel", mock.Anything, "alice", "alice").Return(nil).Maybe()
 
 	tool := &AddMemoryTool{
 		Tools: InternalTools{
@@ -1049,7 +1057,8 @@ func TestAddMemoryTool_Execute_Success(t *testing.T) {
 		},
 	}
 
-	result, err := tool.Execute(context.Background(), map[string]interface{}{
+	ctx := context.WithValue(context.Background(), ContextKeyUserDisplayName, "alice")
+	result, err := tool.Execute(ctx, map[string]interface{}{
 		"content": "Important info",
 	})
 
@@ -1068,7 +1077,8 @@ func TestAddMemoryTool_Execute_MissingContent(t *testing.T) {
 
 func TestAddMemoryTool_Execute_Error(t *testing.T) {
 	mockMem := new(MockMemoryService)
-	mockMem.On("AddKnowledge", mock.Anything, "", "Info", mock.Anything, mock.Anything, "fact").Return(assert.AnError)
+	mockMem.On("AddKnowledge", mock.Anything, "alice", "Info", mock.Anything, mock.Anything, "fact").Return(assert.AnError)
+	mockMem.On("UpdateUserLabel", mock.Anything, "alice", "alice").Return(nil).Maybe()
 
 	tool := &AddMemoryTool{
 		Tools: InternalTools{
@@ -1076,7 +1086,8 @@ func TestAddMemoryTool_Execute_Error(t *testing.T) {
 		},
 	}
 
-	_, err := tool.Execute(context.Background(), map[string]interface{}{
+	ctx := context.WithValue(context.Background(), ContextKeyUserDisplayName, "alice")
+	_, err := tool.Execute(ctx, map[string]interface{}{
 		"content": "Info",
 	})
 

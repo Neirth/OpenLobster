@@ -175,6 +175,9 @@ type UserChannelRepositoryPort interface {
 	// GetUserIDByName resolves the users.id UUID for a given display name
 	// (users.name). Matching is case-insensitive on trimmed name.
 	GetUserIDByName(ctx context.Context, name string) (string, error)
+	// ListKnownUsers returns the display names of all users that have at least
+	// one paired channel. Used to build helpful error messages.
+	ListKnownUsers(ctx context.Context) ([]string, error)
 	// ResolveChannelByStoredUsername finds platform_user_id and channel (telegram,
 	// discord, …) by the username stored in user_channels (paired handle). If
 	// platform is empty, uses the row with the latest last_seen among matches.
