@@ -203,6 +203,20 @@ func (r *repository) ResolveChannelByStoredUsername(ctx context.Context, usernam
 	return "", "", nil
 }
 
+func (r *repository) ListKnownUsers(ctx context.Context) ([]string, error) {
+	var names []string
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT COALESCE(NULLIF(u.name,''), uc.platform_user_id) AS display_name
+		FROM user_channels uc
+		LEFT JOIN users u ON u.id = uc.user_id
+		GROUP BY uc.user_id
+		ORDER BY MAX(uc.last_seen) DESC`).Scan(&names).Error
+	if err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
 func (r *repository) UpdateLastSeen(ctx context.Context, channelType, platformUserID string) error {
 	now := time.Now().UTC()
 	return r.db.WithContext(ctx).Model(&domainmodels.UserChannelModel{}).

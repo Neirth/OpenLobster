@@ -372,9 +372,12 @@ type SendFileTool struct {
 }
 
 // UserNameResolver is an optional interface that the LastChannelResolver may
-// implement to support looking up a user UUID by their display name.
+// implement to resolve user display names. ListKnownUsers returns a list of
+// human-readable names of all users known to the system, used to provide
+// helpful error messages when a user is not found.
 type UserNameResolver interface {
 	GetUserIDByName(ctx context.Context, name string) (string, error)
+	ListKnownUsers(ctx context.Context) ([]string, error)
 }
 
 func (t *SendFileTool) Definition() ToolDefinition {
@@ -741,7 +744,18 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 	// for_user allows consolidation agents to store facts for a specific user
 	// rather than the ambient context user (which is empty in loopback runs).
 	var userKey string
-	if forUser, ok := params["for_user"].(string); ok && forUser != "" {
+	if forUser, ok := params["for_user"].(string); ok && strings.TrimSpace(forUser) != "" {
+		forUser = strings.TrimSpace(forUser)
+		// Validate that for_user refers to an existing user.
+		if nr, ok2 := t.Tools.LastChannelResolver.(UserNameResolver); ok2 {
+			uid, _ := nr.GetUserIDByName(ctx, forUser)
+			if uid == "" {
+				if names, lErr := nr.ListKnownUsers(ctx); lErr == nil && len(names) > 0 {
+					return nil, fmt.Errorf("add_memory: unknown user %q — known users: %s", forUser, strings.Join(names, ", "))
+				}
+				return nil, fmt.Errorf("add_memory: unknown user %q — no users are registered yet", forUser)
+			}
+		}
 		userKey = forUser
 	} else if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
 		// Prefer the display name (users.name) as the memory key when available.
@@ -751,15 +765,7 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 	}
 
 	if userKey == "" {
-		// In memory consolidation loopback runs, ambient user may be empty and
-		// callers must provide `for_user`. For other flows (including unit tests),
-		// preserve backward compatibility.
-		if ct, _ := ctx.Value(ContextKeyChannelType).(string); ct == "loopback" {
-			return nil, fmt.Errorf("add_memory: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
-		}
-		if cid, _ := ctx.Value(ContextKeyChannelID).(string); cid == "loopback" {
-			return nil, fmt.Errorf("add_memory: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
-		}
+		return nil, fmt.Errorf("add_memory: cannot store memory without a user — pass for_user or ensure the conversation context carries a user identity")
 	}
 
 	// Infer a reasonable entity type when the caller doesn't provide it.
@@ -910,7 +916,17 @@ func (t *SetUserPropertyTool) Execute(ctx context.Context, params map[string]int
 
 	// for_user allows consolidation agents to set properties for a specific user.
 	var userKey string
-	if forUser, ok := params["for_user"].(string); ok && forUser != "" {
+	if forUser, ok := params["for_user"].(string); ok && strings.TrimSpace(forUser) != "" {
+		forUser = strings.TrimSpace(forUser)
+		if nr, ok2 := t.Tools.LastChannelResolver.(UserNameResolver); ok2 {
+			uid, _ := nr.GetUserIDByName(ctx, forUser)
+			if uid == "" {
+				if names, lErr := nr.ListKnownUsers(ctx); lErr == nil && len(names) > 0 {
+					return nil, fmt.Errorf("set_user_property: unknown user %q — known users: %s", forUser, strings.Join(names, ", "))
+				}
+				return nil, fmt.Errorf("set_user_property: unknown user %q — no users are registered yet", forUser)
+			}
+		}
 		userKey = forUser
 	} else if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
 		// Prefer the display name (users.name) as the memory key when available.
@@ -920,12 +936,7 @@ func (t *SetUserPropertyTool) Execute(ctx context.Context, params map[string]int
 	}
 
 	if userKey == "" {
-		if ct, _ := ctx.Value(ContextKeyChannelType).(string); ct == "loopback" {
-			return nil, fmt.Errorf("set_user_property: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
-		}
-		if cid, _ := ctx.Value(ContextKeyChannelID).(string); cid == "loopback" {
-			return nil, fmt.Errorf("set_user_property: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
-		}
+		return nil, fmt.Errorf("set_user_property: cannot set property without a user — pass for_user or ensure the conversation context carries a user identity")
 	}
 
 	if err := t.Tools.Memory.SetUserProperty(ctx, userKey, key, value); err != nil {

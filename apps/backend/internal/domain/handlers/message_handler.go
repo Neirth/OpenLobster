@@ -762,12 +762,9 @@ func (h *MessageHandler) Handle(ctx context.Context, input HandleMessageInput) e
 						}))
 					}
 				}
-				// Only send non-empty assistant messages to the channel.
-				if trimmed != "" && h.messaging != nil && !isInternal {
-					if err := h.messaging.SendMessage(ctx, msg); err != nil {
-						log.Printf("messaging: failed to send intermediate message to %s (channel_id=%q): %v", input.ChannelType, input.ChannelID, err)
-					}
-				}
+				// Intermediate pre-tool text is persisted for conversation history
+				// but NOT delivered to the channel. The synthesis response (sent
+				// after the agentic loop completes) is the single outbound message.
 			} else if role == "tool" && h.messageRepo != nil {
 				msg := &models.Message{
 					ID:             uuid.New(),
