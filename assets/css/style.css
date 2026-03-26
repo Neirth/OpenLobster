@@ -616,13 +616,30 @@ code, pre {
 .bento-item {
   background: var(--bg-base);
   padding: var(--s5);
-}
-
-.bento-item.terminal {
-  min-height: 400px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* Alternate alignment: odd items left-aligned, even items right-aligned */
+  justify-content: flex-start;
+}
+
+.bento-item:nth-child(even) {
+  justify-content: flex-end;
+}
+
+/* Specific item styles */
+.bento-item.terminal {
+  min-height: 500px;
+  padding: var(--s6);
+}
+
+.bento-item.features {
+  padding: var(--s6);
+}
+
+.bento-item.terminal svg {
+  width: 100%;
+  height: 100%;
+  max-width: 480px;
 }
 
 .terminal-image {
