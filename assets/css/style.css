@@ -36,16 +36,17 @@
   --font: 'Inter', system-ui, -apple-system, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  /* Typographic scale — strict ratio */
-  --t-xs:   11px;
-  --t-sm:   13px;
-  --t-base: 15px;
-  --t-md:   17px;
-  --t-lg:   20px;
-  --t-xl:   26px;
-  --t-2xl:  34px;
-  --t-3xl:  46px;
-  --t-4xl:  60px;
+/* Typographic scale — strict ratio */
+--t-xs:   11px;
+--t-sm:   13px;
+--t-base: 15px;
+--t-md:   17px;
+--t-lg:   20px;
+--t-xl:   26px;
+--t-2xl:  34px;
+--t-3xl:  46px;
+--t-4xl:  60px;
+--t-5xl:  80px;
 
   /* Spacing — 8px grid */
   --s1:  8px;
@@ -172,7 +173,7 @@ code, pre {
 }
 
 .hero__title {
-  font-size: var(--t-4xl);
+  font-size: var(--t-5xl);
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.08;
@@ -186,8 +187,8 @@ code, pre {
 
 .hero__body {
   color: var(--fg-secondary);
-  font-size: var(--t-md);
-  line-height: 1.7;
+  font-size: var(--t-xs);
+  line-height: 2.0;
   margin-bottom: var(--s5);
   max-width: 440px;
 }
@@ -604,8 +605,35 @@ code, pre {
   font-weight: 500;
 }
 
-/* ── Footer ───────────────────────────────────────────────────── */
+/* ── Bento Grid ── */
+.bento-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
 
+.bento-item {
+  background: var(--bg-base);
+  padding: var(--s5);
+}
+
+.bento-item.terminal {
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.terminal-image {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0;
+  opacity: 0.9;
+}
+
+/* ── Footer ───────────────────────────────────────────────────── */
 .footer {
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
