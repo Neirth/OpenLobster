@@ -67,7 +67,7 @@ const SkillsView: Component = () => {
   return (
     <AppShell activeTab="skills">
       <input
-        ref={fileInputRef}
+        ref={(el) => (fileInputRef = el)}
         type="file"
         accept=".skill,.zip"
         style={{ display: 'none' }}
