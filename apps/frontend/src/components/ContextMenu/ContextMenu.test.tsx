@@ -21,7 +21,9 @@ beforeEach(() => {
 
   (HTMLElement.prototype as any).showPopover = showPopoverSpy;
   (HTMLElement.prototype as any).hidePopover = hidePopoverSpy;
-  HTMLElement.prototype.matches = function (selector: string) {
+  HTMLElement.prototype.matches = function (
+    selector: string,
+  ): this is HTMLElement {
     if (selector === ':popover-open') return false;
     return originalMatches.call(this, selector);
   };
