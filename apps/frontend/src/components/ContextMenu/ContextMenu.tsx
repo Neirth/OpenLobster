@@ -92,7 +92,7 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
 
       {/* Portal into <body> prevents invalid nesting (e.g. <ul> inside <ul>) */}
       <Portal mount={document.body}>
-        <ul class="ctx-menu" popover="auto" ref={menuEl}>
+        <ul class="ctx-menu" popover="auto" ref={(el) => (menuEl = el)}>
           <For each={props.items}>
             {(item) => (
               <li

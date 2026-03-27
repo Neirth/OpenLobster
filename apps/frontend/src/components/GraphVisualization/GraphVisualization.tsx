@@ -320,7 +320,7 @@ export default function GraphVisualization(props: GraphVisualizationProps) {
 
   return (
     <div class="graph-visualization">
-      <div ref={containerRef} class="graph-container" />
+      <div ref={(el) => (containerRef = el)} class="graph-container" />
       <Show when={!cytoscapeLoaded()}>
         <div class="graph-loading">Loading graph...</div>
       </Show>
