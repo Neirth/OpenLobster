@@ -222,6 +222,206 @@ describe("FirstBootWizard", () => {
     });
   });
 
+  describe("Docker Model Runner provider", () => {
+    async function navigateToStep2(container: HTMLElement) {
+      await waitFor(() => {
+        expect(container.querySelector(".wizard-step--welcome")).toBeTruthy();
+      }, { timeout: 2000 });
+      for (let i = 0; i < 2; i++) {
+        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
+        if (nextBtn && !nextBtn.disabled) {
+          fireEvent.click(nextBtn);
+          await new Promise((r) => setTimeout(r, 30));
+        }
+      }
+    }
+
+    it("shows dockerModelRunnerEndpoint input when provider is docker-model-runner", async () => {
+      const { container } = renderWithProvider();
+      await navigateToStep2(container);
+
+      await waitFor(() => {
+        expect(container.querySelector("select")).toBeTruthy();
+      }, { timeout: 2000 });
+      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
+        target: { value: "docker-model-runner" },
+      });
+
+      await waitFor(() => {
+        const inputs = Array.from(container.querySelectorAll("input[type='text']"));
+        const endpointInput = inputs.find((i) =>
+          (i as HTMLInputElement).value.includes("host.docker.internal"),
+        );
+        expect(endpointInput).toBeTruthy();
+      }, { timeout: 1000 });
+    });
+
+    it("default dockerModelRunnerEndpoint uses host.docker.internal", async () => {
+      const { container } = renderWithProvider();
+      await navigateToStep2(container);
+
+      await waitFor(() => {
+        expect(container.querySelector("select")).toBeTruthy();
+      }, { timeout: 2000 });
+      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
+        target: { value: "docker-model-runner" },
+      });
+
+      await waitFor(() => {
+        const inputs = Array.from(container.querySelectorAll("input[type='text']"));
+        const endpointInput = inputs.find((i) =>
+          (i as HTMLInputElement).value.includes("12434"),
+        ) as HTMLInputElement | undefined;
+        expect(endpointInput).toBeTruthy();
+        expect(endpointInput!.value).toContain("host.docker.internal");
+        expect(endpointInput!.value).not.toContain("localhost");
+      }, { timeout: 1000 });
+    });
+
+    it("save mutation sends dockerModelRunnerEndpoint when provider is docker-model-runner", async () => {
+      mockFetch.mockImplementation((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : (input as URL).toString();
+        if (url.includes("graphql") || url === "/graphql") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: {
+                updateConfig: { agentName: "TestAgent" },
+                config: {
+                  agent: {
+                    name: "TestAgent",
+                    provider: "docker-model-runner",
+                    model: "ai/mistral-nemo",
+                    dockerModelRunnerEndpoint: "http://host.docker.internal:12434/engines/v1",
+                  },
+                  graphql: { baseUrl: "" },
+                  capabilities: {},
+                  channelSecrets: {},
+                },
+              },
+            }),
+          });
+        }
+        if (url.includes("marketplace.json")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+        }
+        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+      });
+
+      const { container } = renderWithProvider();
+      await navigateToStep2(container);
+
+      await waitFor(() => expect(container.querySelector("select")).toBeTruthy(), { timeout: 2000 });
+      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
+        target: { value: "docker-model-runner" },
+      });
+
+      // Navigate to last step
+      for (let i = 0; i < 4; i++) {
+        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
+        if (nextBtn && !nextBtn.disabled) {
+          fireEvent.click(nextBtn);
+          await new Promise((r) => setTimeout(r, 30));
+        }
+      }
+
+      await waitFor(() => {
+        expect(container.querySelector(".wizard-btn-primary")).toBeTruthy();
+      }, { timeout: 2000 });
+      fireEvent.click(container.querySelector(".wizard-btn-primary") as HTMLButtonElement);
+
+      await waitFor(() => {
+        const mutateCalls = mockFetch.mock.calls.filter(([, opts]) => {
+          const b = opts?.body ? JSON.parse(opts.body) : {};
+          return (b.query ?? "").includes("updateConfig");
+        });
+        expect(mutateCalls.length).toBeGreaterThan(0);
+        const body = JSON.parse(mutateCalls[0][1].body);
+        expect(body.variables.input.provider).toBe("docker-model-runner");
+        expect("dockerModelRunnerEndpoint" in body.variables.input).toBe(true);
+      }, { timeout: 3000 });
+    });
+
+    it("save mutation sends model field when provider is docker-model-runner", async () => {
+      mockFetch.mockImplementation((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : (input as URL).toString();
+        if (url.includes("graphql") || url === "/graphql") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: { updateConfig: { agentName: "TestAgent" }, config: null },
+            }),
+          });
+        }
+        if (url.includes("marketplace.json")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
+        }
+        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+      });
+
+      const { container } = renderWithProvider();
+      await navigateToStep2(container);
+
+      await waitFor(() => expect(container.querySelector("select")).toBeTruthy(), { timeout: 2000 });
+      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
+        target: { value: "docker-model-runner" },
+      });
+
+      await waitFor(() => {
+        const modelInput = container.querySelector("input[type='text']") as HTMLInputElement;
+        expect(modelInput).toBeTruthy();
+      }, { timeout: 500 });
+
+      // Set model value
+      const modelInput = container.querySelector("input[type='text']") as HTMLInputElement;
+      fireEvent.input(modelInput, { target: { value: "ai/llama3.2" } });
+
+      // Navigate to last step
+      for (let i = 0; i < 4; i++) {
+        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
+        if (nextBtn && !nextBtn.disabled) {
+          fireEvent.click(nextBtn);
+          await new Promise((r) => setTimeout(r, 30));
+        }
+      }
+
+      await waitFor(() => {
+        expect(container.querySelector(".wizard-btn-primary")).toBeTruthy();
+      }, { timeout: 2000 });
+      fireEvent.click(container.querySelector(".wizard-btn-primary") as HTMLButtonElement);
+
+      await waitFor(() => {
+        const mutateCalls = mockFetch.mock.calls.filter(([, opts]) => {
+          const b = opts?.body ? JSON.parse(opts.body) : {};
+          return (b.query ?? "").includes("updateConfig");
+        });
+        expect(mutateCalls.length).toBeGreaterThan(0);
+        const body = JSON.parse(mutateCalls[0][1].body);
+        expect(body.variables.input.provider).toBe("docker-model-runner");
+        expect("model" in body.variables.input).toBe(true);
+      }, { timeout: 3000 });
+    });
+
+    it("does NOT show API key input when provider is docker-model-runner", async () => {
+      const { container } = renderWithProvider();
+      await navigateToStep2(container);
+
+      await waitFor(() => {
+        expect(container.querySelector("select")).toBeTruthy();
+      }, { timeout: 2000 });
+      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
+        target: { value: "docker-model-runner" },
+      });
+
+      await waitFor(() => {
+        const passwordInputs = container.querySelectorAll("input[type='password']");
+        expect(passwordInputs.length).toBe(0);
+      }, { timeout: 500 });
+    });
+  });
+
   describe("Regression: anthropic provider uses anthropicApiKey field", () => {
     async function navigateToStep2(container: HTMLElement) {
       // Wait for loading to complete first

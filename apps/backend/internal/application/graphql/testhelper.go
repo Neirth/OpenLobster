@@ -51,9 +51,10 @@ type TestDepsOpts struct {
 
 // TestGraphRepo implements svcdashboard.GraphQueryPort and GraphCommandPort for tests.
 type TestGraphRepo struct {
-	GetUserGraphFunc func(ctx context.Context, userID string) (ports.Graph, error)
-	QueryGraphFunc   func(ctx context.Context, cypher string) (ports.GraphResult, error)
-	AddRelationFunc  func(ctx context.Context, from, to, relType string) error
+	GetUserGraphFunc    func(ctx context.Context, userID string) (ports.Graph, error)
+	QueryGraphFunc      func(ctx context.Context, cypher string) (ports.GraphResult, error)
+	AddRelationFunc     func(ctx context.Context, from, to, relType string) error
+	DeleteRelationFunc  func(ctx context.Context, from, to string) error
 }
 
 func (t *TestGraphRepo) GetUserGraph(ctx context.Context, userID string) (ports.Graph, error) {
@@ -73,6 +74,13 @@ func (t *TestGraphRepo) QueryGraph(ctx context.Context, cypher string) (ports.Gr
 func (t *TestGraphRepo) AddRelation(ctx context.Context, from, to, relType string) error {
 	if t.AddRelationFunc != nil {
 		return t.AddRelationFunc(ctx, from, to, relType)
+	}
+	return nil
+}
+
+func (t *TestGraphRepo) DeleteRelation(ctx context.Context, from, to string) error {
+	if t.DeleteRelationFunc != nil {
+		return t.DeleteRelationFunc(ctx, from, to)
 	}
 	return nil
 }
@@ -111,6 +119,9 @@ func (t *TestMemoryRepo) GetUserGraph(ctx context.Context, userID string) (ports
 	return ports.Graph{}, nil
 }
 func (t *TestMemoryRepo) AddRelation(ctx context.Context, from, to, relType string) error {
+	return nil
+}
+func (t *TestMemoryRepo) DeleteRelation(ctx context.Context, from, to string) error {
 	return nil
 }
 func (t *TestMemoryRepo) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {

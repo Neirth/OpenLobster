@@ -168,15 +168,30 @@ func (s *MemoryDigestService) summarizeGraph(graph ports.Graph) string {
 		Edges []toonEdge `toon:"edges"`
 	}
 
-	nodes := make([]toonNode, len(graph.Nodes))
-	for i, n := range graph.Nodes {
-		nodes[i] = toonNode{ID: n.ID, Label: n.Label, Type: n.Type, Value: n.Value}
+	// Only include the subject user's own node and nodes with direct knowledge
+	// relationships (facts, persons, places, etc.). Other User nodes that appear
+	// due to User-User relations (e.g. FRIEND_OF) represent people the user
+	// knows, not personal facts — injecting them pollutes the AI context with
+	// data that belongs to other users.
+	includedIDs := make(map[string]bool)
+	filteredNodes := make([]toonNode, 0, len(graph.Nodes))
+	for _, n := range graph.Nodes {
+		// Keep the subject user node (synthetic "user:<id>" prefix) and all
+		// non-user entity nodes. Exclude other User nodes.
+		if strings.HasPrefix(n.ID, "user:") || n.Type != "user" {
+			filteredNodes = append(filteredNodes, toonNode{ID: n.ID, Label: n.Label, Type: n.Type, Value: n.Value})
+			includedIDs[n.ID] = true
+		}
 	}
-	edges := make([]toonEdge, len(graph.Edges))
-	for i, e := range graph.Edges {
-		edges[i] = toonEdge{Source: e.Source, Target: e.Target, Label: e.Label}
+
+	filteredEdges := make([]toonEdge, 0, len(graph.Edges))
+	for _, e := range graph.Edges {
+		if includedIDs[e.Source] && includedIDs[e.Target] {
+			filteredEdges = append(filteredEdges, toonEdge{Source: e.Source, Target: e.Target, Label: e.Label})
+		}
 	}
-	out, err := toon.MarshalString(toonGraph{Nodes: nodes, Edges: edges})
+
+	out, err := toon.MarshalString(toonGraph{Nodes: filteredNodes, Edges: filteredEdges})
 	if err != nil {
 		return ""
 	}

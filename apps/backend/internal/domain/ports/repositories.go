@@ -20,6 +20,7 @@ type MemoryPort interface {
 	SearchSimilar(ctx context.Context, query string, limit int) ([]Knowledge, error)
 	GetUserGraph(ctx context.Context, userID string) (Graph, error)
 	AddRelation(ctx context.Context, from, to string, relType string) error
+	DeleteRelation(ctx context.Context, from, to string) error
 	QueryGraph(ctx context.Context, cypher string) (GraphResult, error)
 	InvalidateMemoryCache(ctx context.Context, userID string) error
 	// SetUserProperty upserts an arbitrary key/value property on the user node
@@ -174,6 +175,9 @@ type UserChannelRepositoryPort interface {
 	// GetUserIDByName resolves the users.id UUID for a given display name
 	// (users.name). Matching is case-insensitive on trimmed name.
 	GetUserIDByName(ctx context.Context, name string) (string, error)
+	// ListKnownUsers returns the display names of all users that have at least
+	// one paired channel. Used to build helpful error messages.
+	ListKnownUsers(ctx context.Context) ([]string, error)
 	// ResolveChannelByStoredUsername finds platform_user_id and channel (telegram,
 	// discord, …) by the username stored in user_channels (paired handle). If
 	// platform is empty, uses the row with the latest last_seen among matches.

@@ -277,7 +277,7 @@
 
 /* ── Toggle switch ───────────────────────────────────────────── */
 
-.toggle-switch {
+.tasks-table .toggle-switch {
   position: relative;
   display: inline-block;
   width: 36px;
@@ -286,14 +286,14 @@
   vertical-align: middle;
 }
 
-.toggle-switch input {
+.tasks-table .toggle-switch input {
   opacity: 0;
   position: absolute;
   width: 0;
   height: 0;
 }
 
-.toggle-slider {
+.tasks-table .toggle-slider {
   position: absolute;
   cursor: pointer;
   top: 0;
@@ -306,7 +306,7 @@
   border-radius: 20px;
 }
 
-.toggle-slider::before {
+.tasks-table .toggle-slider::before {
   position: absolute;
   content: '';
   height: 14px;
@@ -319,11 +319,11 @@
   border-radius: 50%;
 }
 
-input:checked + .toggle-slider {
+.tasks-table input:checked + .toggle-slider {
   background: var(--color-success);
 }
 
-input:checked + .toggle-slider::before {
+.tasks-table input:checked + .toggle-slider::before {
   background: var(--color-toggle-knob);
   transform: translateX(14px);
 }

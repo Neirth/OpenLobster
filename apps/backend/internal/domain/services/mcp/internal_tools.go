@@ -372,9 +372,12 @@ type SendFileTool struct {
 }
 
 // UserNameResolver is an optional interface that the LastChannelResolver may
-// implement to support looking up a user UUID by their display name.
+// implement to resolve user display names. ListKnownUsers returns a list of
+// human-readable names of all users known to the system, used to provide
+// helpful error messages when a user is not found.
 type UserNameResolver interface {
 	GetUserIDByName(ctx context.Context, name string) (string, error)
+	ListKnownUsers(ctx context.Context) ([]string, error)
 }
 
 func (t *SendFileTool) Definition() ToolDefinition {
@@ -713,7 +716,8 @@ func (t *AddMemoryTool) Definition() ToolDefinition {
 			"User likes electronic music → content='User loves electronic music', label='Electronica', relation='LIKES'. " +
 			"User works as X → label='Software Engineer', relation='IS'. " +
 			"For the user's own attributes (name, phone, birthday) use set_user_property instead. " +
-			"For a relation between two users (e.g. friends) use add_user_relation instead.",
+			"For a relation between two users (e.g. friends) use add_user_relation instead. " +
+			"For memory consolidation agents processing multiple users, use for_user parameter to specify which user's memory to store the fact in.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -740,7 +744,18 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 	// for_user allows consolidation agents to store facts for a specific user
 	// rather than the ambient context user (which is empty in loopback runs).
 	var userKey string
-	if forUser, ok := params["for_user"].(string); ok && forUser != "" {
+	if forUser, ok := params["for_user"].(string); ok && strings.TrimSpace(forUser) != "" {
+		forUser = strings.TrimSpace(forUser)
+		// Validate that for_user refers to an existing user.
+		if nr, ok2 := t.Tools.LastChannelResolver.(UserNameResolver); ok2 {
+			uid, _ := nr.GetUserIDByName(ctx, forUser)
+			if uid == "" {
+				if names, lErr := nr.ListKnownUsers(ctx); lErr == nil && len(names) > 0 {
+					return nil, fmt.Errorf("add_memory: unknown user %q — known users: %s", forUser, strings.Join(names, ", "))
+				}
+				return nil, fmt.Errorf("add_memory: unknown user %q — no users are registered yet", forUser)
+			}
+		}
 		userKey = forUser
 	} else if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
 		// Prefer the display name (users.name) as the memory key when available.
@@ -750,15 +765,7 @@ func (t *AddMemoryTool) Execute(ctx context.Context, params map[string]interface
 	}
 
 	if userKey == "" {
-		// In memory consolidation loopback runs, ambient user may be empty and
-		// callers must provide `for_user`. For other flows (including unit tests),
-		// preserve backward compatibility.
-		if ct, _ := ctx.Value(ContextKeyChannelType).(string); ct == "loopback" {
-			return nil, fmt.Errorf("add_memory: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
-		}
-		if cid, _ := ctx.Value(ContextKeyChannelID).(string); cid == "loopback" {
-			return nil, fmt.Errorf("add_memory: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
-		}
+		return nil, fmt.Errorf("add_memory: cannot store memory without a user — pass for_user or ensure the conversation context carries a user identity")
 	}
 
 	// Infer a reasonable entity type when the caller doesn't provide it.
@@ -886,7 +893,8 @@ func (t *SetUserPropertyTool) Definition() ToolDefinition {
 			"Call it proactively whenever you learn something concrete about the user. " +
 			"Examples: key='real_name' value='Alice'; key='phone' value='+34 600 000 000'; " +
 			"key='birthday' value='15 March'; key='preferred_language' value='Spanish'; key='timezone' value='Europe/Madrid'; " +
-			"key='occupation' value='software engineer'. Use snake_case for keys.",
+			"key='occupation' value='software engineer'. Use snake_case for keys. " +
+			"For memory consolidation agents processing multiple users, use for_user parameter to specify which user's property to set.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -908,7 +916,17 @@ func (t *SetUserPropertyTool) Execute(ctx context.Context, params map[string]int
 
 	// for_user allows consolidation agents to set properties for a specific user.
 	var userKey string
-	if forUser, ok := params["for_user"].(string); ok && forUser != "" {
+	if forUser, ok := params["for_user"].(string); ok && strings.TrimSpace(forUser) != "" {
+		forUser = strings.TrimSpace(forUser)
+		if nr, ok2 := t.Tools.LastChannelResolver.(UserNameResolver); ok2 {
+			uid, _ := nr.GetUserIDByName(ctx, forUser)
+			if uid == "" {
+				if names, lErr := nr.ListKnownUsers(ctx); lErr == nil && len(names) > 0 {
+					return nil, fmt.Errorf("set_user_property: unknown user %q — known users: %s", forUser, strings.Join(names, ", "))
+				}
+				return nil, fmt.Errorf("set_user_property: unknown user %q — no users are registered yet", forUser)
+			}
+		}
 		userKey = forUser
 	} else if dn, ok := ctx.Value(ContextKeyUserDisplayName).(string); ok && dn != "" {
 		// Prefer the display name (users.name) as the memory key when available.
@@ -918,12 +936,7 @@ func (t *SetUserPropertyTool) Execute(ctx context.Context, params map[string]int
 	}
 
 	if userKey == "" {
-		if ct, _ := ctx.Value(ContextKeyChannelType).(string); ct == "loopback" {
-			return nil, fmt.Errorf("set_user_property: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
-		}
-		if cid, _ := ctx.Value(ContextKeyChannelID).(string); cid == "loopback" {
-			return nil, fmt.Errorf("set_user_property: userKey is empty in loopback; pass for_user or ensure ContextKeyUserID/ContextKeyUserDisplayName is set")
-		}
+		return nil, fmt.Errorf("set_user_property: cannot set property without a user — pass for_user or ensure the conversation context carries a user identity")
 	}
 
 	if err := t.Tools.Memory.SetUserProperty(ctx, userKey, key, value); err != nil {
@@ -943,7 +956,8 @@ func (t *SearchMemoryTool) Definition() ToolDefinition {
 		Description: "Search the current user's long-term memory for stored facts and preferences. " +
 			"Pass a topic keyword or short phrase (e.g. 'music', 'work', 'location', 'preferences'). " +
 			"Returns matching facts previously saved with add_memory. " +
-			"Use this before making assumptions about the user — check memory first.",
+			"Use this before making assumptions about the user — check memory first. " +
+			"For memory consolidation agents processing multiple users, use for_user parameter to specify which user's memory to search.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -1568,7 +1582,7 @@ type EditMemoryNodeTool struct {
 func (t *EditMemoryNodeTool) Definition() ToolDefinition {
 	return ToolDefinition{
 		Name:        "edit_memory_node",
-		Description: "Edit the text value of an existing memory node (fact) by its node ID. Use search_memory first to discover the node ID. Only fact nodes belonging to the current user can be edited.",
+		Description: "Edit the text value of an existing memory node (fact) by its node ID. Use search_memory first to discover the node ID. Only fact nodes belonging to the current user can be edited. For memory consolidation agents processing multiple users, use for_user parameter to specify which user's memory to edit.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

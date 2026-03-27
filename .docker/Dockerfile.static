@@ -55,6 +55,6 @@ CMD ["/app/bin/openlobster", "serve", "--data-dir", "/app"]
 LABEL maintainer="neirth <7413024+Neirth@users.noreply.github.com>" \
     org.opencontainers.image.title="OpenLobster" \
     org.opencontainers.image.description="OpenLobster is a self-hosted, open-source personal ai autonomous agent platform built with Go and Solid.js, designed to run on your own hardware for maximum privacy and control." \
-    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.licenses="GPLv3" \
     org.opencontainers.image.source="https://github.com/neirth/OpenLobster" \
     org.opencontainers.image.created="2026-02-14"

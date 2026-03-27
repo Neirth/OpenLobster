@@ -534,6 +534,39 @@
   font-size: var(--text-xs);
 }
 
+.edge-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs, 4px);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--duration-micro) var(--ease-out),
+              background var(--duration-micro) var(--ease-out),
+              color var(--duration-micro) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.edge-delete-btn .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.edge-item:hover .edge-delete-btn {
+  opacity: 1;
+}
+
+.edge-delete-btn:hover {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
 .no-connections {
   color: var(--color-text-muted);
   font-size: var(--text-sm);

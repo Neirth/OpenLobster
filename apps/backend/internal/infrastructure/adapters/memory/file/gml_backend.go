@@ -438,6 +438,54 @@ func (b *GMLBackend) AddRelation(_ context.Context, from, to string, relType str
 	return nil
 }
 
+func (b *GMLBackend) DeleteRelation(_ context.Context, from, to string) error {
+	fromID, err := b.resolveNodeIntID(from)
+	if err != nil {
+		return err
+	}
+	toID, err := b.resolveNodeIntID(to)
+	if err != nil {
+		return err
+	}
+
+	b.mu.Lock()
+	graphCopy := b.graph.Copy()
+	var newEdges []*Edge
+	for _, e := range graphCopy.Edges {
+		if e.Source == fromID && e.Target == toID {
+			continue
+		}
+		newEdges = append(newEdges, e)
+	}
+	graphCopy.Edges = newEdges
+	b.graph = graphCopy
+	b.dirty = true
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+// resolveNodeIntID converts a string node ID (either "user:<userID>" or a numeric string)
+// to the corresponding integer ID used internally by the GML graph.
+func (b *GMLBackend) resolveNodeIntID(id string) (int, error) {
+	if strings.HasPrefix(id, "user:") {
+		userID := strings.TrimPrefix(id, "user:")
+		b.mu.RLock()
+		node := b.findUserNodeInGraph(b.graph, userID)
+		b.mu.RUnlock()
+		if node == nil {
+			return 0, fmt.Errorf("node not found: %s", id)
+		}
+		return node.ID, nil
+	}
+	n, err := strconv.Atoi(id)
+	if err != nil {
+		return 0, fmt.Errorf("invalid node id: %s", id)
+	}
+	return n, nil
+}
+
 // Regexes for minimal Cypher parsing (Cypher-like syntax, in-memory exploration).
 var (
 	reMatchNode      = regexp.MustCompile(`(?i)MATCH\s*\(\s*(\w+)\s*(?::(\w+))?\s*\)\s*RETURN\s+(.+)`)

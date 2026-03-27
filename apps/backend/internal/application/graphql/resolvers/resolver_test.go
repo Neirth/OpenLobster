@@ -1261,6 +1261,7 @@ func (m *mockMemoryPort) GetUserGraph(ctx context.Context, userID string) (ports
 	return ports.Graph{}, nil
 }
 func (m *mockMemoryPort) AddRelation(ctx context.Context, from, to, relType string) error { return nil }
+func (m *mockMemoryPort) DeleteRelation(ctx context.Context, from, to string) error { return nil }
 func (m *mockMemoryPort) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
 	return ports.GraphResult{}, nil
 }
@@ -1314,6 +1315,10 @@ func (m *mockGraphQueryPort) QueryGraph(ctx context.Context, cypher string) (por
 type mockGraphCommandPort struct{ err error }
 
 func (m *mockGraphCommandPort) AddRelation(ctx context.Context, from, to, relType string) error {
+	return m.err
+}
+
+func (m *mockGraphCommandPort) DeleteRelation(ctx context.Context, from, to string) error {
 	return m.err
 }
 

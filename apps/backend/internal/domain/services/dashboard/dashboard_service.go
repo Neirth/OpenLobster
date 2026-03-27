@@ -113,6 +113,7 @@ type CommandService struct {
 // GraphCommandPort is the graph command interface.
 type GraphCommandPort interface {
 	AddRelation(ctx context.Context, from, to string, relType string) error
+	DeleteRelation(ctx context.Context, from, to string) error
 }
 
 // NodeMutatorPort is optionally implemented by memory backends.
@@ -231,6 +232,14 @@ func (s *CommandService) AddRelation(ctx context.Context, from, to, relType stri
 		return nil
 	}
 	return s.graphRepo.AddRelation(ctx, from, to, relType)
+}
+
+// DeleteRelation removes a relation between two nodes in the graph.
+func (s *CommandService) DeleteRelation(ctx context.Context, from, to string) error {
+	if s.graphRepo == nil {
+		return nil
+	}
+	return s.graphRepo.DeleteRelation(ctx, from, to)
 }
 
 // UpdateNode updates a memory node.

@@ -1,6 +1,6 @@
 {
   "name": "@openlobster/backend",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "OpenLobster is a self-hosted, open-source personal ai autonomous agent platform built with Go and Solid.js, designed to run on your own hardware for maximum privacy and control.",
   "main": "dist/openlobster",
   "private": true,

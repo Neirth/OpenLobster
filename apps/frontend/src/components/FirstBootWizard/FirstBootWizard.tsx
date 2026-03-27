@@ -73,7 +73,7 @@ function getDefaultFormValues(): Record<string, unknown> {
     ollamaHost: "http://localhost:11434",
     ollamaApiKey: "",
     anthropicApiKey: "",
-    dockerModelRunnerEndpoint: "http://localhost:12434/engines/v1",
+    dockerModelRunnerEndpoint: "http://host.docker.internal:12434/engines/v1",
     capabilities: {
       browser: false,
       terminal: false,
@@ -83,7 +83,7 @@ function getDefaultFormValues(): Record<string, unknown> {
       filesystem: true,
       sessions: true,
     },
-    graphqlBaseUrl: "",
+    graphqlBaseUrl: typeof window !== "undefined" ? window.location.origin : "",
     channelTelegramEnabled: false,
     channelTelegramToken: "",
     channelDiscordEnabled: false,
@@ -284,9 +284,9 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
           ollamaHost: config.agent?.ollamaHost ?? "http://localhost:11434",
           ollamaApiKey: config.agent?.ollamaApiKey ?? "",
           anthropicApiKey: config.agent?.anthropicApiKey ?? "",
-          dockerModelRunnerEndpoint: config.agent?.dockerModelRunnerEndpoint ?? "",
+          dockerModelRunnerEndpoint: config.agent?.dockerModelRunnerEndpoint ?? "http://host.docker.internal:12434/engines/v1",
           capabilities: config.capabilities ?? getDefaultFormValues().capabilities,
-          graphqlBaseUrl: config.graphql?.baseUrl ?? "",
+          graphqlBaseUrl: config.graphql?.baseUrl || (typeof window !== "undefined" ? window.location.origin : ""),
           channelTelegramEnabled: config.channelSecrets?.telegramEnabled ?? false,
           channelTelegramToken: config.channelSecrets?.telegramToken ?? "",
           channelDiscordEnabled: config.channelSecrets?.discordEnabled ?? false,
@@ -580,7 +580,8 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                           <Show when={enabled()}>
                             <Input
                               type="password"
-                              placeholder={t(`settings.field.channel${ch.key.charAt(0).toUpperCase() + ch.key.slice(1)}Token`)}
+                              placeholder={t(`wizard.channel.${ch.key}.placeholder`)}
+                              hint={t(`wizard.channel.${ch.key}.hint`)}
                               value={(formValues()[ch.tokenKey] as string) ?? ""}
                               onInput={(e) =>
                                 handleFieldChange(ch.tokenKey, e.currentTarget.value)
