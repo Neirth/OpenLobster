@@ -12,6 +12,9 @@ on:
       - 'apps/backend/**'
       - '.github/workflows/tests.backend-ci.yaml'
 
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: apps/backend
