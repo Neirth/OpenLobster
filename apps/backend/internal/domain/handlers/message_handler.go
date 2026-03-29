@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -274,6 +275,89 @@ type platformEnsurer interface {
 // PermissionLoader returns fresh per-user tool permissions from storage.
 type PermissionLoader func(ctx context.Context, userID string) map[string]string
 
+// convJob is a single unit of work for the message worker pool.
+type convJob struct {
+	ctx  context.Context
+	inp  HandleMessageInput
+	done chan error // buffered(1): worker writes result; caller reads it
+}
+
+// jobQueue is a slice-backed FIFO queue of convJobs protected by a mutex and
+// condition variable. Using a slice (rather than a channel) allows workers to
+// inspect and drain entries for a specific user before starting LLM processing.
+type jobQueue struct {
+	mu   sync.Mutex
+	cond *sync.Cond
+	jobs []convJob
+}
+
+func newJobQueue() *jobQueue {
+	q := &jobQueue{}
+	q.cond = sync.NewCond(&q.mu)
+	return q
+}
+
+// Len returns the current number of jobs waiting in the queue.
+func (q *jobQueue) Len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.jobs)
+}
+
+// enqueue adds j to the queue and wakes one waiting worker.
+func (q *jobQueue) enqueue(j convJob) {
+	q.mu.Lock()
+	q.jobs = append(q.jobs, j)
+	q.cond.Signal()
+	q.mu.Unlock()
+}
+
+// dequeue blocks until a job is available, then removes and returns it.
+func (q *jobQueue) dequeue() convJob {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for len(q.jobs) == 0 {
+		q.cond.Wait()
+	}
+	j := q.jobs[0]
+	q.jobs = q.jobs[1:]
+	return j
+}
+
+// drainUser removes all queued jobs for pairKey from the queue and returns
+// the latest one (nil if there were none). Intermediate jobs are signalled
+// done with nil so their callers unblock immediately.
+// Loopback messages bypass the queue entirely in Handle(), so they never
+// appear here; the guard below is a belt-and-suspenders safeguard.
+func (q *jobQueue) drainUser(pairKey string) *convJob {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	var latest *convJob
+	remaining := q.jobs[:0]
+	for i := range q.jobs {
+		if q.jobs[i].inp.ChannelType == "loopback" {
+			remaining = append(remaining, q.jobs[i])
+			continue
+		}
+		jKey := q.jobs[i].inp.SenderID
+		if jKey == "" {
+			jKey = q.jobs[i].inp.ChannelID
+		}
+		if jKey == pairKey {
+			if latest != nil {
+				latest.done <- nil
+			}
+			cp := q.jobs[i]
+			latest = &cp
+		} else {
+			remaining = append(remaining, q.jobs[i])
+		}
+	}
+	q.jobs = remaining
+	return latest
+}
+
 // MessageHandler processes user messages through the agentic loop.
 type MessageHandler struct {
 	runner          agenticRunner
@@ -291,9 +375,16 @@ type MessageHandler struct {
 	groupReg        groupRegistrar
 	platformReg     platformEnsurer
 	skillsProvider  mcp.SkillsService
+	// queue is the shared job queue consumed by the fixed worker pool.
+	queue *jobQueue
+	// userLocks serialises processing per user: only one worker runs handle()
+	// for a given pairKey at a time. keyed by pairKey → *sync.Mutex.
+	userLocks sync.Map
 }
 
-// NewMessageHandler constructs a MessageHandler.
+// NewMessageHandler constructs a MessageHandler and starts maxWorkers goroutines
+// in the job pool. maxWorkers should match the configured subagent concurrency
+// limit (cfg.SubAgents.MaxConcurrent); if <= 0 it defaults to 3.
 func NewMessageHandler(
 	aiProvider ports.AIProviderPort,
 	messaging ports.MessagingPort,
@@ -308,8 +399,12 @@ func NewMessageHandler(
 	compactionSvc MessageCompactionPort,
 	channelChecker userChannelChecker,
 	pairingGen pairingCodeGenerator,
+	maxWorkers int,
 ) *MessageHandler {
-	return &MessageHandler{
+	if maxWorkers <= 0 {
+		maxWorkers = 3
+	}
+	h := &MessageHandler{
 		runner:          agenticRunner{aiProvider: aiProvider, toolRegistry: toolRegistry, permManager: permManager},
 		messaging:       messaging,
 		memory:          memory,
@@ -321,7 +416,12 @@ func NewMessageHandler(
 		compactionSvc:   compactionSvc,
 		channelChecker:  channelChecker,
 		pairingGen:      pairingGen,
+		queue:           newJobQueue(),
 	}
+	for i := 0; i < maxWorkers; i++ {
+		go h.runWorker()
+	}
+	return h
 }
 
 // SetPermissionLoader registers the permission loader callback.
@@ -356,8 +456,69 @@ func (h *MessageHandler) SetCapabilitiesChecker(fn CapabilitiesChecker) {
 	h.runner.capabilitiesCheck = fn
 }
 
-// Handle processes an incoming user message through the agentic loop.
+// runWorker is the body of each pool goroutine. It loops forever, picking jobs
+// from the shared queue, acquiring the per-user lock to prevent concurrent
+// processing for the same user, draining any additional queued messages from
+// that user (keeping only the latest), and then calling handle().
+func (h *MessageHandler) runWorker() {
+	for {
+		job := h.queue.dequeue()
+
+		pairKey := job.inp.SenderID
+		if pairKey == "" {
+			pairKey = job.inp.ChannelID
+		}
+
+		mu := h.getUserLock(pairKey)
+		mu.Lock()
+
+		// Under the user lock, drain any additional messages that arrived while
+		// we were waiting. The latest message already includes all context (the
+		// full history lives in the DB), so intermediate messages are discarded.
+		if latest := h.queue.drainUser(pairKey); latest != nil {
+			job.done <- nil // unblock the discarded caller
+			job = *latest
+		}
+
+		job.done <- h.handle(job.ctx, job.inp)
+		mu.Unlock()
+	}
+}
+
+// getUserLock returns the per-user mutex for pairKey, creating it if needed.
+func (h *MessageHandler) getUserLock(pairKey string) *sync.Mutex {
+	if v, ok := h.userLocks.Load(pairKey); ok {
+		return v.(*sync.Mutex)
+	}
+	mu := &sync.Mutex{}
+	if actual, loaded := h.userLocks.LoadOrStore(pairKey, mu); loaded {
+		return actual.(*sync.Mutex)
+	}
+	return mu
+}
+
+// Handle enqueues the incoming message for the fixed worker pool, which
+// serialises processing per user and drains bursts before calling the LLM.
+// Loopback entries carry a unique SenderID and are never drained by drainUser.
 func (h *MessageHandler) Handle(ctx context.Context, input HandleMessageInput) error {
+	if input.ChannelID == "" {
+		return nil
+	}
+
+	done := make(chan error, 1)
+	h.queue.enqueue(convJob{ctx: ctx, inp: input, done: done})
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// handle processes an incoming user message through the agentic loop.
+// It is called sequentially by the per-conversation worker (or directly for
+// internal channel types that bypass the queue).
+func (h *MessageHandler) handle(ctx context.Context, input HandleMessageInput) error {
 	if input.ChannelID == "" {
 		return nil
 	}
@@ -479,6 +640,7 @@ func (h *MessageHandler) Handle(ctx context.Context, input HandleMessageInput) e
 	if conversationID == "" && session != nil {
 		conversationID = session.ID.String()
 	}
+
 
 	senderLabel := ""
 	memoryKey := senderUserID
@@ -1083,6 +1245,7 @@ func (h *MessageHandler) buildLatestUserMessage(content string, attachments []mo
 
 	return ports.ChatMessage{Role: "user", Content: content, Blocks: blocks}
 }
+
 
 func (h *MessageHandler) buildMessages(ctx context.Context, conversationID, systemPrompt string, latest *ports.ChatMessage) ([]ports.ChatMessage, error) {
 	// isDuplicate returns true when the last message in msgs is already the

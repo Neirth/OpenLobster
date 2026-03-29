@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/neirth/openlobster/internal/domain/models"
@@ -60,11 +59,10 @@ type Scheduler struct {
 	memEnabled    bool
 	consolidation ports.MemoryConsolidationPort
 
-	heap           taskHeap
-	notifyCh       chan struct{}
-	rescheduleCh   chan schedulerEntry
-	memIntervalCh  chan time.Duration
-	inFlight       sync.Map
+	heap          taskHeap
+	notifyCh      chan struct{}
+	rescheduleCh  chan schedulerEntry
+	memIntervalCh chan time.Duration
 }
 
 // NewScheduler constructs a Scheduler ready to be started with Run.
@@ -177,14 +175,11 @@ func (s *Scheduler) fireDue(ctx context.Context) {
 	now := time.Now()
 	for len(s.heap) > 0 && !s.heap[0].at.After(now) {
 		entry := heap.Pop(&s.heap).(schedulerEntry)
-		s.inFlight.Store(entry.task.ID, struct{}{})
 		go s.run(ctx, entry)
 	}
 }
 
 func (s *Scheduler) run(ctx context.Context, entry schedulerEntry) {
-	defer s.inFlight.Delete(entry.task.ID)
-
 	task := entry.task
 	log.Printf("scheduler: executing task %s [%s] schedule=%q",
 		task.ID, task.TaskType, task.Schedule)
@@ -253,9 +248,6 @@ func (s *Scheduler) reload(ctx context.Context) {
 
 	newHeap := make(taskHeap, 0, len(tasks))
 	for _, task := range tasks {
-		if _, ok := s.inFlight.Load(task.ID); ok {
-			continue
-		}
 		newHeap = append(newHeap, schedulerEntry{at: computeNextAt(task), task: task})
 	}
 	heap.Init(&newHeap)
