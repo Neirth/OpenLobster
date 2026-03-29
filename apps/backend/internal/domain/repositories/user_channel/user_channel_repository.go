@@ -223,3 +223,4 @@ func (r *repository) UpdateLastSeen(ctx context.Context, channelType, platformUs
 		Where("channel_id = ? AND platform_user_id = ?", channelType, platformUserID).
 		Update("last_seen", now).Error
 }
+

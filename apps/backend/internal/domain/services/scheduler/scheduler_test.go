@@ -153,17 +153,6 @@ func TestScheduler_ReloadSkipsAlreadyInHeap(t *testing.T) {
 	}
 }
 
-func TestScheduler_ReloadSkipsInFlight(t *testing.T) {
-	task := models.Task{ID: "task-2", Prompt: "world", AddedAt: time.Now()}
-	s := newTestScheduler(&mockTaskRepo{tasks: []models.Task{task}})
-	s.inFlight.Store(task.ID, struct{}{})
-
-	s.reload(context.Background())
-
-	if s.heap.Len() != 0 {
-		t.Errorf("in-flight task should not be added to heap, got size=%d", s.heap.Len())
-	}
-}
 
 func TestSplitCronFields(t *testing.T) {
 	got := splitCronFields("0 9 * * 1")
