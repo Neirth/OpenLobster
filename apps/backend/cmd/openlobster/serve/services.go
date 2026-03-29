@@ -165,6 +165,7 @@ func (a *App) initServices() {
 		a.CompactionSvc,
 		a.UserChannelRepo,
 		a.PairingService,
+		cfg.SubAgents.MaxConcurrent,
 	)
 	a.MsgHandler.SetGroupRegistrar(repositories.NewGroupRepository(gormDB))
 	a.MsgHandler.SetPlatformEnsurer(repositories.NewChannelRepository(gormDB))

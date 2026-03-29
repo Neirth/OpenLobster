@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	appcontext "github.com/neirth/openlobster/internal/domain/context"
 )
 
@@ -202,6 +203,7 @@ func (d *LoopbackDispatcher) Dispatch(ctx context.Context, prompt string) error 
 
 	return d.handler.Handle(ctx, HandleMessageInput{
 		ChannelID:    loopbackChannelID,
+		SenderID:     uuid.New().String(), // unique per dispatch so pool workers don't serialise tasks
 		Content:      prompt,
 		ChannelType:  loopbackChannelID,
 		SystemPrompt: systemPrompt,
