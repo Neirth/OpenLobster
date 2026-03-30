@@ -13,10 +13,16 @@ export default defineConfig({
     assetsDir: ".",
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-solid": ["solid-js", "@solidjs/router"],
-          "vendor-graphql": ["graphql", "graphql-request", "graphql-ws"],
-          "vendor-markdown": ["markdown-it"],
+        manualChunks(id) {
+          if (id.includes("solid-js") || id.includes("@solidjs/router")) {
+            return "vendor-solid";
+          }
+          if (id.includes("graphql-request") || id.includes("graphql-ws") || id.includes("graphql")) {
+            return "vendor-graphql";
+          }
+          if (id.includes("markdown-it")) {
+            return "vendor-markdown";
+          }
         },
       },
     },
