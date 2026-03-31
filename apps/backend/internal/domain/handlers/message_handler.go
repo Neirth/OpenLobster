@@ -363,6 +363,7 @@ type MessageHandler struct {
 	runner          agenticRunner
 	messaging       ports.MessagingPort
 	memory          ports.MemoryPort
+	audioProvider   ports.AudioProviderPort // nil when no audio plugin is loaded
 	sessionRepo     ports.SessionRepositoryPort
 	messageRepo     ports.MessageRepositoryPort
 	userRepo        ports.UserRepositoryPort
@@ -400,6 +401,7 @@ func NewMessageHandler(
 	channelChecker userChannelChecker,
 	pairingGen pairingCodeGenerator,
 	maxWorkers int,
+	audioProvider ports.AudioProviderPort,
 ) *MessageHandler {
 	if maxWorkers <= 0 {
 		maxWorkers = 3
@@ -408,6 +410,7 @@ func NewMessageHandler(
 		runner:          agenticRunner{aiProvider: aiProvider, toolRegistry: toolRegistry, permManager: permManager},
 		messaging:       messaging,
 		memory:          memory,
+		audioProvider:   audioProvider,
 		sessionRepo:     sessionRepo,
 		messageRepo:     messageRepo,
 		userRepo:        userRepo,
@@ -838,7 +841,7 @@ func (h *MessageHandler) handle(ctx context.Context, input HandleMessageInput) e
 		return injected
 	}
 
-	latestMsg := h.buildLatestUserMessage(msgContent, input.Attachments, input.Audio)
+	latestMsg := h.buildLatestUserMessage(ctx, msgContent, input.Attachments, input.Audio)
 	messages, err := h.buildMessages(ctx, conversationID, systemPrompt, &latestMsg)
 	if err != nil {
 		return err
@@ -997,6 +1000,23 @@ func (h *MessageHandler) handle(ctx context.Context, input HandleMessageInput) e
 		Timestamp:      time.Now(),
 		Metadata:       map[string]interface{}{"channel_type": input.ChannelType},
 		ConversationID: conversationID,
+	}
+
+	// TTS fallback: if the original message arrived as a voice note and the AI
+	// provider cannot produce audio output natively, convert the text response
+	// to speech via the audio provider so users receive a voice reply.
+	if input.Audio != nil && len(input.Audio.Data) > 0 &&
+		h.audioProvider != nil &&
+		(h.runner.aiProvider == nil || !h.runner.aiProvider.SupportsAudioOutput()) {
+		ttsResp, err := h.audioProvider.TextToSpeech(ctx, ports.TTSRequest{Text: response})
+		if err != nil {
+			log.Printf("handlers: TTS fallback failed: %v", err)
+		} else {
+			assistantMsg.Audio = &models.AudioContent{
+				Data:   ttsResp.Audio,
+				Format: ttsResp.Format,
+			}
+		}
 	}
 	if h.messageRepo != nil && !isLoopback {
 		_ = h.messageRepo.Save(ctx, assistantMsg)
@@ -1199,13 +1219,21 @@ func saveAttachmentToTmp(att models.Attachment) string {
 
 // buildLatestUserMessage constructs the ChatMessage for the current user turn,
 // including multimodal blocks when attachments or audio are present.
-func (h *MessageHandler) buildLatestUserMessage(content string, attachments []models.Attachment, audio *models.AudioContent) ports.ChatMessage {
+// When the AI provider does not support audio input natively and an audio
+// provider (e.g. ElevenLabs) is configured, audio blocks are transcribed to
+// text via STT before being passed to the model.
+func (h *MessageHandler) buildLatestUserMessage(ctx context.Context, content string, attachments []models.Attachment, audio *models.AudioContent) ports.ChatMessage {
 	hasAttachments := len(attachments) > 0
 	hasAudio := audio != nil && len(audio.Data) > 0
 
 	if !hasAttachments && !hasAudio {
 		return ports.ChatMessage{Role: "user", Content: content}
 	}
+
+	// Determine whether we should use the STT fallback for audio blocks.
+	needsSTTFallback := hasAudio &&
+		h.audioProvider != nil &&
+		(h.runner.aiProvider == nil || !h.runner.aiProvider.SupportsAudioInput())
 
 	blocks := make([]ports.ContentBlock, 0)
 	if content != "" {
@@ -1220,11 +1248,32 @@ func (h *MessageHandler) buildLatestUserMessage(content string, attachments []mo
 				MIMEType: att.MIMEType,
 			})
 		case "audio":
-			blocks = append(blocks, ports.ContentBlock{
-				Type:     ports.ContentBlockAudio,
-				Data:     att.Data,
-				MIMEType: att.MIMEType,
-			})
+			if needsSTTFallback {
+				// Transcribe audio attachment via STT fallback.
+				sttResp, err := h.audioProvider.SpeechToText(ctx, ports.STTRequest{
+					Audio:  att.Data,
+					Format: att.MIMEType,
+				})
+				if err != nil {
+					log.Printf("handlers: STT fallback failed for audio attachment: %v", err)
+					blocks = append(blocks, ports.ContentBlock{
+						Type:     ports.ContentBlockAudio,
+						Data:     att.Data,
+						MIMEType: att.MIMEType,
+					})
+				} else {
+					blocks = append(blocks, ports.ContentBlock{
+						Type: ports.ContentBlockText,
+						Text: sttResp.Text,
+					})
+				}
+			} else {
+				blocks = append(blocks, ports.ContentBlock{
+					Type:     ports.ContentBlockAudio,
+					Data:     att.Data,
+					MIMEType: att.MIMEType,
+				})
+			}
 		default:
 			// Unsupported attachment type: save to /tmp so the model can process it
 			// via unix tools (e.g. terminal_exec), and inform it of the path and MIME type.
@@ -1236,11 +1285,32 @@ func (h *MessageHandler) buildLatestUserMessage(content string, attachments []mo
 		}
 	}
 	if hasAudio {
-		blocks = append(blocks, ports.ContentBlock{
-			Type:     ports.ContentBlockAudio,
-			Data:     audio.Data,
-			MIMEType: audio.Format,
-		})
+		if needsSTTFallback {
+			// Transcribe the voice message via STT and replace with a text block.
+			sttResp, err := h.audioProvider.SpeechToText(ctx, ports.STTRequest{
+				Audio:  audio.Data,
+				Format: audio.Format,
+			})
+			if err != nil {
+				log.Printf("handlers: STT fallback failed: %v", err)
+				blocks = append(blocks, ports.ContentBlock{
+					Type:     ports.ContentBlockAudio,
+					Data:     audio.Data,
+					MIMEType: audio.Format,
+				})
+			} else {
+				blocks = append(blocks, ports.ContentBlock{
+					Type: ports.ContentBlockText,
+					Text: sttResp.Text,
+				})
+			}
+		} else {
+			blocks = append(blocks, ports.ContentBlock{
+				Type:     ports.ContentBlockAudio,
+				Data:     audio.Data,
+				MIMEType: audio.Format,
+			})
+		}
 	}
 
 	return ports.ChatMessage{Role: "user", Content: content, Blocks: blocks}

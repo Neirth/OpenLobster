@@ -65,6 +65,7 @@ type App struct {
 
 	// Infrastructure
 	AIProvider    ports.AIProviderPort
+	AudioProvider ports.AudioProviderPort
 	MemoryAdapter ports.MemoryPort
 
 	// Messaging
