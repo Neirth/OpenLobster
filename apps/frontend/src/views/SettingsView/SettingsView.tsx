@@ -268,6 +268,9 @@ const SettingsView: Component = () => {
     setFormValues((prev) => {
       const newValues = { ...prev };
 
+      const isUnsafeKey = (key: string): boolean =>
+        key === "__proto__" || key === "constructor" || key === "prototype";
+
       // Handle nested fields (e.g., "capabilities.browser")
       if (field.includes(".")) {
         const parts = field.split(".");
@@ -275,15 +278,28 @@ const SettingsView: Component = () => {
 
         for (let i = 0; i < parts.length - 1; i++) {
           const part = parts[i];
+          if (isUnsafeKey(part)) {
+            // Avoid prototype pollution
+            return prev;
+          }
           const current = target[part];
-          if (typeof current !== 'object' || current === null) {
+          if (typeof current !== "object" || current === null) {
             target[part] = {};
           }
           target = target[part] as Record<string, unknown>;
         }
 
-        target[parts[parts.length - 1]] = value;
+        const lastKey = parts[parts.length - 1];
+        if (isUnsafeKey(lastKey)) {
+          // Avoid prototype pollution
+          return prev;
+        }
+        target[lastKey] = value;
       } else {
+        if (isUnsafeKey(field)) {
+          // Avoid prototype pollution
+          return prev;
+        }
         newValues[field] = value;
       }
 
