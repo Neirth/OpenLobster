@@ -1,0 +1,20 @@
+# ─── Plugin Management ────────────────────────────────────────────────────────
+
+type Plugin {
+  id:          String!
+  name:        String!
+  version:     String!
+  description: String!
+  pluginType:  String!
+  schemaJson:  String!
+  enabled:     Boolean!
+}
+
+extend type Query {
+  plugins: [Plugin!]!
+}
+
+extend type Mutation {
+  reloadPlugins:                               [Plugin!]!
+  updatePluginConfig(pluginId: String!, configJson: String!): Boolean!
+}

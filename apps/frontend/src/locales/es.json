@@ -483,5 +483,18 @@
   "wizard.channel.whatsapp.hint": "Obtén el Access Token y el Phone Number ID en Meta Business Suite → WhatsApp → Configuración de la API",
   "wizard.channel.whatsapp.placeholder": "EAAxxxxxxxxxxxxxxxxxxxxxxxxx",
   "wizard.channel.twilio.hint": "Obtén el Account SID, Auth Token y tu número de teléfono en console.twilio.com → Panel",
-  "wizard.channel.twilio.placeholder": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  "wizard.channel.twilio.placeholder": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "plugins.title": "PLUGINS WASM",
+  "plugins.description": "Plugins WebAssembly cargados desde ~/.openlobster/plugins/. Coloca archivos .wasm ahí y recarga.",
+  "plugins.reload": "Recargar",
+  "plugins.reloading": "Recargando…",
+  "plugins.reloaded": "Plugins recargados",
+  "plugins.loading": "Cargando plugins…",
+  "plugins.empty": "No hay plugins cargados",
+  "plugins.emptyHint": "Coloca archivos .wasm en ~/.openlobster/plugins/ y haz clic en Recargar",
+  "plugins.active": "activo",
+  "plugins.inactive": "inactivo",
+  "plugins.configuration": "Configuración",
+  "plugins.noConfig": "Este plugin no tiene configuración.",
+  "plugins.configSaved": "Configuración del plugin guardada"
 }

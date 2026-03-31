@@ -12,15 +12,13 @@ import (
 	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/memory_consolidation"
-	"github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/discord"
-	slackadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/slack"
-	"github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/telegram"
+	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
-// startAndWait starts all background goroutines (scheduler, channel listeners,
-// HTTP server) and blocks until SIGINT/SIGTERM, then performs a graceful
-// shutdown.
+// startAndWait starts all background goroutines (scheduler, plugin messaging
+// loops, HTTP server) and blocks until SIGINT/SIGTERM, then performs a
+// graceful shutdown.
 func (a *App) startAndWait() {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.Ctx = ctx
@@ -39,7 +37,7 @@ func (a *App) startAndWait() {
 		consolidationSvc := memory_consolidation.NewService(
 			a.MessageRepo,
 			a.MemoryAdapter,
-			a.AIProvider, // This should be the provider configured for memory
+			a.AIProvider,
 			a.UserRepo,
 			a.SessionRepo,
 			a.ToolRegistry,
@@ -63,26 +61,15 @@ func (a *App) startAndWait() {
 		log.Printf("lifecycle: changed working directory to %s", a.Cfg.Workspace.Path)
 	}
 
-	// Channel listeners (only poll-based adapters — WhatsApp/Twilio are webhook-driven)
+	// Start messaging plugin event loops.
 	for _, adapter := range a.MessagingAdapters {
-		var channelType string
-		switch adapter.(type) {
-		case *telegram.Adapter:
-			channelType = "telegram"
-		case *discord.Adapter:
-			channelType = "discord"
-		case *slackadapter.Adapter:
-			channelType = "slack"
-		}
-		if channelType == "" {
-			continue
-		}
-		ct := channelType
-		ad := adapter
-		if err := ad.Start(ctx, a.makeChannelMsgHandler(ct)); err != nil {
-			log.Printf("channel %s: failed to start listener: %v", ct, err)
-		} else {
-			log.Printf("channel: %s — listener started", ct)
+		if mw, ok := adapter.(*pluginadapter.MessagingWrapper); ok {
+			ct := mw.ChannelType()
+			if err := mw.Start(ctx, nil); err != nil {
+				log.Printf("channel %s: failed to start plugin loop: %v", ct, err)
+			} else {
+				log.Printf("channel: %s — plugin loop started", ct)
+			}
 		}
 	}
 
@@ -106,6 +93,10 @@ func (a *App) startAndWait() {
 
 	if err := a.HTTPServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("http shutdown error: %v", err)
+	}
+
+	if a.PluginRegistry != nil {
+		a.PluginRegistry.Close()
 	}
 
 	if gml, ok := a.MemoryAdapter.(interface{ Close() error }); ok {

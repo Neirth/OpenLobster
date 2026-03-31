@@ -15,6 +15,7 @@ import { WRITE_SYSTEM_FILE_MUTATION } from "@openlobster/ui/graphql/mutations";
 import { GRAPHQL_ENDPOINT } from "../../graphql/client";
 import { effectiveTheme, setTheme } from "../../stores/themeStore";
 import AppShell from "../../components/AppShell";
+import PluginsSection from "../../components/PluginsSection/PluginsSection";
 import "./SettingsView.css";
 
 /**
@@ -553,6 +554,9 @@ const SettingsView: Component = () => {
             )}
           </For>
         </Show>
+
+        {/* WASM Plugins */}
+        <PluginsSection />
 
         {/* Workspace Files Editor */}
         <section class="settings-section workspace-editor settings-section--with-gap">

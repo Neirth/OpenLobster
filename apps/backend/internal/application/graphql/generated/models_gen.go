@@ -360,6 +360,16 @@ type PendingPairing struct {
 	CreatedAt        *string `json:"createdAt,omitempty"`
 }
 
+type Plugin struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	PluginType  string `json:"pluginType"`
+	SchemaJSON  string `json:"schemaJson"`
+	Enabled     bool   `json:"enabled"`
+}
+
 type Query struct {
 }
 

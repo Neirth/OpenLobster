@@ -18,6 +18,7 @@ schema:
   - ../../schema/skills.graphql
   - ../../schema/tools.graphql
   - ../../schema/subscriptions.graphql
+  - ../../schema/plugins.graphql
 
 exec:
   filename: internal/application/graphql/generated/generated.go

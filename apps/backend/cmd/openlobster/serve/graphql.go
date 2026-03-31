@@ -10,7 +10,6 @@ import (
 	"github.com/neirth/openlobster/internal/application/registry"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/repositories"
-	aifactory "github.com/neirth/openlobster/internal/infrastructure/adapters/ai"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 )
@@ -26,8 +25,8 @@ func (a *App) initGraphQL() {
 	if agentName == "" {
 		agentName = "OpenLobster"
 	}
-	provider := aifactory.ProviderName(cfg)
-	channels := buildInitialChannels(cfg)
+	provider := a.activeProviderName()
+	channels := a.rebuildActiveChannels()
 	a.AgentRegistry.UpdateAgent(&dto.AgentSnapshot{
 		ID: "openlobster", Name: agentName, Version: a.Version, Status: "running",
 		Provider: provider, Channels: channels, AIProvider: provider,
@@ -50,10 +49,11 @@ func (a *App) initGraphQL() {
 	a.QueryService = queryService
 	a.CommandService = commandService
 
-	configSnapshot := dto.BuildConfigSnapshot(cfg, aifactory.ProviderName)
+	configSnapshot := dto.BuildConfigSnapshot(cfg, func(_ *config.Config) string { return a.activeProviderName() })
 	subAgentAdapter := dto.NewSubAgentAdapter(a.SubAgentSvc)
 
 	a.Deps = &resolvers.Deps{
+		PluginRegistry:  a.PluginRegistry,
 		AgentRegistry:   a.AgentRegistry,
 		QuerySvc:        queryService,
 		CommandSvc:      commandService,
@@ -144,7 +144,8 @@ func (a *App) initGraphQL() {
 				log.Printf("config: failed to reload after save: %v", err)
 				return
 			}
-			a.Deps.ConfigSnapshot = dto.BuildConfigSnapshot(reloaded, aifactory.ProviderName)
+			providerName := a.activeProviderName()
+			a.Deps.ConfigSnapshot = dto.BuildConfigSnapshot(reloaded, func(_ *config.Config) string { return providerName })
 			if cur := a.AgentRegistry.GetAgent(); cur != nil {
 				name := reloaded.Agent.Name
 				if name == "" {
@@ -152,16 +153,9 @@ func (a *App) initGraphQL() {
 				}
 				updated := *cur
 				updated.Name = name
-				updated.Provider = aifactory.ProviderName(reloaded)
-				updated.AIProvider = aifactory.ProviderName(reloaded)
+				updated.Provider = providerName
+				updated.AIProvider = providerName
 				a.AgentRegistry.UpdateAgent(&updated)
-			}
-			if providerTouched {
-				newProvider := aifactory.BuildFromConfig(reloaded)
-				a.MsgHandler.SetAIProvider(newProvider)
-				a.CompactionSvc.SetAIProvider(newProvider)
-				a.Deps.AIProvider = newProvider
-				log.Printf("config: soft reboot — AI provider reloaded")
 			}
 			if a.SchedulerUpdateMemoryInterval != nil && reloaded.Scheduler.MemoryInterval != cfg.Scheduler.MemoryInterval {
 				a.SchedulerUpdateMemoryInterval(reloaded.Scheduler.MemoryInterval)
@@ -175,35 +169,14 @@ func (a *App) initGraphQL() {
 	a.HTTPHandler = graphql.NewHandler(a.Deps)
 }
 
-// buildInitialChannels returns the ChannelStatus list for channels that have
-// real (non-placeholder) credentials configured at startup.
-func buildInitialChannels(cfg *config.Config) []dto.ChannelStatus {
-	isReal := func(s string) bool {
-		return s != "" &&
-			s != "YOUR_BOT_TOKEN_HERE" &&
-			s != "YOUR_ACCOUNT_SID" &&
-			s != "YOUR_ACCOUNT_SID_HERE" &&
-			s != "YOUR_AUTH_TOKEN" &&
-			s != "YOUR_API_KEY_HERE"
+// activeProviderName returns the human-readable name of the current AI provider.
+// When backed by a plugin, it uses the plugin's Name(); otherwise "none".
+func (a *App) activeProviderName() string {
+	if a.PluginRegistry != nil {
+		aiPlugins := a.PluginRegistry.GetByType("ai")
+		if len(aiPlugins) > 0 {
+			return aiPlugins[0].Name()
+		}
 	}
-	var ch []dto.ChannelStatus
-	if cfg.Channels.Discord.Enabled && isReal(cfg.Channels.Discord.BotToken) {
-		ch = append(ch, dto.ChannelStatus{
-			ID: "discord", Name: "Discord", Type: "discord", Status: "online",
-			Enabled: true,
-			Capabilities: dto.ChannelCapabilities{
-				HasVoiceMessage: true, HasTextStream: true, HasMediaSupport: true,
-			},
-		})
-	}
-	if cfg.Channels.Telegram.Enabled && isReal(cfg.Channels.Telegram.BotToken) {
-		ch = append(ch, dto.ChannelStatus{
-			ID: "telegram", Name: "Telegram", Type: "telegram", Status: "online",
-			Enabled: true,
-			Capabilities: dto.ChannelCapabilities{
-				HasVoiceMessage: true, HasTextStream: true, HasMediaSupport: true,
-			},
-		})
-	}
-	return ch
+	return "none"
 }

@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"path/filepath"
 
@@ -9,6 +10,7 @@ import (
 	appcontext "github.com/neirth/openlobster/internal/domain/context"
 	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
 	"github.com/neirth/openlobster/internal/domain/events"
+	"github.com/neirth/openlobster/internal/domain/models"
 	"github.com/neirth/openlobster/internal/domain/repositories"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
@@ -16,45 +18,110 @@ import (
 	inframc "github.com/neirth/openlobster/internal/infrastructure/adapters/mcp"
 	browser "github.com/neirth/openlobster/internal/infrastructure/adapters/browser/chromedp"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
-	aifactory "github.com/neirth/openlobster/internal/infrastructure/adapters/ai"
-	memfile "github.com/neirth/openlobster/internal/infrastructure/adapters/memory/file"
-	memneo4j "github.com/neirth/openlobster/internal/infrastructure/adapters/memory/neo4j"
+	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/terminal"
 )
+
+// initPlugins loads all WASM plugins from cfg.Plugins.Dir, registers them in
+// PluginRegistry, and wires AI/memory/messaging adapters derived from plugins
+// into the application.  Must be called before initServices().
+func (a *App) initPlugins() {
+	a.PluginRegistry = pluginadapter.NewRegistry()
+
+	// Initialise ChanReg/MsgRouter here so messaging plugins can register.
+	a.initChannels()
+
+	ctx := context.Background()
+	plugins, err := pluginadapter.LoadPlugins(ctx, a.Cfg.Plugins.Dir, a.onPluginMessage)
+	if err != nil {
+		log.Printf("plugins: failed to load: %v", err)
+		return
+	}
+
+	for _, p := range plugins {
+		a.PluginRegistry.Register(p)
+		cfg := a.Cfg.Plugins.Settings[p.ID()]
+
+		switch p.Type() {
+		case "ai":
+			if a.AIProvider == nil {
+				a.AIProvider = pluginadapter.NewAIWrapper(p, cfg)
+				log.Printf("plugins: AI provider → %s", p.Name())
+			}
+
+		case "messaging":
+			channelType := p.ID()
+			// Strip the "openlobster-messages-" prefix if present.
+			const pfx = "openlobster-messages-"
+			if len(channelType) > len(pfx) && channelType[:len(pfx)] == pfx {
+				channelType = channelType[len(pfx):]
+			}
+			wrapper := pluginadapter.NewMessagingWrapper(p, channelType, cfg)
+			a.ChanReg.Set(channelType, wrapper)
+			a.MessagingAdapters = append(a.MessagingAdapters, wrapper)
+			log.Printf("plugins: messaging channel → %s (%s)", channelType, p.Name())
+
+		case "memory":
+			if a.MemoryAdapter == nil {
+				a.MemoryAdapter = pluginadapter.NewMemoryWrapper(p, cfg)
+				log.Printf("plugins: memory backend → %s", p.Name())
+			}
+		}
+	}
+
+	if a.AIProvider == nil {
+		log.Println("warn: no AI plugin loaded — agent will not respond to messages")
+	}
+	if a.MemoryAdapter == nil {
+		log.Println("warn: no memory plugin loaded — using nil memory backend")
+	}
+}
+
+// onPluginMessage is the callback invoked by messaging plugins (via
+// host_emit_message) to deliver inbound messages to the message handler.
+func (a *App) onPluginMessage(msgJSON []byte) {
+	if a.MsgHandler == nil {
+		return
+	}
+	var msg models.Message
+	if err := json.Unmarshal(msgJSON, &msg); err != nil {
+		log.Printf("plugins: malformed inbound message from plugin: %v", err)
+		return
+	}
+	ct := ""
+	if msg.Metadata != nil {
+		if v, ok := msg.Metadata["channel_type"].(string); ok {
+			ct = v
+		}
+	}
+	if msg.Content == "" && len(msg.Attachments) == 0 && msg.Audio == nil {
+		return
+	}
+	if err := a.MsgHandler.Handle(context.Background(), domainhandlers.HandleMessageInput{
+		ChannelID:   msg.ChannelID,
+		Content:     msg.Content,
+		ChannelType: ct,
+		SenderName:  msg.SenderName,
+		SenderID:    msg.SenderID,
+		IsGroup:     msg.IsGroup,
+		IsMentioned: msg.IsMentioned,
+		GroupName:   msg.GroupName,
+		Attachments: msg.Attachments,
+		Audio:       msg.Audio,
+	}); err != nil {
+		log.Printf("plugins: message handler error: %v", err)
+	}
+}
 
 // initServices initialises the AI provider, memory backend, event bus,
 // tool registry, message handler and all supporting domain services.
 func (a *App) initServices() {
 	cfg := a.Cfg
 
-	// AI provider
-	a.AIProvider = aifactory.BuildFromConfig(cfg)
-	if a.AIProvider == nil {
-		log.Println("warn: no AI provider configured — agent will not respond to messages")
-	} else {
-		log.Printf("ai provider: %s", aifactory.ProviderName(cfg))
-	}
-
-	// Memory backend
-	switch cfg.Memory.Backend {
-	case "neo4j":
-		neo4jAdapter, err := memneo4j.NewNeo4jMemoryBackend(
-			cfg.Memory.Neo4j.URI,
-			cfg.Memory.Neo4j.User,
-			cfg.Memory.Neo4j.Password,
-		)
-		if err != nil {
-			log.Fatalf("failed to connect to neo4j memory backend: %v", err)
-		}
-		a.MemoryAdapter = neo4jAdapter
-		log.Println("memory backend: neo4j")
-	default:
-		gmlBackend := memfile.NewGMLBackend(cfg.Memory.File.Path)
-		if err := gmlBackend.Load(); err != nil {
-			log.Fatalf("failed to load file memory backend from %s: %v", cfg.Memory.File.Path, err)
-		}
-		a.MemoryAdapter = gmlBackend
-		log.Printf("memory backend: file (%s)", cfg.Memory.File.Path)
+	// AI provider and memory backend are already set by initPlugins() if
+	// plugin-provided. Log current state.
+	if a.AIProvider != nil {
+		log.Println("ai provider: plugin")
 	}
 
 	// Event bus + subscription manager
@@ -181,5 +248,4 @@ func (a *App) initServices() {
 		}
 		return m
 	})
-
 }
