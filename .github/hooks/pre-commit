@@ -5,6 +5,11 @@ set -eu
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
+# Go modules in this project require Go 1.26 via GOTOOLCHAIN auto-download.
+export GOTOOLCHAIN=auto
+export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
+export CGO_ENABLED=0
+
 die() {
   printf '%s\n' "$*" >&2
   exit 1
