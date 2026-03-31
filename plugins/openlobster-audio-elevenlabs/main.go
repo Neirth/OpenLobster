@@ -1,15 +1,13 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
-	"mime/multipart"
-	"net/http"
 	"unsafe"
 
+	elevenlabs "github.com/plexusone/elevenlabs-go"
 	_ "github.com/stealthrocket/net/wasip1"
 )
 
@@ -90,8 +88,6 @@ func getSchema() int64 {
 // TTS
 // ---------------------------------------------------------------------------
 
-const elevenLabsAPI = "https://api.elevenlabs.io/v1"
-
 type ttsInput struct {
 	Text    string `json:"text"`
 	VoiceID string `json:"voice_id,omitempty"`
@@ -135,44 +131,26 @@ func tts() int32 {
 		outputFormat = "mp3_44100_128"
 	}
 
-	body, err := json.Marshal(map[string]interface{}{
-		"text":          input.Text,
-		"model_id":      modelID,
-		"output_format": outputFormat,
+	client, err := elevenlabs.NewClient(elevenlabs.WithAPIKey(apiKey))
+	if err != nil {
+		writeResult(map[string]string{"error": "client init: " + err.Error()})
+		return 1
+	}
+
+	resp, err := client.TextToSpeech().Generate(context.Background(), &elevenlabs.TTSRequest{
+		VoiceID:      voiceID,
+		Text:         input.Text,
+		ModelID:      modelID,
+		OutputFormat: outputFormat,
 	})
 	if err != nil {
-		writeResult(map[string]string{"error": err.Error()})
+		writeResult(map[string]string{"error": "TTS: " + err.Error()})
 		return 1
 	}
 
-	url := fmt.Sprintf("%s/text-to-speech/%s", elevenLabsAPI, voiceID)
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	audioBytes, err := io.ReadAll(resp.Audio)
 	if err != nil {
-		writeResult(map[string]string{"error": err.Error()})
-		return 1
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("xi-api-key", apiKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		writeResult(map[string]string{"error": "http request failed: " + err.Error()})
-		return 1
-	}
-	defer resp.Body.Close()
-
-	audioBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		writeResult(map[string]string{"error": "read response: " + err.Error()})
-		return 1
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		msg := string(audioBytes)
-		if len(msg) > 200 {
-			msg = msg[:200]
-		}
-		writeResult(map[string]string{"error": fmt.Sprintf("ElevenLabs TTS %d: %s", resp.StatusCode, msg)})
+		writeResult(map[string]string{"error": "read audio: " + err.Error()})
 		return 1
 	}
 
@@ -215,77 +193,25 @@ func stt() int32 {
 		modelID = "scribe_v1"
 	}
 
-	audioBytes, err := base64.StdEncoding.DecodeString(input.Audio)
+	client, err := elevenlabs.NewClient(elevenlabs.WithAPIKey(apiKey))
 	if err != nil {
-		writeResult(map[string]string{"error": "base64 decode: " + err.Error()})
+		writeResult(map[string]string{"error": "client init: " + err.Error()})
 		return 1
 	}
 
-	// Build multipart form
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	_ = w.WriteField("model_id", modelID)
-	if input.Language != "" {
-		_ = w.WriteField("language_code", input.Language)
-	}
-
-	filename := "audio.wav"
-	if input.Format != "" && input.Format != "wav" {
-		filename = "audio." + input.Format
-	}
-	fw, err := w.CreateFormFile("file", filename)
+	result, err := client.SpeechToText().Transcribe(context.Background(), &elevenlabs.TranscriptionRequest{
+		FileContent:  input.Audio, // already base64-encoded — SDK accepts this directly
+		ModelID:      modelID,
+		LanguageCode: input.Language,
+	})
 	if err != nil {
-		writeResult(map[string]string{"error": "create form file: " + err.Error()})
-		return 1
-	}
-	if _, err := fw.Write(audioBytes); err != nil {
-		writeResult(map[string]string{"error": "write audio: " + err.Error()})
-		return 1
-	}
-	w.Close()
-
-	req, err := http.NewRequest("POST", elevenLabsAPI+"/speech-to-text", &buf)
-	if err != nil {
-		writeResult(map[string]string{"error": err.Error()})
-		return 1
-	}
-	req.Header.Set("Content-Type", w.FormDataContentType())
-	req.Header.Set("xi-api-key", apiKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		writeResult(map[string]string{"error": "http request failed: " + err.Error()})
-		return 1
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		writeResult(map[string]string{"error": "read response: " + err.Error()})
-		return 1
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		msg := string(respBytes)
-		if len(msg) > 200 {
-			msg = msg[:200]
-		}
-		writeResult(map[string]string{"error": fmt.Sprintf("ElevenLabs STT %d: %s", resp.StatusCode, msg)})
-		return 1
-	}
-
-	var sttResp struct {
-		Text         string `json:"text"`
-		LanguageCode string `json:"language_code"`
-	}
-	if err := json.Unmarshal(respBytes, &sttResp); err != nil {
-		writeResult(map[string]string{"error": "parse STT response: " + err.Error()})
+		writeResult(map[string]string{"error": "STT: " + err.Error()})
 		return 1
 	}
 
 	return writeResult(map[string]string{
-		"text":     sttResp.Text,
-		"language": sttResp.LanguageCode,
+		"text":     result.Text,
+		"language": result.LanguageCode,
 	})
 }
 
