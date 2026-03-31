@@ -312,3 +312,19 @@ export const SYSTEM_FILES_QUERY = /* GraphQL */ `
     }
   }
 `;
+
+// ─── Plugins ──────────────────────────────────────────────────────────────────
+
+export const PLUGINS_QUERY = /* GraphQL */ `
+  query GetPlugins {
+    plugins {
+      id
+      name
+      version
+      description
+      pluginType
+      schemaJson
+      enabled
+    }
+  }
+`;

@@ -251,3 +251,25 @@ export const WRITE_SYSTEM_FILE_MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+// ─── Plugins ──────────────────────────────────────────────────────────────────
+
+export const RELOAD_PLUGINS_MUTATION = /* GraphQL */ `
+  mutation ReloadPlugins {
+    reloadPlugins {
+      id
+      name
+      version
+      description
+      pluginType
+      schemaJson
+      enabled
+    }
+  }
+`;
+
+export const UPDATE_PLUGIN_CONFIG_MUTATION = /* GraphQL */ `
+  mutation UpdatePluginConfig($pluginId: String!, $configJson: String!) {
+    updatePluginConfig(pluginId: $pluginId, configJson: $configJson)
+  }
+`;

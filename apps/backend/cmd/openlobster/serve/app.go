@@ -21,6 +21,7 @@ import (
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
 	"github.com/neirth/openlobster/internal/domain/services/permissions"
+	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 	msgrouter "github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/router"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
@@ -58,6 +59,9 @@ type App struct {
 	MCPServerRepo repositories.MCPServerRepositoryPort
 	PairingRepo   ports.PairingRepositoryPort
 	UserChannelRepo ports.UserChannelRepositoryPort
+
+	// Plugin registry (loaded before services)
+	PluginRegistry *pluginadapter.Registry
 
 	// Infrastructure
 	AIProvider    ports.AIProviderPort
@@ -120,7 +124,7 @@ func (a *App) Run() {
 	a.initConfig()
 	a.initWorkspace()
 	a.initDatabase()
-	a.initChannels()
+	a.initPlugins()  // plugins load before services so AI/memory providers are ready
 	a.initServices()
 	a.initGraphQL()
 	a.initMCP()

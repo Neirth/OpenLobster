@@ -477,5 +477,18 @@
   "wizard.channel.whatsapp.hint": "在 Meta Business Suite → WhatsApp → API 设置 中获取 Access Token 和 Phone Number ID",
   "wizard.channel.whatsapp.placeholder": "EAAxxxxxxxxxxxxxxxxxxxxxxxxx",
   "wizard.channel.twilio.hint": "在 console.twilio.com → 控制台 中获取 Account SID、Auth Token 和电话号码",
-  "wizard.channel.twilio.placeholder": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  "wizard.channel.twilio.placeholder": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "plugins.title": "WASM 插件",
+  "plugins.description": "从 ~/.openlobster/plugins/ 加载的 WebAssembly 插件。将 .wasm 文件放入该目录并点击重载。",
+  "plugins.reload": "重载",
+  "plugins.reloading": "重载中…",
+  "plugins.reloaded": "插件已重载",
+  "plugins.loading": "加载插件中…",
+  "plugins.empty": "未加载任何插件",
+  "plugins.emptyHint": "将 .wasm 文件放入 ~/.openlobster/plugins/ 并点击重载",
+  "plugins.active": "已激活",
+  "plugins.inactive": "未激活",
+  "plugins.configuration": "配置",
+  "plugins.noConfig": "此插件没有可配置的设置。",
+  "plugins.configSaved": "插件配置已保存"
 }

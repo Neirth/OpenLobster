@@ -172,13 +172,23 @@ func (c *Config) ResolvePaths() {
 	c.Workspace.Path = makeAbs(c.Workspace.Path)
 }
 
+// PluginsConfig holds WASM plugin loading configuration.
+type PluginsConfig struct {
+	// Dir is the directory scanned for *.wasm plugin files at startup.
+	// Defaults to $HOME/.openlobster/plugins.
+	Dir string `mapstructure:"dir"`
+	// Settings maps plugin IDs to their per-plugin configuration key/value pairs.
+	// These are forwarded to the plugin as the "config" field in every call.
+	Settings map[string]map[string]interface{} `mapstructure:"settings"`
+}
+
 type Config struct {
 	// BaseDir is the root directory for all runtime data (data/, logs/,
 	// workspace/). Configurable via base_dir in YAML, OPENLOBSTER_BASE_DIR
 	// env var, or the --data-dir CLI flag. Defaults to $HOME/.openlobster.
 	BaseDir     string            `mapstructure:"base_dir"`
 	Agent       AgentConfig       `mapstructure:"agent"`
-	Scheduler   SchedulerConfig   `mapstructure:"scheduler"` 
+	Scheduler   SchedulerConfig   `mapstructure:"scheduler"`
 	Database    DatabaseConfig    `mapstructure:"database"`
 	Providers   ProvidersConfig   `mapstructure:"providers"`
 	Channels    ChannelsConfig    `mapstructure:"channels"`
@@ -191,6 +201,7 @@ type Config struct {
 	Secrets     SecretsConfig     `mapstructure:"secrets"`
 	Workspace   WorkspaceConfig   `mapstructure:"workspace"`
 	Wizard      WizardConfig      `mapstructure:"wizard"`
+	Plugins     PluginsConfig     `mapstructure:"plugins"`
 }
 
 
@@ -513,6 +524,7 @@ func setDefaults() {
 	viper.SetDefault("agent.capabilities.filesystem", true)
 	viper.SetDefault("agent.capabilities.sessions", true)
 	viper.SetDefault("wizard.completed", false)
+	viper.SetDefault("plugins.dir", filepath.Join(home, ".openlobster", "plugins"))
 }
 
 // bootstrapEncryptedConfig creates a default config at path if the file does not exist.

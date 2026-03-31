@@ -23,6 +23,7 @@ type MessageDispatcherPort interface {
 
 // Deps groups the dependencies of the GraphQL resolvers (without the dashboard orchestrator).
 type Deps struct {
+	PluginRegistry    ports.PluginRegistryPort
 	AgentRegistry     *registry.AgentRegistry
 	QuerySvc          *domainservices.DashboardQueryService
 	CommandSvc        *domainservices.DashboardCommandService
