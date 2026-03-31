@@ -22,7 +22,7 @@ const OAuthCallbackError: Component<OAuthCallbackErrorProps> = (props) => {
     if (window.opener) {
       window.opener.postMessage(
         { type: "oauth_error", error: props.message },
-        "*",
+        window.location.origin,
       );
     }
   });
