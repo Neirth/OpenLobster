@@ -1,5 +1,8 @@
 name: Frontend CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ master, 'feature/**', 'fix/**', 'refactor/**', 'chore/**' ]
