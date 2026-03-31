@@ -3,6 +3,7 @@
 package handlers
 
 import (
+	"context"
 	"testing"
 
 	"github.com/neirth/openlobster/internal/domain/models"
@@ -19,7 +20,7 @@ func newTestHandler() *MessageHandler {
 
 func TestBuildLatestUserMessage_TextOnly(t *testing.T) {
 	h := newTestHandler()
-	msg := h.buildLatestUserMessage("hello", nil, nil)
+	msg := h.buildLatestUserMessage(context.Background(),"hello", nil, nil)
 
 	assert.Equal(t, "user", msg.Role)
 	assert.Equal(t, "hello", msg.Content)
@@ -31,7 +32,7 @@ func TestBuildLatestUserMessage_ImageAttachment(t *testing.T) {
 	attachments := []models.Attachment{
 		{Type: "image", Data: []byte("https://example.com/photo.jpg"), MIMEType: "image/jpeg"},
 	}
-	msg := h.buildLatestUserMessage("check this", attachments, nil)
+	msg := h.buildLatestUserMessage(context.Background(),"check this", attachments, nil)
 
 	require.Len(t, msg.Blocks, 2)
 	assert.Equal(t, ports.ContentBlockText, msg.Blocks[0].Type)
@@ -46,7 +47,7 @@ func TestBuildLatestUserMessage_AudioAttachment(t *testing.T) {
 	attachments := []models.Attachment{
 		{Type: "audio", Data: []byte("https://example.com/voice.ogg"), MIMEType: "audio/ogg"},
 	}
-	msg := h.buildLatestUserMessage("", attachments, nil)
+	msg := h.buildLatestUserMessage(context.Background(),"", attachments, nil)
 
 	require.Len(t, msg.Blocks, 1)
 	assert.Equal(t, ports.ContentBlockAudio, msg.Blocks[0].Type)
@@ -59,7 +60,7 @@ func TestBuildLatestUserMessage_RawAudio(t *testing.T) {
 		Data:   []byte{0x01, 0x02, 0x03},
 		Format: "audio/wav",
 	}
-	msg := h.buildLatestUserMessage("transcribe this", nil, audio)
+	msg := h.buildLatestUserMessage(context.Background(),"transcribe this", nil, audio)
 
 	require.Len(t, msg.Blocks, 2)
 	assert.Equal(t, ports.ContentBlockText, msg.Blocks[0].Type)
@@ -73,7 +74,7 @@ func TestBuildLatestUserMessage_UnsupportedAttachment(t *testing.T) {
 	attachments := []models.Attachment{
 		{Type: "document", Filename: "report.pdf", MIMEType: "application/pdf"},
 	}
-	msg := h.buildLatestUserMessage("see attached", attachments, nil)
+	msg := h.buildLatestUserMessage(context.Background(),"see attached", attachments, nil)
 
 	require.Len(t, msg.Blocks, 2)
 	assert.Equal(t, ports.ContentBlockText, msg.Blocks[0].Type)
@@ -89,7 +90,7 @@ func TestBuildLatestUserMessage_MultipleAttachments(t *testing.T) {
 		{Type: "image", Data: []byte("https://example.com/img2.png"), MIMEType: "image/png"},
 		{Type: "document", Filename: "data.csv", MIMEType: "text/csv"},
 	}
-	msg := h.buildLatestUserMessage("two images and a csv", attachments, nil)
+	msg := h.buildLatestUserMessage(context.Background(),"two images and a csv", attachments, nil)
 
 	// text + img + img + unsupported notice = 4 blocks
 	require.Len(t, msg.Blocks, 4)
@@ -104,7 +105,7 @@ func TestBuildLatestUserMessage_EmptyAudioIgnored(t *testing.T) {
 	h := newTestHandler()
 	// Audio with no data must not produce a block.
 	audio := &models.AudioContent{Data: nil, Format: "audio/wav"}
-	msg := h.buildLatestUserMessage("hello", nil, audio)
+	msg := h.buildLatestUserMessage(context.Background(),"hello", nil, audio)
 
 	assert.Empty(t, msg.Blocks)
 	assert.Equal(t, "hello", msg.Content)
@@ -112,7 +113,7 @@ func TestBuildLatestUserMessage_EmptyAudioIgnored(t *testing.T) {
 
 func TestBuildLatestUserMessage_NoTextNoAttachment(t *testing.T) {
 	h := newTestHandler()
-	msg := h.buildLatestUserMessage("", nil, nil)
+	msg := h.buildLatestUserMessage(context.Background(),"", nil, nil)
 
 	assert.Empty(t, msg.Blocks)
 	assert.Equal(t, "", msg.Content)
@@ -125,7 +126,7 @@ func TestBuildLatestUserMessage_ImageAndAudioCombined(t *testing.T) {
 	}
 	audio := &models.AudioContent{Data: []byte{0xFF, 0xFE}, Format: "audio/wav"}
 
-	msg := h.buildLatestUserMessage("look and listen", attachments, audio)
+	msg := h.buildLatestUserMessage(context.Background(),"look and listen", attachments, audio)
 
 	// text + image + audio = 3 blocks
 	require.Len(t, msg.Blocks, 3)

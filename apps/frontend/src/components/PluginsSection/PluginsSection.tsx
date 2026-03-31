@@ -36,6 +36,7 @@ const PLUGIN_TYPE_ICON: Record<string, string> = {
   messaging: "chat",
   memory: "database",
   tool: "build",
+  audio: "headphones",
 };
 
 const PluginsSection: Component = () => {

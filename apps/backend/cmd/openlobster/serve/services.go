@@ -38,10 +38,28 @@ func (a *App) initPlugins() {
 		return
 	}
 
+	// Register all plugins first, then wire in two passes so that the audio
+	// provider is available when the AI wrapper is created.
 	for _, p := range plugins {
 		a.PluginRegistry.Register(p)
-		cfg := a.Cfg.Plugins.Settings[p.ID()]
+	}
 
+	// Pass 1: audio plugins (must be wired before AI so the handler can use
+	// the audio provider as fallback when the AI model lacks native audio).
+	for _, p := range plugins {
+		if p.Type() != "audio" {
+			continue
+		}
+		cfg := a.Cfg.Plugins.Settings[p.ID()]
+		if a.AudioProvider == nil {
+			a.AudioProvider = pluginadapter.NewAudioWrapper(p, cfg)
+			log.Printf("plugins: audio provider → %s", p.Name())
+		}
+	}
+
+	// Pass 2: AI, messaging, memory plugins.
+	for _, p := range plugins {
+		cfg := a.Cfg.Plugins.Settings[p.ID()]
 		switch p.Type() {
 		case "ai":
 			if a.AIProvider == nil {
@@ -71,6 +89,9 @@ func (a *App) initPlugins() {
 
 	if a.AIProvider == nil {
 		log.Println("warn: no AI plugin loaded — agent will not respond to messages")
+	}
+	if a.AudioProvider == nil {
+		log.Println("info: no audio plugin loaded — TTS/STT fallback disabled")
 	}
 	if a.MemoryAdapter == nil {
 		log.Println("warn: no memory plugin loaded — using nil memory backend")
@@ -233,6 +254,7 @@ func (a *App) initServices() {
 		a.UserChannelRepo,
 		a.PairingService,
 		cfg.SubAgents.MaxConcurrent,
+		a.AudioProvider,
 	)
 	a.MsgHandler.SetGroupRegistrar(repositories.NewGroupRepository(gormDB))
 	a.MsgHandler.SetPlatformEnsurer(repositories.NewChannelRepository(gormDB))
