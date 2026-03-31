@@ -239,6 +239,9 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
   }));
 
   const handleFieldChange = (field: string, value: unknown) => {
+    const isUnsafeKey = (key: string) =>
+      key === "__proto__" || key === "constructor" || key === "prototype";
+
     setFormValues((prev) => {
       const next = { ...prev };
       if (field.includes(".")) {
@@ -246,13 +249,26 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
         let target: Record<string, unknown> = next;
         for (let i = 0; i < parts.length - 1; i++) {
           const part = parts[i];
-          if (!target[part] || typeof target[part] !== "object") {
+          if (isUnsafeKey(part)) {
+            // Avoid prototype pollution for unsafe path segments
+            return prev;
+          }
+          if (!Object.prototype.hasOwnProperty.call(target, part) || typeof target[part] !== "object") {
             target[part] = {};
           }
           target = target[part] as Record<string, unknown>;
         }
-        target[parts[parts.length - 1]] = value;
+        const lastKey = parts[parts.length - 1];
+        if (isUnsafeKey(lastKey)) {
+          // Avoid prototype pollution for unsafe final keys
+          return prev;
+        }
+        target[lastKey] = value;
       } else {
+        if (isUnsafeKey(field)) {
+          // Avoid prototype pollution for unsafe top-level keys
+          return prev;
+        }
         next[field] = value;
       }
       return next;
