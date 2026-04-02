@@ -6,14 +6,17 @@ import (
 	"fmt"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
-	"github.com/neirth/openlobster/internal/infrastructure/secrets"
 )
 
 // SecretsWrapper wraps a "secrets"-type PluginPort and implements
-// secrets.SecretsProvider.
+// ports.SecretsProvider.
 type SecretsWrapper struct {
 	plugin ports.PluginPort
 	cfg    map[string]interface{}
+}
+
+func (w *SecretsWrapper) currentConfig() map[string]interface{} {
+	return liveConfigForPlugin(w.plugin.ID(), w.cfg)
 }
 
 func NewSecretsWrapper(p ports.PluginPort, cfg map[string]interface{}) *SecretsWrapper {
@@ -24,7 +27,7 @@ func (w *SecretsWrapper) call(fn string, payload map[string]interface{}) ([]byte
 	if payload == nil {
 		payload = map[string]interface{}{}
 	}
-	payload["config"] = w.cfg
+	payload["config"] = w.currentConfig()
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("secrets plugin %s: marshal %s: %w", w.plugin.ID(), fn, err)
@@ -49,7 +52,7 @@ func (w *SecretsWrapper) Get(ctx context.Context, key string) (string, error) {
 		return "", fmt.Errorf("secrets plugin %s: %s", w.plugin.ID(), resp.Error)
 	}
 	if resp.Found != nil && !*resp.Found {
-		return "", secrets.ErrNotFound
+		return "", ports.ErrNotFound
 	}
 	return resp.Value, nil
 }
@@ -107,4 +110,3 @@ func (w *SecretsWrapper) List(ctx context.Context, prefix string) ([]string, err
 	}
 	return resp.Keys, nil
 }
-

@@ -11,7 +11,7 @@ import (
 )
 
 // Command returns the cobra command for the "serve" subcommand.
-func Command(version string, publicFS fs.FS) *cobra.Command {
+func Command(version string, publicFS fs.FS, builtinPluginsFS fs.FS) *cobra.Command {
 	var host string
 	var port int
 	var dataDir string
@@ -20,7 +20,7 @@ func Command(version string, publicFS fs.FS) *cobra.Command {
 		Use:   "serve",
 		Short: "Start the HTTP server and all messaging adapters (default)",
 		Run: func(cmd *cobra.Command, args []string) {
-			app := New(version, publicFS)
+			app := New(version, publicFS, builtinPluginsFS)
 			if cmd.Flags().Changed("host") {
 				app.FlagHost = host
 			}

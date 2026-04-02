@@ -71,6 +71,10 @@ function getDefaultFormValues(): Record<string, unknown> {
     secretsFilePath: "./data/secrets",
     secretsOpenbaoURL: "",
     secretsOpenbaoToken: "",
+    pluginDefaultAi: "",
+    pluginDefaultMemory: "",
+    pluginDefaultSecrets: "",
+    pluginDefaultAudio: "",
     schedulerEnabled: true,
     schedulerMemoryEnabled: true,
     schedulerMemoryInterval: "4h",
@@ -223,6 +227,10 @@ const SettingsView: Component = () => {
           secretsFilePath: config.secrets?.file?.path || "./data/secrets",
           secretsOpenbaoURL: config.secrets?.openbao?.url || "",
           secretsOpenbaoToken: config.secrets?.openbao?.token || "",
+          pluginDefaultAi: config.pluginDefaults?.ai || "",
+          pluginDefaultMemory: config.pluginDefaults?.memory || "",
+          pluginDefaultSecrets: config.pluginDefaults?.secrets || "",
+          pluginDefaultAudio: config.pluginDefaults?.audio || "",
           schedulerEnabled: config.scheduler?.enabled ?? true,
           schedulerMemoryEnabled: config.scheduler?.memoryEnabled ?? true,
           schedulerMemoryInterval: config.scheduler?.memoryInterval ?? "4h",
@@ -354,6 +362,10 @@ const SettingsView: Component = () => {
               secretsFilePath: v.secretsFilePath,
               secretsOpenbaoURL: v.secretsOpenbaoURL,
               secretsOpenbaoToken: v.secretsOpenbaoToken,
+              pluginDefaultAi: v.pluginDefaultAi,
+              pluginDefaultMemory: v.pluginDefaultMemory,
+              pluginDefaultSecrets: v.pluginDefaultSecrets,
+              pluginDefaultAudio: v.pluginDefaultAudio,
               schedulerEnabled: v.schedulerEnabled,
               schedulerMemoryEnabled: v.schedulerMemoryEnabled,
               schedulerMemoryInterval: v.schedulerMemoryInterval,
@@ -556,7 +568,18 @@ const SettingsView: Component = () => {
         </Show>
 
         {/* WASM Plugins */}
-        <PluginsSection />
+        <PluginsSection
+          defaultAiPluginId={(formValues().pluginDefaultAi as string | undefined) ?? ""}
+          defaultMemoryPluginId={(formValues().pluginDefaultMemory as string | undefined) ?? ""}
+          defaultSecretsPluginId={(formValues().pluginDefaultSecrets as string | undefined) ?? ""}
+          defaultAudioPluginId={(formValues().pluginDefaultAudio as string | undefined) ?? ""}
+          onDefaultsChange={(next) => {
+            handleFieldChange("pluginDefaultAi", next.ai);
+            handleFieldChange("pluginDefaultMemory", next.memory);
+            handleFieldChange("pluginDefaultSecrets", next.secrets);
+            handleFieldChange("pluginDefaultAudio", next.audio);
+          }}
+        />
 
         {/* Workspace Files Editor */}
         <section class="settings-section workspace-editor settings-section--with-gap">

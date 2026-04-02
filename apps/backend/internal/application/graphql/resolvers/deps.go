@@ -410,8 +410,9 @@ func (d *Deps) SendMessage(ctx context.Context, conversationID, content string) 
 			Content:        content,
 			ChannelType:    "dashboard",
 			ConversationID: &convID,
-			SenderID:       "dashboard",
-			SenderName:     "Dashboard",
+			SenderID:       conversationID,
+			SenderName:     conversationID,
+			FromDashboard:  true,
 		}); err != nil {
 			return nil, err
 		}

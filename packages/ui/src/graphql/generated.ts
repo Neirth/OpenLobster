@@ -58,6 +58,7 @@ export type AgentConfig = {
   ollamaApiKey?: Maybe<Scalars['String']['output']>;
   ollamaHost?: Maybe<Scalars['String']['output']>;
   provider?: Maybe<Scalars['String']['output']>;
+  reasoningLevel?: Maybe<Scalars['String']['output']>;
   systemPrompt?: Maybe<Scalars['String']['output']>;
 };
 
@@ -72,6 +73,7 @@ export type AppConfig = {
   graphql?: Maybe<GraphQlConfig>;
   logging?: Maybe<LoggingConfig>;
   memory?: Maybe<MemoryConfig>;
+  pluginDefaults?: Maybe<PluginDefaultsConfig>;
   scheduler?: Maybe<SchedulerConfig>;
   secrets?: Maybe<SecretsConfig>;
   subagents?: Maybe<SubagentsConfig>;
@@ -155,6 +157,7 @@ export type Conversation = {
   __typename?: 'Conversation';
   channelId: Scalars['String']['output'];
   channelName?: Maybe<Scalars['String']['output']>;
+  groupName?: Maybe<Scalars['String']['output']>;
   id: Scalars['String']['output'];
   isGroup: Scalars['Boolean']['output'];
   lastMessageAt?: Maybe<Scalars['String']['output']>;
@@ -330,11 +333,20 @@ export type MemoryNode = {
 
 export type Message = {
   __typename?: 'Message';
+  attachments?: Maybe<Array<MessageAttachment>>;
   content: Scalars['String']['output'];
   conversationId: Scalars['String']['output'];
   createdAt: Scalars['String']['output'];
   id: Scalars['String']['output'];
   role: Scalars['String']['output'];
+};
+
+export type MessageAttachment = {
+  __typename?: 'MessageAttachment';
+  filename?: Maybe<Scalars['String']['output']>;
+  mimeType?: Maybe<Scalars['String']['output']>;
+  type: Scalars['String']['output'];
+  url?: Maybe<Scalars['String']['output']>;
 };
 
 export type MessageSentResult = {
@@ -372,7 +384,9 @@ export type Mutation = {
   approvePairing: ApprovePairingResult;
   completeTask: Scalars['Boolean']['output'];
   connectMcp: McpConnectResult;
+  deleteGroup: MutationResult;
   deleteMemoryNode: Scalars['Boolean']['output'];
+  deleteRelation: Scalars['Boolean']['output'];
   deleteSkill: Scalars['Boolean']['output'];
   deleteToolPermission: MutationResult;
   deleteUser: MutationResult;
@@ -384,14 +398,17 @@ export type Mutation = {
   importSkill: ImportSkillResult;
   initiateOAuth: OAuthInitiateResult;
   killSubAgent: KillSubAgentResult;
+  reloadPlugins: Array<Plugin>;
   removeTask: Scalars['Boolean']['output'];
   sendMessage: MessageSentResult;
   setAllToolPermissions: MutationResult;
+  setPluginEnabled: Scalars['Boolean']['output'];
   setToolPermission: MutationResult;
   spawnSubAgent: SpawnSubAgentResult;
   toggleTask: ToggleTaskResult;
   updateConfig: UpdateConfigResult;
   updateMemoryNode: MemoryNode;
+  updatePluginConfig: Scalars['Boolean']['output'];
   updateTask?: Maybe<Task>;
   writeSystemFile: MutationResult;
 };
@@ -435,14 +452,26 @@ export type MutationCompleteTaskArgs = {
 
 
 export type MutationConnectMcpArgs = {
+  clientId?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
-  transport?: InputMaybe<Scalars['String']['input']>;
-  url?: InputMaybe<Scalars['String']['input']>;
+  transport: Scalars['String']['input'];
+  url: Scalars['String']['input'];
+};
+
+
+export type MutationDeleteGroupArgs = {
+  conversationId: Scalars['String']['input'];
 };
 
 
 export type MutationDeleteMemoryNodeArgs = {
   id: Scalars['String']['input'];
+};
+
+
+export type MutationDeleteRelationArgs = {
+  from: Scalars['String']['input'];
+  to: Scalars['String']['input'];
 };
 
 
@@ -522,6 +551,12 @@ export type MutationSetAllToolPermissionsArgs = {
 };
 
 
+export type MutationSetPluginEnabledArgs = {
+  enabled: Scalars['Boolean']['input'];
+  pluginId: Scalars['String']['input'];
+};
+
+
 export type MutationSetToolPermissionArgs = {
   mode: Scalars['String']['input'];
   toolName: Scalars['String']['input'];
@@ -553,6 +588,12 @@ export type MutationUpdateMemoryNodeArgs = {
   properties?: InputMaybe<Scalars['String']['input']>;
   type?: InputMaybe<Scalars['String']['input']>;
   value?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type MutationUpdatePluginConfigArgs = {
+  configJson: Scalars['String']['input'];
+  pluginId: Scalars['String']['input'];
 };
 
 
@@ -611,6 +652,29 @@ export type PendingPairing = {
   status: Scalars['String']['output'];
 };
 
+export type Plugin = {
+  __typename?: 'Plugin';
+  available: Scalars['Boolean']['output'];
+  builtin: Scalars['Boolean']['output'];
+  configJson: Scalars['String']['output'];
+  description: Scalars['String']['output'];
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['String']['output'];
+  lastError?: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
+  pluginType: Scalars['String']['output'];
+  schemaJson: Scalars['String']['output'];
+  version: Scalars['String']['output'];
+};
+
+export type PluginDefaultsConfig = {
+  __typename?: 'PluginDefaultsConfig';
+  ai?: Maybe<Scalars['String']['output']>;
+  audio?: Maybe<Scalars['String']['output']>;
+  memory?: Maybe<Scalars['String']['output']>;
+  secrets?: Maybe<Scalars['String']['output']>;
+};
+
 export type Query = {
   __typename?: 'Query';
   agent?: Maybe<Agent>;
@@ -627,6 +691,7 @@ export type Query = {
   messages: Array<Message>;
   metrics?: Maybe<Metrics>;
   pendingPairings: Array<PendingPairing>;
+  plugins: Array<Plugin>;
   searchMemory?: Maybe<SearchMemoryResult>;
   skills: Array<Skill>;
   status?: Maybe<Status>;
@@ -646,7 +711,9 @@ export type QueryMcpOAuthStatusArgs = {
 
 
 export type QueryMessagesArgs = {
+  before?: InputMaybe<Scalars['String']['input']>;
   conversationId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -836,7 +903,12 @@ export type UpdateConfigInput = {
   model?: InputMaybe<Scalars['String']['input']>;
   ollamaApiKey?: InputMaybe<Scalars['String']['input']>;
   ollamaHost?: InputMaybe<Scalars['String']['input']>;
+  pluginDefaultAi?: InputMaybe<Scalars['String']['input']>;
+  pluginDefaultAudio?: InputMaybe<Scalars['String']['input']>;
+  pluginDefaultMemory?: InputMaybe<Scalars['String']['input']>;
+  pluginDefaultSecrets?: InputMaybe<Scalars['String']['input']>;
   provider?: InputMaybe<Scalars['String']['input']>;
+  reasoningLevel?: InputMaybe<Scalars['String']['input']>;
   schedulerEnabled?: InputMaybe<Scalars['Boolean']['input']>;
   schedulerMemoryEnabled?: InputMaybe<Scalars['Boolean']['input']>;
   schedulerMemoryInterval?: InputMaybe<Scalars['String']['input']>;
@@ -923,7 +995,8 @@ export type UpdateTaskMutation = { __typename?: 'Mutation', updateTask?: { __typ
 export type ConnectMcpMutationVariables = Exact<{
   name: Scalars['String']['input'];
   transport: Scalars['String']['input'];
-  url?: InputMaybe<Scalars['String']['input']>;
+  url: Scalars['String']['input'];
+  clientId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 
@@ -970,6 +1043,14 @@ export type DeleteMemoryNodeMutationVariables = Exact<{
 
 
 export type DeleteMemoryNodeMutation = { __typename?: 'Mutation', deleteMemoryNode: boolean };
+
+export type DeleteRelationMutationVariables = Exact<{
+  from: Scalars['String']['input'];
+  to: Scalars['String']['input'];
+}>;
+
+
+export type DeleteRelationMutation = { __typename?: 'Mutation', deleteRelation: boolean };
 
 export type EnableSkillMutationVariables = Exact<{
   name: Scalars['String']['input'];
@@ -1031,6 +1112,13 @@ export type DeleteUserMutationVariables = Exact<{
 
 export type DeleteUserMutation = { __typename?: 'Mutation', deleteUser: { __typename?: 'MutationResult', success: boolean, error?: string | null | undefined } };
 
+export type DeleteGroupMutationVariables = Exact<{
+  conversationId: Scalars['String']['input'];
+}>;
+
+
+export type DeleteGroupMutation = { __typename?: 'Mutation', deleteGroup: { __typename?: 'MutationResult', success: boolean, error?: string | null | undefined } };
+
 export type UpdateConfigMutationVariables = Exact<{
   input: UpdateConfigInput;
 }>;
@@ -1045,6 +1133,27 @@ export type WriteSystemFileMutationVariables = Exact<{
 
 
 export type WriteSystemFileMutation = { __typename?: 'Mutation', writeSystemFile: { __typename?: 'MutationResult', success: boolean, error?: string | null | undefined } };
+
+export type ReloadPluginsMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type ReloadPluginsMutation = { __typename?: 'Mutation', reloadPlugins: Array<{ __typename?: 'Plugin', id: string, name: string, version: string, description: string, pluginType: string, schemaJson: string, configJson: string, enabled: boolean, available: boolean, lastError?: string | null | undefined, builtin: boolean }> };
+
+export type SetPluginEnabledMutationVariables = Exact<{
+  pluginId: Scalars['String']['input'];
+  enabled: Scalars['Boolean']['input'];
+}>;
+
+
+export type SetPluginEnabledMutation = { __typename?: 'Mutation', setPluginEnabled: boolean };
+
+export type UpdatePluginConfigMutationVariables = Exact<{
+  pluginId: Scalars['String']['input'];
+  configJson: Scalars['String']['input'];
+}>;
+
+
+export type UpdatePluginConfigMutation = { __typename?: 'Mutation', updatePluginConfig: boolean };
 
 export type GetAgentQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -1064,14 +1173,16 @@ export type GetChannelsQuery = { __typename?: 'Query', channels: Array<{ __typen
 export type GetConversationsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetConversationsQuery = { __typename?: 'Query', conversations: Array<{ __typename?: 'Conversation', id: string, channelId: string, channelName?: string | null | undefined, isGroup: boolean, participantId?: string | null | undefined, participantName?: string | null | undefined, lastMessageAt?: string | null | undefined, unreadCount?: number | null | undefined }> };
+export type GetConversationsQuery = { __typename?: 'Query', conversations: Array<{ __typename?: 'Conversation', id: string, channelId: string, channelName?: string | null | undefined, groupName?: string | null | undefined, isGroup: boolean, participantId?: string | null | undefined, participantName?: string | null | undefined, lastMessageAt?: string | null | undefined, unreadCount?: number | null | undefined }> };
 
 export type GetMessagesQueryVariables = Exact<{
   conversationId: Scalars['String']['input'];
+  before?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
 }>;
 
 
-export type GetMessagesQuery = { __typename?: 'Query', messages: Array<{ __typename?: 'Message', id: string, conversationId: string, role: string, content: string, createdAt: string }> };
+export type GetMessagesQuery = { __typename?: 'Query', messages: Array<{ __typename?: 'Message', id: string, conversationId: string, role: string, content: string, createdAt: string, attachments?: Array<{ __typename?: 'MessageAttachment', type: string, url?: string | null | undefined, filename?: string | null | undefined, mimeType?: string | null | undefined }> | null | undefined }> };
 
 export type GetTasksQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -1113,12 +1224,17 @@ export type GetSkillsQuery = { __typename?: 'Query', skills: Array<{ __typename?
 export type GetConfigQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetConfigQuery = { __typename?: 'Query', config?: { __typename?: 'AppConfig', wizardCompleted?: boolean | null | undefined, agent?: { __typename?: 'AgentConfig', name?: string | null | undefined, systemPrompt?: string | null | undefined, provider?: string | null | undefined, model?: string | null | undefined, apiKey?: string | null | undefined, baseURL?: string | null | undefined, ollamaHost?: string | null | undefined, ollamaApiKey?: string | null | undefined, anthropicApiKey?: string | null | undefined, dockerModelRunnerEndpoint?: string | null | undefined, dockerModelRunnerModel?: string | null | undefined } | null | undefined, capabilities?: { __typename?: 'CapabilitiesConfig', browser?: boolean | null | undefined, terminal?: boolean | null | undefined, subagents?: boolean | null | undefined, memory?: boolean | null | undefined, mcp?: boolean | null | undefined, filesystem?: boolean | null | undefined, sessions?: boolean | null | undefined } | null | undefined, database?: { __typename?: 'DatabaseConfig', driver?: string | null | undefined, dsn?: string | null | undefined, maxOpenConns?: number | null | undefined, maxIdleConns?: number | null | undefined } | null | undefined, memory?: { __typename?: 'MemoryConfig', backend?: string | null | undefined, filePath?: string | null | undefined, neo4j?: { __typename?: 'Neo4jConfig', uri?: string | null | undefined, user?: string | null | undefined, password?: string | null | undefined } | null | undefined } | null | undefined, subagents?: { __typename?: 'SubagentsConfig', maxConcurrent?: number | null | undefined, defaultTimeout?: string | null | undefined } | null | undefined, graphql?: { __typename?: 'GraphQLConfig', enabled?: boolean | null | undefined, port?: number | null | undefined, host?: string | null | undefined, baseUrl?: string | null | undefined } | null | undefined, logging?: { __typename?: 'LoggingConfig', level?: string | null | undefined, path?: string | null | undefined } | null | undefined, secrets?: { __typename?: 'SecretsConfig', backend?: string | null | undefined, file?: { __typename?: 'FileSecretsConfig', path?: string | null | undefined } | null | undefined, openbao?: { __typename?: 'OpenbaoSecretsConfig', url?: string | null | undefined, token?: string | null | undefined } | null | undefined } | null | undefined, scheduler?: { __typename?: 'SchedulerConfig', enabled?: boolean | null | undefined, memoryEnabled?: boolean | null | undefined, memoryInterval?: string | null | undefined } | null | undefined, activeSessions: Array<{ __typename?: 'ActiveSession', id: string, address?: string | null | undefined, status?: string | null | undefined, channel?: string | null | undefined, user?: string | null | undefined }>, channels: Array<{ __typename?: 'ChannelConfig', channelId: string, channelName?: string | null | undefined, enabled: boolean }>, channelSecrets?: { __typename?: 'ChannelSecretsConfig', telegramEnabled?: boolean | null | undefined, telegramToken?: string | null | undefined, discordEnabled?: boolean | null | undefined, discordToken?: string | null | undefined, whatsAppEnabled?: boolean | null | undefined, whatsAppPhoneId?: string | null | undefined, whatsAppApiToken?: string | null | undefined, twilioEnabled?: boolean | null | undefined, twilioAccountSid?: string | null | undefined, twilioAuthToken?: string | null | undefined, twilioFromNumber?: string | null | undefined } | null | undefined } | null | undefined };
+export type GetConfigQuery = { __typename?: 'Query', config?: { __typename?: 'AppConfig', wizardCompleted?: boolean | null | undefined, agent?: { __typename?: 'AgentConfig', name?: string | null | undefined, systemPrompt?: string | null | undefined, provider?: string | null | undefined, model?: string | null | undefined, apiKey?: string | null | undefined, baseURL?: string | null | undefined, ollamaHost?: string | null | undefined, ollamaApiKey?: string | null | undefined, anthropicApiKey?: string | null | undefined, dockerModelRunnerEndpoint?: string | null | undefined, dockerModelRunnerModel?: string | null | undefined, reasoningLevel?: string | null | undefined } | null | undefined, capabilities?: { __typename?: 'CapabilitiesConfig', browser?: boolean | null | undefined, terminal?: boolean | null | undefined, subagents?: boolean | null | undefined, memory?: boolean | null | undefined, mcp?: boolean | null | undefined, filesystem?: boolean | null | undefined, sessions?: boolean | null | undefined } | null | undefined, database?: { __typename?: 'DatabaseConfig', driver?: string | null | undefined, dsn?: string | null | undefined, maxOpenConns?: number | null | undefined, maxIdleConns?: number | null | undefined } | null | undefined, memory?: { __typename?: 'MemoryConfig', backend?: string | null | undefined, filePath?: string | null | undefined, neo4j?: { __typename?: 'Neo4jConfig', uri?: string | null | undefined, user?: string | null | undefined, password?: string | null | undefined } | null | undefined } | null | undefined, subagents?: { __typename?: 'SubagentsConfig', maxConcurrent?: number | null | undefined, defaultTimeout?: string | null | undefined } | null | undefined, graphql?: { __typename?: 'GraphQLConfig', enabled?: boolean | null | undefined, port?: number | null | undefined, host?: string | null | undefined, baseUrl?: string | null | undefined } | null | undefined, logging?: { __typename?: 'LoggingConfig', level?: string | null | undefined, path?: string | null | undefined } | null | undefined, secrets?: { __typename?: 'SecretsConfig', backend?: string | null | undefined, file?: { __typename?: 'FileSecretsConfig', path?: string | null | undefined } | null | undefined, openbao?: { __typename?: 'OpenbaoSecretsConfig', url?: string | null | undefined, token?: string | null | undefined } | null | undefined } | null | undefined, scheduler?: { __typename?: 'SchedulerConfig', enabled?: boolean | null | undefined, memoryEnabled?: boolean | null | undefined, memoryInterval?: string | null | undefined } | null | undefined, activeSessions: Array<{ __typename?: 'ActiveSession', id: string, address?: string | null | undefined, status?: string | null | undefined, channel?: string | null | undefined, user?: string | null | undefined }>, channels: Array<{ __typename?: 'ChannelConfig', channelId: string, channelName?: string | null | undefined, enabled: boolean }>, channelSecrets?: { __typename?: 'ChannelSecretsConfig', telegramEnabled?: boolean | null | undefined, telegramToken?: string | null | undefined, discordEnabled?: boolean | null | undefined, discordToken?: string | null | undefined, whatsAppEnabled?: boolean | null | undefined, whatsAppPhoneId?: string | null | undefined, whatsAppApiToken?: string | null | undefined, twilioEnabled?: boolean | null | undefined, twilioAccountSid?: string | null | undefined, twilioAuthToken?: string | null | undefined, twilioFromNumber?: string | null | undefined, slackEnabled?: boolean | null | undefined, slackBotToken?: string | null | undefined, slackAppToken?: string | null | undefined } | null | undefined, pluginDefaults?: { __typename?: 'PluginDefaultsConfig', ai?: string | null | undefined, memory?: string | null | undefined, secrets?: string | null | undefined, audio?: string | null | undefined } | null | undefined } | null | undefined };
 
 export type GetSystemFilesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type GetSystemFilesQuery = { __typename?: 'Query', systemFiles: Array<{ __typename?: 'SystemFile', name: string, content?: string | null | undefined }> };
+
+export type GetPluginsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetPluginsQuery = { __typename?: 'Query', plugins: Array<{ __typename?: 'Plugin', id: string, name: string, version: string, description: string, pluginType: string, schemaJson: string, configJson: string, enabled: boolean, available: boolean, lastError?: string | null | undefined, builtin: boolean }> };
 
 export type OnMessageReceivedSubscriptionVariables = Exact<{ [key: string]: never; }>;
 
@@ -1187,8 +1303,8 @@ export const UpdateTaskDocument = gql`
 }
     `;
 export const ConnectMcpDocument = gql`
-    mutation ConnectMcp($name: String!, $transport: String!, $url: String) {
-  connectMcp(name: $name, transport: $transport, url: $url) {
+    mutation ConnectMcp($name: String!, $transport: String!, $url: String!, $clientId: String) {
+  connectMcp(name: $name, transport: $transport, url: $url, clientId: $clientId) {
     name
     transport
     status
@@ -1247,6 +1363,11 @@ export const DeleteMemoryNodeDocument = gql`
   deleteMemoryNode(id: $id)
 }
     `;
+export const DeleteRelationDocument = gql`
+    mutation DeleteRelation($from: String!, $to: String!) {
+  deleteRelation(from: $from, to: $to)
+}
+    `;
 export const EnableSkillDocument = gql`
     mutation EnableSkill($name: String!) {
   enableSkill(name: $name)
@@ -1302,6 +1423,14 @@ export const DeleteUserDocument = gql`
   }
 }
     `;
+export const DeleteGroupDocument = gql`
+    mutation DeleteGroup($conversationId: String!) {
+  deleteGroup(conversationId: $conversationId) {
+    success
+    error
+  }
+}
+    `;
 export const UpdateConfigDocument = gql`
     mutation UpdateConfig($input: UpdateConfigInput!) {
   updateConfig(input: $input) {
@@ -1322,6 +1451,33 @@ export const WriteSystemFileDocument = gql`
     success
     error
   }
+}
+    `;
+export const ReloadPluginsDocument = gql`
+    mutation ReloadPlugins {
+  reloadPlugins {
+    id
+    name
+    version
+    description
+    pluginType
+    schemaJson
+    configJson
+    enabled
+    available
+    lastError
+    builtin
+  }
+}
+    `;
+export const SetPluginEnabledDocument = gql`
+    mutation SetPluginEnabled($pluginId: String!, $enabled: Boolean!) {
+  setPluginEnabled(pluginId: $pluginId, enabled: $enabled)
+}
+    `;
+export const UpdatePluginConfigDocument = gql`
+    mutation UpdatePluginConfig($pluginId: String!, $configJson: String!) {
+  updatePluginConfig(pluginId: $pluginId, configJson: $configJson)
 }
     `;
 export const GetAgentDocument = gql`
@@ -1371,6 +1527,7 @@ export const GetConversationsDocument = gql`
     id
     channelId
     channelName
+    groupName
     isGroup
     participantId
     participantName
@@ -1380,13 +1537,19 @@ export const GetConversationsDocument = gql`
 }
     `;
 export const GetMessagesDocument = gql`
-    query GetMessages($conversationId: String!) {
-  messages(conversationId: $conversationId) {
+    query GetMessages($conversationId: String!, $before: String, $limit: Int) {
+  messages(conversationId: $conversationId, before: $before, limit: $limit) {
     id
     conversationId
     role
     content
     createdAt
+    attachments {
+      type
+      url
+      filename
+      mimeType
+    }
   }
 }
     `;
@@ -1488,6 +1651,7 @@ export const GetConfigDocument = gql`
       anthropicApiKey
       dockerModelRunnerEndpoint
       dockerModelRunnerModel
+      reasoningLevel
     }
     capabilities {
       browser
@@ -1566,6 +1730,15 @@ export const GetConfigDocument = gql`
       twilioAccountSid
       twilioAuthToken
       twilioFromNumber
+      slackEnabled
+      slackBotToken
+      slackAppToken
+    }
+    pluginDefaults {
+      ai
+      memory
+      secrets
+      audio
     }
     wizardCompleted
   }
@@ -1579,6 +1752,23 @@ export const GetSystemFilesDocument = gql`
   }
 }
     `;
+export const GetPluginsDocument = gql`
+    query GetPlugins {
+  plugins {
+    id
+    name
+    version
+    description
+    pluginType
+    schemaJson
+    configJson
+    enabled
+    available
+    lastError
+    builtin
+  }
+}
+    `;
 export const OnMessageReceivedDocument = gql`
     subscription OnMessageReceived {
   onMessageReceived {
@@ -1589,12 +1779,7 @@ export const OnMessageReceivedDocument = gql`
 }
     `;
 
-export type SdkFunctionWrapper = <T>(
-  action: (requestHeaders?: Record<string, string>) => Promise<T>,
-  operationName: string,
-  operationType?: string,
-  variables?: unknown,
-) => Promise<T>;
+export type SdkFunctionWrapper = <T>(action: (requestHeaders?:Record<string, string>) => Promise<T>, operationName: string, operationType?: string, variables?: unknown) => Promise<T>;
 
 
 const defaultWrapper: SdkFunctionWrapper = (action, _operationName, _operationType, _variables) => action();
@@ -1637,6 +1822,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     DeleteMemoryNode(variables: DeleteMemoryNodeMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DeleteMemoryNodeMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<DeleteMemoryNodeMutation>({ document: DeleteMemoryNodeDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DeleteMemoryNode', 'mutation', variables);
     },
+    DeleteRelation(variables: DeleteRelationMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DeleteRelationMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<DeleteRelationMutation>({ document: DeleteRelationDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DeleteRelation', 'mutation', variables);
+    },
     EnableSkill(variables: EnableSkillMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<EnableSkillMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<EnableSkillMutation>({ document: EnableSkillDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'EnableSkill', 'mutation', variables);
     },
@@ -1661,11 +1849,23 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     DeleteUser(variables: DeleteUserMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DeleteUserMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<DeleteUserMutation>({ document: DeleteUserDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DeleteUser', 'mutation', variables);
     },
+    DeleteGroup(variables: DeleteGroupMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<DeleteGroupMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<DeleteGroupMutation>({ document: DeleteGroupDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'DeleteGroup', 'mutation', variables);
+    },
     UpdateConfig(variables: UpdateConfigMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdateConfigMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<UpdateConfigMutation>({ document: UpdateConfigDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdateConfig', 'mutation', variables);
     },
     WriteSystemFile(variables: WriteSystemFileMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<WriteSystemFileMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<WriteSystemFileMutation>({ document: WriteSystemFileDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'WriteSystemFile', 'mutation', variables);
+    },
+    ReloadPlugins(variables?: ReloadPluginsMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<ReloadPluginsMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ReloadPluginsMutation>({ document: ReloadPluginsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'ReloadPlugins', 'mutation', variables);
+    },
+    SetPluginEnabled(variables: SetPluginEnabledMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<SetPluginEnabledMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<SetPluginEnabledMutation>({ document: SetPluginEnabledDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'SetPluginEnabled', 'mutation', variables);
+    },
+    UpdatePluginConfig(variables: UpdatePluginConfigMutationVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<UpdatePluginConfigMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<UpdatePluginConfigMutation>({ document: UpdatePluginConfigDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'UpdatePluginConfig', 'mutation', variables);
     },
     GetAgent(variables?: GetAgentQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetAgentQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetAgentQuery>({ document: GetAgentDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetAgent', 'query', variables);
@@ -1708,6 +1908,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     GetSystemFiles(variables?: GetSystemFilesQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetSystemFilesQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<GetSystemFilesQuery>({ document: GetSystemFilesDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetSystemFiles', 'query', variables);
+    },
+    GetPlugins(variables?: GetPluginsQueryVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<GetPluginsQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<GetPluginsQuery>({ document: GetPluginsDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'GetPlugins', 'query', variables);
     },
     OnMessageReceived(variables?: OnMessageReceivedSubscriptionVariables, requestHeaders?: GraphQLClientRequestHeaders, signal?: RequestInit['signal']): Promise<OnMessageReceivedSubscription> {
       return withWrapper((wrappedRequestHeaders) => client.request<OnMessageReceivedSubscription>({ document: OnMessageReceivedDocument, variables, requestHeaders: { ...requestHeaders, ...wrappedRequestHeaders }, signal }), 'OnMessageReceived', 'subscription', variables);

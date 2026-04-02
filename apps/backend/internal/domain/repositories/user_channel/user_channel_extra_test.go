@@ -3,6 +3,7 @@
 package user_channel
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -48,6 +49,66 @@ func TestRepository_GetLastChannelForUser_ReturnsLatest(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "new-plat", pid)
 	_ = ct
+}
+
+func TestRepository_GetLastChannelForUser_IgnoresSyntheticPlatformIDs(t *testing.T) {
+	db, ctx := setupUserChannelDB(t)
+	repo := NewUserChannelRepository(db.GormDB())
+
+	tReal := time.Now().UTC().Add(-2 * time.Hour)
+	tSynthetic := time.Now().UTC()
+
+	insertUserChannelRow(t, db, "user-88", "3654107", "realuser", tReal)
+	insertUserChannelRow(t, db, "user-88", "dashboard", "Dashboard", tSynthetic)
+	insertUserChannelRow(t, db, "user-88", "telegram", "Telegram", tSynthetic.Add(time.Minute))
+
+	ct, pid, err := repo.GetLastChannelForUser(ctx, "user-88")
+	require.NoError(t, err)
+	assert.Equal(t, "telegram", ct)
+	assert.Equal(t, "3654107", pid)
+}
+
+func TestRepository_GetLastChannelForUserByChannel_FiltersPlatform(t *testing.T) {
+	db, ctx := setupUserChannelDB(t)
+	repo := NewUserChannelRepository(db.GormDB())
+	require.NoError(t, channel.NewChannelRepository(db.GormDB()).EnsurePlatform(ctx, "twilio", "Twilio"))
+
+	tgSeen := time.Now().UTC().Add(-time.Minute)
+	twSeen := time.Now().UTC()
+
+	insertUserChannelRow(t, db, "user-101", "813579246", "tg-user", tgSeen)
+	require.NoError(t, db.GormDB().Exec(
+		`INSERT INTO user_channels (id, user_id, channel_id, platform_user_id, username, paired_at, last_seen)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"uc-tw-101", "user-101", "twilio", "+34600111222", "tw-user", twSeen, twSeen,
+	).Error)
+
+	finder, ok := repo.(interface {
+		GetLastChannelForUserByChannel(ctx context.Context, userID, channelType string) (resolvedChannelType, platformChannelID string, err error)
+	})
+	require.True(t, ok)
+
+	ct, pid, err := finder.GetLastChannelForUserByChannel(ctx, "user-101", "twilio")
+	require.NoError(t, err)
+	assert.Equal(t, "twilio", ct)
+	assert.Equal(t, "+34600111222", pid)
+}
+
+func TestRepository_GetLastChannelForUserByChannel_NotFound(t *testing.T) {
+	db, ctx := setupUserChannelDB(t)
+	repo := NewUserChannelRepository(db.GormDB())
+
+	insertUserChannelRow(t, db, "user-102", "813579246", "tg-user", time.Now().UTC())
+
+	finder, ok := repo.(interface {
+		GetLastChannelForUserByChannel(ctx context.Context, userID, channelType string) (resolvedChannelType, platformChannelID string, err error)
+	})
+	require.True(t, ok)
+
+	ct, pid, err := finder.GetLastChannelForUserByChannel(ctx, "user-102", "twilio")
+	require.NoError(t, err)
+	assert.Empty(t, ct)
+	assert.Empty(t, pid)
 }
 
 func TestRepository_GetUserIDByName_Empty(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"sync"
 
@@ -115,7 +116,9 @@ func (m *Router) SendMessage(ctx context.Context, msg *models.Message) error {
 	}
 	adapter := m.reg.Get(ct)
 	if adapter == nil {
-		err := fmt.Errorf("messaging: cannot route — no adapter for channel_type=%q (channel_id=%q)", ct, msg.ChannelID)
+		activeTypes := m.reg.ListTypes()
+		sort.Strings(activeTypes)
+		err := fmt.Errorf("messaging: cannot route — no adapter for channel_type=%q (channel_id=%q, active_adapters=%v)", ct, msg.ChannelID, activeTypes)
 		log.Print(err)
 		return err
 	}

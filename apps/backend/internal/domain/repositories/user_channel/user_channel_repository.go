@@ -77,7 +77,34 @@ func (r *repository) Create(ctx context.Context, userID, channelType, platformUs
 func (r *repository) GetLastChannelForUser(ctx context.Context, userID string) (channelType, platformChannelID string, err error) {
 	var m domainmodels.UserChannelModel
 	err = r.db.WithContext(ctx).Select("channel_id", "platform_user_id").
-		Where("user_id = ?", userID).
+		Where(
+			"user_id = ? AND TRIM(platform_user_id) <> '' AND LOWER(TRIM(platform_user_id)) <> ? AND LOWER(TRIM(platform_user_id)) <> LOWER(TRIM(channel_id))",
+			userID,
+			"dashboard",
+		).
+		Order("last_seen DESC").Limit(1).First(&m).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	return m.ChannelID, m.PlatformUserID, nil
+}
+
+func (r *repository) GetLastChannelForUserByChannel(ctx context.Context, userID, channelType string) (resolvedChannelType, platformChannelID string, err error) {
+	channelType = strings.TrimSpace(channelType)
+	if channelType == "" {
+		return "", "", nil
+	}
+	var m domainmodels.UserChannelModel
+	err = r.db.WithContext(ctx).Select("channel_id", "platform_user_id").
+		Where(
+			"user_id = ? AND LOWER(TRIM(channel_id)) = LOWER(TRIM(?)) AND TRIM(platform_user_id) <> '' AND LOWER(TRIM(platform_user_id)) <> ? AND LOWER(TRIM(platform_user_id)) <> LOWER(TRIM(channel_id))",
+			userID,
+			channelType,
+			"dashboard",
+		).
 		Order("last_seen DESC").Limit(1).First(&m).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", "", nil
@@ -223,4 +250,3 @@ func (r *repository) UpdateLastSeen(ctx context.Context, channelType, platformUs
 		Where("channel_id = ? AND platform_user_id = ?", channelType, platformUserID).
 		Update("last_seen", now).Error
 }
-

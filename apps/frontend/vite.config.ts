@@ -4,7 +4,7 @@ import solid from "vite-plugin-solid";
 export default defineConfig({
   plugins: [solid()],
   resolve: {
-    dedupe: ["graphql"],
+    dedupe: ["graphql", "@tanstack/solid-query", "@tanstack/query-core"],
   },
   build: {
     // Output to the Go embed directory so `go build` bundles the frontend.

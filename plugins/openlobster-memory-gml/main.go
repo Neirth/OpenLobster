@@ -1,280 +1,1379 @@
+// Copyright (c) OpenLobster contributors. See LICENSE for details.
+
 package main
 
 import (
-"encoding/json"
-"os"
-"path/filepath"
-"strings"
-"sync"
-"time"
-
-pdk "github.com/extism/go-pdk"
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 var (
-mu        sync.RWMutex
-store     map[string]string
-storePath string
+	pluginInputJSON = func(v interface{}) error {
+		return fmt.Errorf("plugin runtime unavailable in non-wasip1 build")
+	}
+	pluginOutputJSON = func(v interface{}) error {
+		return fmt.Errorf("plugin runtime unavailable in non-wasip1 build")
+	}
+	pluginOutputString = func(string) {}
+	pluginSetError     = func(error) {}
 )
+
+var (
+	hotConfigMu sync.RWMutex
+	hotConfig   = map[string]interface{}{}
+
+	pluginBackendMu   sync.Mutex
+	pluginBackend     *GMLBackend
+	pluginBackendPath string
+	defaultBasePath   string
+)
+
+func init() {
+	home, _ := os.UserHomeDir()
+	defaultBasePath = filepath.Join(home, ".openlobster", "memory.gml")
+}
+
+func cloneHotConfig(in map[string]interface{}) map[string]interface{} {
+	if len(in) == 0 {
+		return map[string]interface{}{}
+	}
+	out := make(map[string]interface{}, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func mergedHotConfig(input map[string]interface{}) map[string]interface{} {
+	out := cloneHotConfig(input)
+	hotConfigMu.RLock()
+	defer hotConfigMu.RUnlock()
+	for k, v := range hotConfig {
+		out[k] = v
+	}
+	return out
+}
+
+type storeConfig struct {
+	Path string `json:"path,omitempty"`
+}
+
+func resolveStoragePath(cfg storeConfig) string {
+	inputCfg := map[string]interface{}{}
+	if p := strings.TrimSpace(cfg.Path); p != "" {
+		inputCfg["path"] = p
+	}
+	merged := mergedHotConfig(inputCfg)
+
+	rawPath, _ := merged["path"].(string)
+	rawPath = strings.TrimSpace(rawPath)
+	if rawPath == "" {
+		rawPath = defaultBasePath
+	}
+
+	if rawPath == "~" {
+		home, err := os.UserHomeDir()
+		if err == nil && home != "" {
+			return home
+		}
+	}
+	if strings.HasPrefix(rawPath, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil && home != "" {
+			return filepath.Join(home, strings.TrimPrefix(rawPath, "~/"))
+		}
+	}
+
+	return rawPath
+}
+
+func backendForPath(path string) (*GMLBackend, error) {
+	pluginBackendMu.Lock()
+	defer pluginBackendMu.Unlock()
+
+	if path == "" {
+		path = defaultBasePath
+	}
+
+	if pluginBackend != nil && pluginBackendPath == path {
+		return pluginBackend, nil
+	}
+
+	if pluginBackend != nil {
+		_ = pluginBackend.Close()
+		pluginBackend = nil
+		pluginBackendPath = ""
+	}
+
+	b := NewGMLBackend(path)
+	if err := b.Load(); err != nil {
+		return nil, err
+	}
+
+	pluginBackend = b
+	pluginBackendPath = path
+	return pluginBackend, nil
+}
+
+func outputOK() int32 {
+	if err := pluginOutputJSON(map[string]bool{"ok": true}); err != nil {
+		pluginSetError(err)
+		return 1
+	}
+	return 0
+}
+
+type Knowledge struct {
+	ID      string
+	UserID  string
+	Content string
+}
+
+type Graph struct {
+	Nodes []GraphNode
+	Edges []GraphEdge
+}
+
+type GraphNode struct {
+	ID         string
+	Label      string
+	Type       string
+	Value      string
+	Properties map[string]string
+}
+
+type GraphEdge struct {
+	Source string
+	Target string
+	Label  string
+}
+
+type GraphResult struct {
+	Data   []map[string]interface{}
+	Errors []error
+}
+
+type Node struct {
+	ID         int
+	Label      string
+	Type       string
+	Value      string
+	Properties map[string]string
+}
+
+type Edge struct {
+	Source int
+	Target int
+	Label  string
+}
+
+type InMemoryGraph struct {
+	Nodes  map[int]*Node
+	Edges  []*Edge
+	NextID int
+}
+
+func (g *InMemoryGraph) Copy() *InMemoryGraph {
+	newNodes := make(map[int]*Node, len(g.Nodes))
+	for k, v := range g.Nodes {
+		props := make(map[string]string, len(v.Properties))
+		for pk, pv := range v.Properties {
+			props[pk] = pv
+		}
+		newNodes[k] = &Node{
+			ID:         v.ID,
+			Label:      v.Label,
+			Type:       v.Type,
+			Value:      v.Value,
+			Properties: props,
+		}
+	}
+	newEdges := make([]*Edge, len(g.Edges))
+	for i, e := range g.Edges {
+		newEdges[i] = &Edge{
+			Source: e.Source,
+			Target: e.Target,
+			Label:  e.Label,
+		}
+	}
+	return &InMemoryGraph{
+		Nodes:  newNodes,
+		Edges:  newEdges,
+		NextID: g.NextID,
+	}
+}
+
+type GMLBackend struct {
+	path        string
+	graph       *InMemoryGraph
+	mu          sync.RWMutex
+	dirty       bool
+	persistCh   chan *InMemoryGraph
+	persistDone chan struct{}
+	loopDone    chan struct{}
+	closeOnce   sync.Once
+}
+
+func NewGMLBackend(path string) *GMLBackend {
+	b := &GMLBackend{
+		path:        path,
+		graph:       &InMemoryGraph{Nodes: make(map[int]*Node)},
+		persistCh:   make(chan *InMemoryGraph, 1),
+		persistDone: make(chan struct{}, 1),
+		loopDone:    make(chan struct{}),
+	}
+	go b.persistLoop()
+	return b
+}
+
+func (b *GMLBackend) persistLoop() {
+	defer close(b.loopDone)
+	for graph := range b.persistCh {
+		_ = b.doPersist(graph)
+		b.mu.Lock()
+		b.dirty = false
+		b.mu.Unlock()
+		select {
+		case b.persistDone <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// Close flushes any pending in-memory state to disk and waits for the persist
+// goroutine to finish. Should be called on graceful shutdown.
+func (b *GMLBackend) Close() error {
+	b.mu.RLock()
+	dirty := b.dirty
+	var snapshot *InMemoryGraph
+	if dirty {
+		snapshot = b.graph.Copy()
+	}
+	b.mu.RUnlock()
+
+	if dirty && snapshot != nil {
+		b.schedulePersist(snapshot)
+	}
+	// Close persistCh exactly once to avoid panics if Close() is called
+	// multiple times.
+	b.closeOnce.Do(func() { close(b.persistCh) })
+	<-b.loopDone
+	return nil
+}
+
+// schedulePersist drains any pending snapshot from persistCh and enqueues the latest copy.
+// Must be called without b.mu held.
+func (b *GMLBackend) schedulePersist(snapshot *InMemoryGraph) {
+	select {
+	case <-b.persistCh:
+	default:
+	}
+	b.persistCh <- snapshot
+}
+
+func (b *GMLBackend) doPersist(graph *InMemoryGraph) error {
+	data := serializeGML(graph)
+	dir := b.path[:strings.LastIndex(b.path, "/")]
+	if dir != "" && dir != b.path {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(b.path, data, 0644)
+}
+
+func (b *GMLBackend) Load() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	data, err := os.ReadFile(b.path)
+	if err != nil && os.IsNotExist(err) {
+		b.graph = &InMemoryGraph{Nodes: make(map[int]*Node)}
+		_ = b.doPersist(b.graph)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	b.graph, err = parseGML(data)
+	return err
+}
+
+func (b *GMLBackend) AddKnowledge(_ context.Context, userID string, content string, label string, relation string, entityType string, _ []float64) error {
+	b.mu.Lock()
+
+	graphCopy := b.graph.Copy()
+
+	// Use the provided label for the fact node; fall back to a slug of the first
+	// few words of the content so the graph is always human-readable.
+	factLabel := label
+	if factLabel == "" {
+		words := strings.Fields(content)
+		if len(words) > 4 {
+			words = words[:4]
+		}
+		factLabel = strings.Join(words, "_")
+	}
+
+	edgeLabel := relation
+	if edgeLabel == "" {
+		edgeLabel = "HAS_FACT"
+	}
+
+	userNode := b.findOrCreateUserInGraph(graphCopy, userID)
+
+	// Normalize entityType for GML node typing.
+	etype := strings.ToLower(strings.TrimSpace(entityType))
+	switch etype {
+	case "person":
+		entityType = "person"
+	case "place":
+		entityType = "place"
+	case "thing":
+		entityType = "thing"
+	case "story":
+		entityType = "story"
+	case "event":
+		entityType = "event"
+	case "organization":
+		entityType = "organization"
+	case "", "fact":
+		entityType = "fact"
+	default:
+		entityType = "fact"
+	}
+
+	// Step 1: find an existing node owned by this user.
+	// We dedupe by (userID, nodeType, factLabel, edgeLabel) so that:
+	// - cross-user overwrites do not happen (no global concept nodes)
+	// - permanent relations are not destroyed (no edge label replacement)
+	existingFactID := -1
+	for _, edge := range graphCopy.Edges {
+		if edge.Source != userNode.ID || edge.Label != edgeLabel {
+			continue
+		}
+		if tgt, ok := graphCopy.Nodes[edge.Target]; ok && tgt != nil {
+			if tgt.Type == entityType && strings.EqualFold(tgt.Label, factLabel) {
+				existingFactID = tgt.ID
+				break
+			}
+		}
+	}
+
+	if existingFactID >= 0 {
+		// Relation already exists for this exact fact evidence.
+		b.mu.Unlock()
+		return nil
+	}
+
+	// No existing fact for this user+relation+evidence: create a new node and edge.
+	factID := graphCopy.NextID
+	graphCopy.NextID++
+	graphCopy.Nodes[factID] = &Node{
+		ID:    factID,
+		Label: factLabel,
+		Type:  entityType,
+		Value: content,
+	}
+	graphCopy.Edges = append(graphCopy.Edges, &Edge{
+		Source: userNode.ID,
+		Target: factID,
+		Label:  edgeLabel,
+	})
+
+	b.graph = graphCopy
+	b.dirty = true
+
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+
+	return nil
+}
+
+func (b *GMLBackend) SearchSimilar(_ context.Context, query string, limit int) ([]Knowledge, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	var results []Knowledge
+
+	for id, node := range b.graph.Nodes {
+		if node.Type != "user" && strings.Contains(node.Value, query) {
+			results = append(results, Knowledge{
+				ID:      strconv.Itoa(id),
+				Content: node.Value,
+			})
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+	return results, nil
+}
+
+func responseNodeID(n *Node) string {
+	if n != nil && n.Type == "user" {
+		return "user:" + n.Value
+	}
+	if n == nil {
+		return ""
+	}
+	return strconv.Itoa(n.ID)
+}
+
+func (b *GMLBackend) GetUserGraph(_ context.Context, userID string) (Graph, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	var nodes []GraphNode
+	var edges []GraphEdge
+
+	// Empty userID or * returns the full graph.
+	if userID == "" || userID == "*" {
+		idMap := make(map[int]string, len(b.graph.Nodes))
+		for _, n := range b.graph.Nodes {
+			rid := responseNodeID(n)
+			idMap[n.ID] = rid
+			nodes = append(nodes, GraphNode{
+				ID:         rid,
+				Label:      n.Label,
+				Type:       n.Type,
+				Value:      n.Value,
+				Properties: n.Properties,
+			})
+		}
+		for _, edge := range b.graph.Edges {
+			edges = append(edges, GraphEdge{
+				Source: idMap[edge.Source],
+				Target: idMap[edge.Target],
+				Label:  edge.Label,
+			})
+		}
+		return Graph{Nodes: nodes, Edges: edges}, nil
+	}
+
+	userNode := b.findUserNodeInGraph(b.graph, userID)
+	if userNode == nil {
+		// Keep parity with Neo4j: return a synthetic user node even when the
+		// user has no relations yet.
+		return Graph{
+			Nodes: []GraphNode{{
+				ID:    "user:" + userID,
+				Label: "User",
+				Type:  "user",
+				Value: userID,
+			}},
+			Edges: []GraphEdge{},
+		}, nil
+	}
+
+	nodesMap := make(map[int]bool)
+	nodesMap[userNode.ID] = true
+
+	for _, edge := range b.graph.Edges {
+		if edge.Source == userNode.ID || edge.Target == userNode.ID {
+			srcNode := b.graph.Nodes[edge.Source]
+			tgtNode := b.graph.Nodes[edge.Target]
+			srcID := strconv.Itoa(edge.Source)
+			tgtID := strconv.Itoa(edge.Target)
+			if srcNode != nil {
+				srcID = responseNodeID(srcNode)
+			}
+			if tgtNode != nil {
+				tgtID = responseNodeID(tgtNode)
+			}
+			edges = append(edges, GraphEdge{
+				Source: srcID,
+				Target: tgtID,
+				Label:  edge.Label,
+			})
+			nodesMap[edge.Source] = true
+			nodesMap[edge.Target] = true
+		}
+	}
+
+	for id := range nodesMap {
+		if n, ok := b.graph.Nodes[id]; ok {
+			nodes = append(nodes, GraphNode{
+				ID:         responseNodeID(n),
+				Label:      n.Label,
+				Type:       n.Type,
+				Value:      n.Value,
+				Properties: n.Properties,
+			})
+		}
+	}
+
+	return Graph{Nodes: nodes, Edges: edges}, nil
+}
+
+func (b *GMLBackend) AddRelation(_ context.Context, from, to string, relType string) error {
+	b.mu.Lock()
+
+	graphCopy := b.graph.Copy()
+
+	fromNode := b.findOrCreateUserInGraph(graphCopy, from)
+	toNode := b.findOrCreateUserInGraph(graphCopy, to)
+
+	// Keep parity with Neo4j MERGE semantics: avoid duplicate user-user edges.
+	for _, e := range graphCopy.Edges {
+		if e.Source == fromNode.ID && e.Target == toNode.ID && e.Label == relType {
+			b.graph = graphCopy
+			b.dirty = true
+			b.mu.Unlock()
+			b.schedulePersist(graphCopy.Copy())
+			return nil
+		}
+	}
+	graphCopy.Edges = append(graphCopy.Edges, &Edge{Source: fromNode.ID, Target: toNode.ID, Label: relType})
+
+	b.graph = graphCopy
+	b.dirty = true
+
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+
+	return nil
+}
+
+func (b *GMLBackend) DeleteRelation(_ context.Context, from, to string) error {
+	fromID, err := b.resolveNodeIntID(from)
+	if err != nil {
+		return err
+	}
+	toID, err := b.resolveNodeIntID(to)
+	if err != nil {
+		return err
+	}
+
+	b.mu.Lock()
+	graphCopy := b.graph.Copy()
+	var newEdges []*Edge
+	for _, e := range graphCopy.Edges {
+		if e.Source == fromID && e.Target == toID {
+			continue
+		}
+		newEdges = append(newEdges, e)
+	}
+	graphCopy.Edges = newEdges
+	b.graph = graphCopy
+	b.dirty = true
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+// resolveNodeIntID converts a string node ID (either user:<userID> or a numeric string)
+// to the corresponding integer ID used internally by the GML graph.
+func (b *GMLBackend) resolveNodeIntID(id string) (int, error) {
+	if strings.HasPrefix(id, "user:") {
+		userID := strings.TrimPrefix(id, "user:")
+		b.mu.RLock()
+		node := b.findUserNodeInGraph(b.graph, userID)
+		b.mu.RUnlock()
+		if node == nil {
+			return 0, fmt.Errorf("node not found: %s", id)
+		}
+		return node.ID, nil
+	}
+	n, err := strconv.Atoi(id)
+	if err != nil {
+		return 0, fmt.Errorf("invalid node id: %s", id)
+	}
+	return n, nil
+}
+
+// Regexes for minimal Cypher parsing (Cypher-like syntax, in-memory exploration).
+var (
+	reMatchNode      = regexp.MustCompile(`(?i)MATCH\s*\(\s*(\w+)\s*(?::(\w+))?\s*\)\s*RETURN\s+(.+)`)
+	reMatchEdgeDir   = regexp.MustCompile(`(?i)MATCH\s*\(\s*(\w+)\s*\)\s*-\s*\[\s*(\w+)\s*\]\s*->\s*\(\s*(\w+)\s*\)\s*RETURN\s+(.+)`)
+	reMatchEdgeUndir = regexp.MustCompile(`(?i)MATCH\s*\(\s*(\w+)\s*\)\s*-\s*\[\s*(\w+)\s*\]\s*-\s*\(\s*(\w+)\s*\)\s*RETURN\s+(.+)`)
+)
+
+func nodeToRow(n *Node) map[string]interface{} {
+	props := make(map[string]interface{})
+	if n.Properties != nil {
+		for k, v := range n.Properties {
+			props[k] = v
+		}
+	}
+	return map[string]interface{}{
+		"id":         strconv.Itoa(n.ID),
+		"label":      n.Label,
+		"type":       n.Type,
+		"value":      n.Value,
+		"properties": props,
+	}
+}
+
+func edgeToRow(e *Edge) map[string]interface{} {
+	return map[string]interface{}{
+		"source": strconv.Itoa(e.Source),
+		"target": strconv.Itoa(e.Target),
+		"label":  e.Label,
+	}
+}
+
+func parseReturnList(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		out = append(out, strings.TrimSpace(part))
+	}
+	return out
+}
+
+// executeCypherInMemory runs a minimal Cypher subset against a copy of the graph.
+func executeCypherInMemory(graph *InMemoryGraph, cypher string) ([]map[string]interface{}, error) {
+	q := strings.TrimSpace(cypher)
+	if q == "" {
+		return nil, fmt.Errorf("empty query")
+	}
+
+	// MATCH (a)-[r]->(b) RETURN a, r, b
+	if m := reMatchEdgeDir.FindStringSubmatch(q); len(m) == 5 {
+		sourceVar, edgeVar, targetVar := m[1], m[2], m[3]
+		returnVars := parseReturnList(m[4])
+		var data []map[string]interface{}
+		for _, e := range graph.Edges {
+			src, okSrc := graph.Nodes[e.Source]
+			tgt, okTgt := graph.Nodes[e.Target]
+			if !okSrc || !okTgt {
+				continue
+			}
+			row := make(map[string]interface{})
+			for _, v := range returnVars {
+				switch v {
+				case sourceVar:
+					row[v] = nodeToRow(src)
+				case edgeVar:
+					row[v] = edgeToRow(e)
+				case targetVar:
+					row[v] = nodeToRow(tgt)
+				}
+			}
+			data = append(data, row)
+		}
+		return data, nil
+	}
+
+	// MATCH (a)-[r]-(b) RETURN a, r, b (undirected)
+	if m := reMatchEdgeUndir.FindStringSubmatch(q); len(m) == 5 {
+		sourceVar, edgeVar, targetVar := m[1], m[2], m[3]
+		returnVars := parseReturnList(m[4])
+		var data []map[string]interface{}
+		for _, e := range graph.Edges {
+			src, okSrc := graph.Nodes[e.Source]
+			tgt, okTgt := graph.Nodes[e.Target]
+			if !okSrc || !okTgt {
+				continue
+			}
+			row := make(map[string]interface{})
+			for _, v := range returnVars {
+				switch v {
+				case sourceVar:
+					row[v] = nodeToRow(src)
+				case edgeVar:
+					row[v] = edgeToRow(e)
+				case targetVar:
+					row[v] = nodeToRow(tgt)
+				}
+			}
+			data = append(data, row)
+		}
+		return data, nil
+	}
+
+	// MATCH (n) RETURN n  or  MATCH (n:User) RETURN n  or  MATCH (n:Fact) RETURN n
+	if m := reMatchNode.FindStringSubmatch(q); len(m) >= 3 {
+		nodeVar := m[1]
+		labelFilter := ""
+		if len(m) > 2 && m[2] != "" {
+			labelFilter = strings.ToLower(m[2])
+		}
+		returnVars := parseReturnList(m[3])
+		var data []map[string]interface{}
+		for _, n := range graph.Nodes {
+			if labelFilter != "" && strings.ToLower(n.Type) != labelFilter {
+				continue
+			}
+			row := make(map[string]interface{})
+			for _, v := range returnVars {
+				if v == nodeVar {
+					row[v] = nodeToRow(n)
+					break
+				}
+			}
+			if len(row) > 0 {
+				data = append(data, row)
+			}
+		}
+		return data, nil
+	}
+
+	return nil, fmt.Errorf("unsupported Cypher pattern (supported: MATCH (n) RETURN n, MATCH (n:User)/MATCH (n:Fact) RETURN n, MATCH (a)-[r]->(b) RETURN a,r,b)")
+}
+
+// QueryGraph runs a minimal Cypher-like query against the in-memory graph.
+func (b *GMLBackend) QueryGraph(ctx context.Context, cypher string) (GraphResult, error) {
+	b.mu.RLock()
+	graph := b.graph.Copy()
+	b.mu.RUnlock()
+
+	result, err := executeCypherInMemory(graph, cypher)
+	if err != nil {
+		return GraphResult{Errors: []error{err}}, nil
+	}
+	return GraphResult{Data: result}, nil
+}
+
+func (b *GMLBackend) UpdateNode(_ context.Context, id, label, typ, value string, properties map[string]string) error {
+	if strings.HasPrefix(id, "user:") {
+		userID := strings.TrimPrefix(id, "user:")
+		b.mu.Lock()
+		graphCopy := b.graph.Copy()
+		node := b.findOrCreateUserInGraph(graphCopy, userID)
+		if label != "" {
+			node.Label = label
+		} else if value != "" {
+			node.Label = value
+		}
+		b.graph = graphCopy
+		b.dirty = true
+		b.mu.Unlock()
+		b.schedulePersist(graphCopy.Copy())
+		return nil
+	}
+
+	nodeID, err := strconv.Atoi(id)
+	if err != nil {
+		return fmt.Errorf("invalid node id: %s", id)
+	}
+
+	b.mu.Lock()
+	graphCopy := b.graph.Copy()
+	node, ok := graphCopy.Nodes[nodeID]
+	if !ok {
+		b.mu.Unlock()
+		return fmt.Errorf("node not found: %s", id)
+	}
+	if label != "" {
+		node.Label = label
+	}
+	if typ != "" {
+		node.Type = typ
+	}
+	node.Value = value
+	if properties != nil {
+		if node.Properties == nil {
+			node.Properties = make(map[string]string)
+		}
+		for k, v := range properties {
+			if v == "" {
+				delete(node.Properties, k)
+			} else {
+				node.Properties[k] = v
+			}
+		}
+	}
+	b.graph = graphCopy
+	b.dirty = true
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+func (b *GMLBackend) DeleteNode(_ context.Context, id string) error {
+	if strings.HasPrefix(id, "user:") {
+		userID := strings.TrimPrefix(id, "user:")
+		b.mu.Lock()
+		graphCopy := b.graph.Copy()
+		node := b.findUserNodeInGraph(graphCopy, userID)
+		if node == nil {
+			b.mu.Unlock()
+			return fmt.Errorf("node not found: %s", id)
+		}
+		nodeID := node.ID
+		delete(graphCopy.Nodes, nodeID)
+		var newEdges []*Edge
+		for _, e := range graphCopy.Edges {
+			if e.Source != nodeID && e.Target != nodeID {
+				newEdges = append(newEdges, e)
+			}
+		}
+		graphCopy.Edges = newEdges
+		b.graph = graphCopy
+		b.dirty = true
+		b.mu.Unlock()
+		b.schedulePersist(graphCopy.Copy())
+		return nil
+	}
+
+	nodeID, err := strconv.Atoi(id)
+	if err != nil {
+		return fmt.Errorf("invalid node id: %s", id)
+	}
+
+	b.mu.Lock()
+	graphCopy := b.graph.Copy()
+	if _, ok := graphCopy.Nodes[nodeID]; !ok {
+		b.mu.Unlock()
+		return fmt.Errorf("node not found: %s", id)
+	}
+	delete(graphCopy.Nodes, nodeID)
+	var newEdges []*Edge
+	for _, e := range graphCopy.Edges {
+		if e.Source != nodeID && e.Target != nodeID {
+			newEdges = append(newEdges, e)
+		}
+	}
+	graphCopy.Edges = newEdges
+	b.graph = graphCopy
+	b.dirty = true
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+func (b *GMLBackend) InvalidateMemoryCache(_ context.Context, userID string) error {
+	return nil
+}
+
+// EditMemoryNode updates the value of a fact node, verifying it belongs to userID.
+func (b *GMLBackend) EditMemoryNode(ctx context.Context, userID, nodeID, newValue string) error {
+	b.mu.RLock()
+	userNode := b.findUserNodeInGraph(b.graph, userID)
+	if userNode == nil {
+		b.mu.RUnlock()
+		return fmt.Errorf("user not found in memory graph")
+	}
+	// Verify the target node is connected to the user.
+	nodeIDInt, err := strconv.Atoi(nodeID)
+	if err != nil {
+		b.mu.RUnlock()
+		return fmt.Errorf("invalid node id: %s", nodeID)
+	}
+	owned := false
+	for _, e := range b.graph.Edges {
+		if e.Source == userNode.ID && e.Target == nodeIDInt {
+			owned = true
+			break
+		}
+	}
+	b.mu.RUnlock()
+	if !owned {
+		return fmt.Errorf("node %s is not a fact belonging to this user", nodeID)
+	}
+	// Preserve node type and label; only update textual content.
+	return b.UpdateNode(ctx, nodeID, "", "", newValue, nil)
+}
+
+// DeleteMemoryNode removes a fact node, verifying it belongs to userID.
+func (b *GMLBackend) DeleteMemoryNode(ctx context.Context, userID, nodeID string) error {
+	b.mu.RLock()
+	userNode := b.findUserNodeInGraph(b.graph, userID)
+	if userNode == nil {
+		b.mu.RUnlock()
+		return fmt.Errorf("user not found in memory graph")
+	}
+	nodeIDInt, err := strconv.Atoi(nodeID)
+	if err != nil {
+		b.mu.RUnlock()
+		return fmt.Errorf("invalid node id: %s", nodeID)
+	}
+	owned := false
+	for _, e := range b.graph.Edges {
+		if e.Source == userNode.ID && e.Target == nodeIDInt {
+			owned = true
+			break
+		}
+	}
+	b.mu.RUnlock()
+	if !owned {
+		return fmt.Errorf("node %s is not a fact belonging to this user", nodeID)
+	}
+	return b.DeleteNode(ctx, nodeID)
+}
+
+// SetUserProperty upserts a key/value pair on the user node Properties map.
+func (b *GMLBackend) SetUserProperty(_ context.Context, userID, key, value string) error {
+	b.mu.Lock()
+
+	graphCopy := b.graph.Copy()
+	userNode := b.findOrCreateUserInGraph(graphCopy, userID)
+	if userNode.Properties == nil {
+		userNode.Properties = make(map[string]string)
+	}
+	userNode.Properties[key] = value
+	b.graph = graphCopy
+	b.dirty = true
+
+	b.mu.Unlock()
+
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+// UpdateUserLabel sets the Label of the user node to the display name.
+func (b *GMLBackend) UpdateUserLabel(_ context.Context, userID, displayName string) error {
+	if displayName == "" {
+		return nil
+	}
+	b.mu.Lock()
+	graphCopy := b.graph.Copy()
+	userNode := b.findOrCreateUserInGraph(graphCopy, userID)
+	userNode.Label = displayName
+	b.graph = graphCopy
+	b.dirty = true
+	b.mu.Unlock()
+	b.schedulePersist(graphCopy.Copy())
+	return nil
+}
+
+func (b *GMLBackend) findOrCreateUserInGraph(graph *InMemoryGraph, userID string) *Node {
+	if node := b.findUserNodeInGraph(graph, userID); node != nil {
+		return node
+	}
+
+	userIDInt := graph.NextID
+	graph.NextID++
+	userNode := &Node{
+		ID:    userIDInt,
+		Label: userID,
+		Type:  "user",
+		Value: userID,
+	}
+	graph.Nodes[userIDInt] = userNode
+	return userNode
+}
+
+func (b *GMLBackend) findUserNodeInGraph(graph *InMemoryGraph, userID string) *Node {
+	for _, node := range graph.Nodes {
+		if node.Type == "user" && node.Value == userID {
+			return node
+		}
+	}
+	return nil
+}
+
+func parseGML(data []byte) (*InMemoryGraph, error) {
+	graph := &InMemoryGraph{
+		Nodes: make(map[int]*Node),
+		Edges: make([]*Edge, 0),
+	}
+
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	var currentNode *Node
+	var currentEdge *Edge
+	nodeRegex := regexp.MustCompile(`^\s*node\s+\[`)
+	edgeRegex := regexp.MustCompile(`^\s*edge\s+\[`)
+	closeBracketRegex := regexp.MustCompile(`^\s*\]`)
+	keyValRegex := regexp.MustCompile(`^\s*(\w+)\s+(.+)$`)
+	directedRegex := regexp.MustCompile(`^\s*directed\s+(\d+)`)
+
+	for _, line := range lines {
+		if directedRegex.MatchString(line) {
+			continue
+		}
+
+		if nodeRegex.MatchString(line) {
+			currentNode = &Node{Properties: make(map[string]string)}
+			continue
+		}
+
+		if edgeRegex.MatchString(line) {
+			currentEdge = &Edge{}
+			currentNode = nil
+			continue
+		}
+
+		if closeBracketRegex.MatchString(line) {
+			if currentNode != nil && currentNode.ID >= 0 {
+				graph.Nodes[currentNode.ID] = currentNode
+				if currentNode.ID >= graph.NextID {
+					graph.NextID = currentNode.ID + 1
+				}
+				currentNode = nil
+			} else if currentEdge != nil {
+				graph.Edges = append(graph.Edges, currentEdge)
+				currentEdge = nil
+			}
+			continue
+		}
+
+		if currentNode != nil {
+			matches := keyValRegex.FindStringSubmatch(line)
+			if len(matches) == 3 {
+				key := matches[1]
+				val := strings.Trim(matches[2], "\"")
+
+				switch key {
+				case "id":
+					currentNode.ID, _ = strconv.Atoi(val)
+				case "label":
+					currentNode.Label = val
+				case "type":
+					currentNode.Type = val
+				case "value":
+					currentNode.Value = val
+				default:
+					currentNode.Properties[key] = val
+				}
+			}
+		} else if currentEdge != nil {
+			matches := keyValRegex.FindStringSubmatch(line)
+			if len(matches) == 3 {
+				key := matches[1]
+				val := strings.Trim(matches[2], "\"")
+
+				switch key {
+				case "source":
+					currentEdge.Source, _ = strconv.Atoi(val)
+				case "target":
+					currentEdge.Target, _ = strconv.Atoi(val)
+				case "label", "relation":
+					currentEdge.Label = val
+				}
+			}
+		}
+	}
+
+	for _, node := range graph.Nodes {
+		if node.Label == "" {
+			node.Label = fmt.Sprintf("node:%d", node.ID)
+		}
+	}
+
+	return graph, nil
+}
+
+func serializeGML(graph *InMemoryGraph) []byte {
+	var sb strings.Builder
+	sb.WriteString("graph [\n")
+	sb.WriteString("  directed 1\n")
+
+	for _, node := range graph.Nodes {
+		sb.WriteString("  node [\n")
+		fmt.Fprintf(&sb, "    id %d\n", node.ID)
+		fmt.Fprintf(&sb, "    label \"%s\"\n", node.Label)
+		if node.Type != "" {
+			fmt.Fprintf(&sb, "    type \"%s\"\n", node.Type)
+		}
+		if node.Value != "" {
+			fmt.Fprintf(&sb, "    value \"%s\"\n", node.Value)
+		}
+		for key, val := range node.Properties {
+			fmt.Fprintf(&sb, "    %s \"%s\"\n", key, val)
+		}
+		sb.WriteString("  ]\n")
+	}
+
+	for _, edge := range graph.Edges {
+		sb.WriteString("  edge [\n")
+		fmt.Fprintf(&sb, "    source %d\n", edge.Source)
+		fmt.Fprintf(&sb, "    target %d\n", edge.Target)
+		fmt.Fprintf(&sb, "    label \"%s\"\n", edge.Label)
+		sb.WriteString("  ]\n")
+	}
+
+	sb.WriteString("]\n")
+	return []byte(sb.String())
+}
 
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
 
 //go:wasmexport get_name
-func getName() int32 { pdk.OutputString("openlobster-memory-gml"); return 0 }
+func getName() int32 { pluginOutputString("openlobster-memory-gml"); return 0 }
 
 //go:wasmexport get_version
-func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
+func getVersion() int32 { pluginOutputString("0.1.0"); return 0 }
 
 //go:wasmexport get_description
 func getDescription() int32 {
-pdk.OutputString("File-based (JSON) memory storage for OpenLobster")
-return 0
+	pluginOutputString("File-based (GML) memory graph storage for OpenLobster")
+	return 0
 }
 
 //go:wasmexport get_type
-func getType() int32 { pdk.OutputString("memory"); return 0 }
+func getType() int32 { pluginOutputString("memory"); return 0 }
 
 //go:wasmexport get_schema
 func getSchema() int32 {
-pdk.OutputString(`{"type":"object","properties":{"path":{"type":"string","title":"Storage Path","default":"~/.openlobster/memory.json"}}}`)
-return 0
+	pluginOutputString(`{"type":"object","properties":{"path":{"type":"string","title":"Storage Path","default":"~/.openlobster/memory.gml","description":"Path to the GML file used to persist memory graph data"}}}`)
+	return 0
+}
+
+type hotConfigInput struct {
+	Config map[string]interface{} `json:"config"`
+}
+
+//go:wasmexport configure
+func configureHot() int32 {
+	var in hotConfigInput
+	if err := pluginInputJSON(&in); err != nil {
+		pluginSetError(err)
+		return 1
+	}
+
+	hotConfigMu.Lock()
+	hotConfig = cloneHotConfig(in.Config)
+	hotConfigMu.Unlock()
+
+	return outputOK()
 }
 
 // ---------------------------------------------------------------------------
-// Persistence helpers
-// ---------------------------------------------------------------------------
-
-func init() {
-home, _ := os.UserHomeDir()
-storePath = filepath.Join(home, ".openlobster", "memory.json")
-store = make(map[string]string)
-_ = loadStore()
-}
-
-func loadStore() error {
-b, err := os.ReadFile(storePath)
-if err != nil {
-return err
-}
-mu.Lock()
-defer mu.Unlock()
-return json.Unmarshal(b, &store)
-}
-
-func saveStore() error {
-mu.RLock()
-b, err := json.Marshal(store)
-mu.RUnlock()
-if err != nil {
-return err
-}
-if err := os.MkdirAll(filepath.Dir(storePath), 0o755); err != nil {
-return err
-}
-return os.WriteFile(storePath, b, 0o644)
-}
-
-// ---------------------------------------------------------------------------
-// store — handles add_knowledge, add_relation, delete_relation,
+// store - handles add_knowledge, add_relation, delete_relation,
 // invalidate_cache, set_user_property, edit_node, delete_node,
 // update_user_label (all non-query write operations)
 // ---------------------------------------------------------------------------
 
 type storeInput struct {
-Op          string      `json:"op"`
-UserID      string      `json:"user_id,omitempty"`
-Content     string      `json:"content,omitempty"`
-Label       string      `json:"label,omitempty"`
-Relation    string      `json:"relation,omitempty"`
-EntityType  string      `json:"entity_type,omitempty"`
-Key         string      `json:"key,omitempty"`
-Value       string      `json:"value,omitempty"`
-From        string      `json:"from,omitempty"`
-To          string      `json:"to,omitempty"`
-RelType     string      `json:"rel_type,omitempty"`
-NodeID      string      `json:"node_id,omitempty"`
-NewValue    string      `json:"new_value,omitempty"`
-DisplayName string      `json:"display_name,omitempty"`
-Config      storeConfig `json:"config"`
-}
-
-type storeConfig struct {
-Path string `json:"path,omitempty"`
+	Op          string      `json:"op"`
+	UserID      string      `json:"user_id,omitempty"`
+	Content     string      `json:"content,omitempty"`
+	Label       string      `json:"label,omitempty"`
+	Relation    string      `json:"relation,omitempty"`
+	EntityType  string      `json:"entity_type,omitempty"`
+	Key         string      `json:"key,omitempty"`
+	Value       string      `json:"value,omitempty"`
+	From        string      `json:"from,omitempty"`
+	To          string      `json:"to,omitempty"`
+	RelType     string      `json:"rel_type,omitempty"`
+	NodeID      string      `json:"node_id,omitempty"`
+	NewValue    string      `json:"new_value,omitempty"`
+	DisplayName string      `json:"display_name,omitempty"`
+	Config      storeConfig `json:"config"`
 }
 
 //go:wasmexport store
 func storeEntry() int32 {
-var input storeInput
-if err := pdk.InputJSON(&input); err != nil {
-pdk.SetError(err)
-return 1
-}
-if input.Config.Path != "" && input.Config.Path != storePath {
-storePath = input.Config.Path
-_ = loadStore()
-}
+	var input storeInput
+	if err := pluginInputJSON(&input); err != nil {
+		pluginSetError(err)
+		return 1
+	}
 
-mu.Lock()
-switch input.Op {
-case "add_relation":
-k := "rel:" + input.From + ":" + input.To
-store[k] = input.RelType
-case "delete_relation":
-delete(store, "rel:"+input.From+":"+input.To)
-case "invalidate_cache":
-// No-op for file-based store
-case "set_user_property":
-store["prop:"+input.UserID+":"+input.Key] = input.Value
-case "edit_node":
-store[input.NodeID] = input.NewValue
-case "delete_node":
-delete(store, input.NodeID)
-case "update_user_label":
-store["label:"+input.UserID] = input.DisplayName
-default:
-// Default: store knowledge content
-key := input.Key
-if key == "" {
-key = "know:" + input.UserID + ":" + time.Now().Format(time.RFC3339Nano)
-}
-store[key] = input.Content
-}
-mu.Unlock()
+	backend, err := backendForPath(resolveStoragePath(input.Config))
+	if err != nil {
+		pluginSetError(fmt.Errorf("init gml backend: %w", err))
+		return 1
+	}
 
-if err := saveStore(); err != nil {
-pdk.SetError(err)
-return 1
-}
-if err := pdk.OutputJSON(map[string]bool{"ok": true}); err != nil {
-pdk.SetError(err)
-return 1
-}
-return 0
+	ctx := context.Background()
+	var opErr error
+
+	switch input.Op {
+	case "", "add_knowledge":
+		relation := input.Relation
+		if relation == "" {
+			relation = input.RelType
+		}
+		opErr = backend.AddKnowledge(ctx, input.UserID, input.Content, input.Label, relation, input.EntityType, nil)
+	case "add_relation":
+		opErr = backend.AddRelation(ctx, input.From, input.To, input.RelType)
+	case "delete_relation":
+		opErr = backend.DeleteRelation(ctx, input.From, input.To)
+	case "invalidate_cache":
+		opErr = backend.InvalidateMemoryCache(ctx, input.UserID)
+	case "set_user_property":
+		opErr = backend.SetUserProperty(ctx, input.UserID, input.Key, input.Value)
+	case "edit_node":
+		opErr = backend.EditMemoryNode(ctx, input.UserID, input.NodeID, input.NewValue)
+	case "delete_node":
+		opErr = backend.DeleteMemoryNode(ctx, input.UserID, input.NodeID)
+	case "update_user_label":
+		opErr = backend.UpdateUserLabel(ctx, input.UserID, input.DisplayName)
+	default:
+		relation := input.Relation
+		if relation == "" {
+			relation = input.RelType
+		}
+		opErr = backend.AddKnowledge(ctx, input.UserID, input.Content, input.Label, relation, input.EntityType, nil)
+	}
+
+	if opErr != nil {
+		pluginSetError(opErr)
+		return 1
+	}
+
+	return outputOK()
 }
 
 // ---------------------------------------------------------------------------
-// retrieve — SearchSimilar
+// retrieve - SearchSimilar
 // ---------------------------------------------------------------------------
 
 type retrieveInput struct {
-Query  string      `json:"query"`
-Limit  int         `json:"limit,omitempty"`
-Config storeConfig `json:"config"`
+	Query  string      `json:"query"`
+	Limit  int         `json:"limit,omitempty"`
+	Config storeConfig `json:"config"`
 }
 
 type knowledgeEntry struct {
-ID      string `json:"id"`
-UserID  string `json:"user_id"`
-Content string `json:"content"`
+	ID      string `json:"id"`
+	Content string `json:"content"`
 }
 
 //go:wasmexport retrieve
 func retrieve() int32 {
-var input retrieveInput
-if err := pdk.InputJSON(&input); err != nil {
-pdk.SetError(err)
-return 1
-}
-if input.Config.Path != "" && input.Config.Path != storePath {
-storePath = input.Config.Path
-_ = loadStore()
-}
-limit := input.Limit
-if limit <= 0 {
-limit = 20
-}
-q := strings.ToLower(input.Query)
-mu.RLock()
-var results []knowledgeEntry
-for k, v := range store {
-if q == "" || strings.Contains(strings.ToLower(k), q) || strings.Contains(strings.ToLower(v), q) {
-results = append(results, knowledgeEntry{ID: k, Content: v})
-if len(results) >= limit {
-break
-}
-}
-}
-mu.RUnlock()
-if err := pdk.OutputJSON(results); err != nil {
-pdk.SetError(err)
-return 1
-}
-return 0
+	var input retrieveInput
+	if err := pluginInputJSON(&input); err != nil {
+		pluginSetError(err)
+		return 1
+	}
+
+	backend, err := backendForPath(resolveStoragePath(input.Config))
+	if err != nil {
+		pluginSetError(fmt.Errorf("init gml backend: %w", err))
+		return 1
+	}
+
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	knowledge, err := backend.SearchSimilar(context.Background(), input.Query, limit)
+	if err != nil {
+		pluginSetError(err)
+		return 1
+	}
+
+	results := make([]knowledgeEntry, 0, len(knowledge))
+	for _, k := range knowledge {
+		results = append(results, knowledgeEntry{
+			ID:      k.ID,
+			Content: k.Content,
+		})
+	}
+
+	if err := pluginOutputJSON(results); err != nil {
+		pluginSetError(err)
+		return 1
+	}
+	return 0
 }
 
 // ---------------------------------------------------------------------------
-// query — GetUserGraph, cypher
+// query - GetUserGraph, cypher
 // ---------------------------------------------------------------------------
 
 type queryInput struct {
-Op     string      `json:"op"`
-UserID string      `json:"user_id,omitempty"`
-Cypher string      `json:"cypher,omitempty"`
-Config storeConfig `json:"config"`
+	Op     string      `json:"op"`
+	UserID string      `json:"user_id,omitempty"`
+	Cypher string      `json:"cypher,omitempty"`
+	Config storeConfig `json:"config"`
 }
 
-type graphNode struct {
-ID    string `json:"id"`
-Label string `json:"label"`
-Type  string `json:"type"`
-Value string `json:"value"`
+type graphNodeOut struct {
+	ID         string            `json:"id"`
+	Label      string            `json:"label"`
+	Type       string            `json:"type"`
+	Value      string            `json:"value"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
-type graphEdge struct {
-Source string `json:"source"`
-Target string `json:"target"`
-Label  string `json:"label"`
+type graphEdgeOut struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Label  string `json:"label"`
 }
 
-type graph struct {
-Nodes []graphNode `json:"nodes"`
-Edges []graphEdge `json:"edges"`
+type graphOut struct {
+	Nodes []graphNodeOut `json:"nodes"`
+	Edges []graphEdgeOut `json:"edges"`
 }
 
 //go:wasmexport query
 func queryMem() int32 {
-var input queryInput
-if err := pdk.InputJSON(&input); err != nil {
-pdk.SetError(err)
-return 1
-}
-if input.Config.Path != "" && input.Config.Path != storePath {
-storePath = input.Config.Path
-_ = loadStore()
-}
+	var input queryInput
+	if err := pluginInputJSON(&input); err != nil {
+		pluginSetError(err)
+		return 1
+	}
 
-mu.RLock()
-defer mu.RUnlock()
+	backend, err := backendForPath(resolveStoragePath(input.Config))
+	if err != nil {
+		pluginSetError(fmt.Errorf("init gml backend: %w", err))
+		return 1
+	}
 
-switch input.Op {
-case "user_graph":
-g := graph{}
-prefix := "know:" + input.UserID + ":"
-relPrefix := "rel:" + input.UserID + ":"
-for k, v := range store {
-if strings.HasPrefix(k, prefix) {
-g.Nodes = append(g.Nodes, graphNode{ID: k, Label: v, Type: "fact", Value: v})
-} else if strings.HasPrefix(k, relPrefix) {
-parts := strings.SplitN(k[len("rel:"):], ":", 2)
-if len(parts) == 2 {
-g.Edges = append(g.Edges, graphEdge{Source: parts[0], Target: parts[1], Label: v})
-}
-}
-}
-if err := pdk.OutputJSON(g); err != nil {
-pdk.SetError(err)
-return 1
-}
-default:
-// For cypher or unrecognised ops return empty graph result
-if err := pdk.OutputJSON(map[string]interface{}{"data": []interface{}{}, "errors": []interface{}{}}); err != nil {
-pdk.SetError(err)
-return 1
-}
-}
-return 0
+	ctx := context.Background()
+
+	switch input.Op {
+	case "user_graph":
+		g, queryErr := backend.GetUserGraph(ctx, input.UserID)
+		if queryErr != nil {
+			pluginSetError(queryErr)
+			return 1
+		}
+		out := graphOut{
+			Nodes: make([]graphNodeOut, 0, len(g.Nodes)),
+			Edges: make([]graphEdgeOut, 0, len(g.Edges)),
+		}
+		for _, n := range g.Nodes {
+			out.Nodes = append(out.Nodes, graphNodeOut{
+				ID:         n.ID,
+				Label:      n.Label,
+				Type:       n.Type,
+				Value:      n.Value,
+				Properties: n.Properties,
+			})
+		}
+		for _, e := range g.Edges {
+			out.Edges = append(out.Edges, graphEdgeOut{
+				Source: e.Source,
+				Target: e.Target,
+				Label:  e.Label,
+			})
+		}
+
+		if err := pluginOutputJSON(out); err != nil {
+			pluginSetError(err)
+			return 1
+		}
+	case "cypher":
+		result, queryErr := backend.QueryGraph(ctx, input.Cypher)
+		if queryErr != nil {
+			pluginSetError(queryErr)
+			return 1
+		}
+		errStrings := make([]string, 0, len(result.Errors))
+		for _, queryErr := range result.Errors {
+			if queryErr != nil {
+				errStrings = append(errStrings, queryErr.Error())
+			}
+		}
+		if err := pluginOutputJSON(map[string]interface{}{
+			"data":   result.Data,
+			"errors": errStrings,
+		}); err != nil {
+			pluginSetError(err)
+			return 1
+		}
+	default:
+		if err := pluginOutputJSON(map[string]interface{}{
+			"data":   []interface{}{},
+			"errors": []interface{}{},
+		}); err != nil {
+			pluginSetError(err)
+			return 1
+		}
+	}
+	return 0
 }
 
 func main() {}

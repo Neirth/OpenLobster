@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/neirth/openlobster/internal/infrastructure/secrets"
+	"github.com/neirth/openlobster/internal/domain/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -113,4 +113,4 @@ func TestMCPClientSDK_Close(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-var _ secrets.SecretsProvider = (*mockSecrets)(nil)
+var _ ports.SecretsProvider = (*mockSecrets)(nil)

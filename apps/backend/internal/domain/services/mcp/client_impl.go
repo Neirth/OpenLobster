@@ -11,11 +11,11 @@ import (
 	mcpc "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/neirth/openlobster/internal/infrastructure/secrets"
+	"github.com/neirth/openlobster/internal/domain/ports"
 )
 
 type MCPClientSDK struct {
-	secrets secrets.SecretsProvider
+	secrets ports.SecretsProvider
 	servers map[string]MCPServerConnection
 	mu      sync.RWMutex
 }
@@ -27,7 +27,7 @@ type MCPServerConnection struct {
 	Favicon string // base64 data URI, may be empty
 }
 
-func NewMCPClientSDK(secretsProvider secrets.SecretsProvider) *MCPClientSDK {
+func NewMCPClientSDK(secretsProvider ports.SecretsProvider) *MCPClientSDK {
 	return &MCPClientSDK{
 		secrets: secretsProvider,
 		servers: make(map[string]MCPServerConnection),
@@ -46,7 +46,7 @@ func (c *MCPClientSDK) connectHTTP(ctx context.Context, server ServerConfig) err
 	if server.Name != "" {
 		tokenKey := fmt.Sprintf("mcp/remote/%s/token", server.Name)
 		token, err := c.secrets.Get(ctx, tokenKey)
-		if err != nil && !errors.Is(err, secrets.ErrNotFound) {
+		if err != nil && !errors.Is(err, ports.ErrNotFound) {
 			return fmt.Errorf("failed to read OAuth token from secrets backend for server %q (key %s): %w", server.Name, tokenKey, err)
 		}
 		if token != "" {

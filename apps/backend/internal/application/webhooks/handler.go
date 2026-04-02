@@ -1,14 +1,16 @@
-// Package webhooks provides HTTP handlers for inbound webhooks from
-// messaging platforms (WhatsApp, Twilio) that receive messages via POST.
+// Package webhooks provides HTTP handlers for inbound messaging webhooks.
 package webhooks
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
+	"github.com/neirth/openlobster/internal/domain/models"
 	"github.com/neirth/openlobster/internal/domain/ports"
 )
 
@@ -22,7 +24,22 @@ type MessageDispatcher interface {
 	Handle(ctx context.Context, input domainhandlers.HandleMessageInput) error
 }
 
-// Handler registers WhatsApp and Twilio webhook routes on the given mux.
+const webhookNotSupportedPrefix = "webhook_not_supported"
+const handleWebhookFn = "handle_webhook"
+
+type webhookAdapterPayload struct {
+	Request webhookRequestEnvelope `json:"request"`
+}
+
+type webhookRequestEnvelope struct {
+	Method  string              `json:"method"`
+	Path    string              `json:"path"`
+	Query   map[string][]string `json:"query,omitempty"`
+	Headers map[string][]string `json:"headers,omitempty"`
+	Body    string              `json:"body,omitempty"`
+}
+
+// Handler registers a dynamic /webhook/{channel_id} route on the mux.
 type Handler struct {
 	adapters   AdapterRegistry
 	dispatcher MessageDispatcher
@@ -33,22 +50,27 @@ func NewHandler(adapters AdapterRegistry, dispatcher MessageDispatcher) *Handler
 	return &Handler{adapters: adapters, dispatcher: dispatcher}
 }
 
-// Register adds /webhooks/whatsapp and /webhooks/twilio to the mux.
+// Register adds /webhook/{channel_id} to the mux.
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("/webhooks/whatsapp", h.serveWhatsApp)
-	mux.HandleFunc("/webhooks/twilio", h.serveTwilio)
-	log.Println("webhooks: /webhooks/whatsapp, /webhooks/twilio registered")
+	mux.HandleFunc("/webhook/", h.serveWebhook)
+	// Keep strict migration semantics: legacy /webhooks/* must not fall through
+	// to SPA/static handlers and should return 404 explicitly.
+	mux.HandleFunc("/webhooks/", func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+	log.Println("webhooks: /webhook/{channel_id} registered (legacy /webhooks/* disabled)")
 }
 
-// serveWhatsApp handles WhatsApp Cloud API webhooks.
-// GET: verification challenge (hub.mode=subscribe, hub.challenge).
-// POST: incoming message payload (JSON).
-func (h *Handler) serveWhatsApp(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost && r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+// serveWebhook handles all inbound webhooks using /webhook/{channel_id}.
+// WhatsApp verification challenge is handled here for ABI-minimal compatibility.
+func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
+	channelType, ok := channelTypeFromWebhookPath(r.URL.Path)
+	if !ok {
+		http.NotFound(w, r)
 		return
 	}
-	if r.Method == http.MethodGet {
+
+	if channelType == "whatsapp" && r.Method == http.MethodGet {
 		if c := r.URL.Query().Get("hub.challenge"); c != "" {
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusOK)
@@ -59,27 +81,56 @@ func (h *Handler) serveWhatsApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adapter := h.adapters.Get("whatsapp")
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	adapter := h.adapters.Get(channelType)
 	if adapter == nil {
-		http.Error(w, "whatsapp not configured", http.StatusServiceUnavailable)
+		http.NotFound(w, r)
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("webhooks/whatsapp: read body: %v", err)
+		log.Printf("webhooks/%s: read body: %v", channelType, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	r.Body.Close()
 
-	msg, err := adapter.HandleWebhook(r.Context(), body)
+	envelopeRaw, err := json.Marshal(webhookAdapterPayload{Request: webhookRequestEnvelope{
+		Method:  r.Method,
+		Path:    r.URL.Path,
+		Query:   r.URL.Query(),
+		Headers: r.Header,
+		Body:    string(body),
+	}})
 	if err != nil {
-		log.Printf("webhooks/whatsapp: parse: %v", err)
+		log.Printf("webhooks/%s: marshal envelope: %v", channelType, err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	msg, err := adapter.HandleWebhook(r.Context(), envelopeRaw)
+	if err != nil {
+		if isWebhookNotSupportedError(err) {
+			http.NotFound(w, r)
+			return
+		}
+		log.Printf("webhooks/%s: parse: %v", channelType, err)
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
-	if msg == nil || (msg.Content == "" && len(msg.Attachments) == 0 && msg.Audio == nil) {
+
+	if isEmptyMessage(msg) {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if h.dispatcher == nil {
+		log.Printf("webhooks/%s: dispatcher nil, dropping parsed message", channelType)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -91,7 +142,7 @@ func (h *Handler) serveWhatsApp(w http.ResponseWriter, r *http.Request) {
 	if hErr := h.dispatcher.Handle(r.Context(), domainhandlers.HandleMessageInput{
 		ChannelID:   msg.ChannelID,
 		Content:     msg.Content,
-		ChannelType: "whatsapp",
+		ChannelType: channelType,
 		SenderID:    senderID,
 		SenderName:  msg.SenderName,
 		IsGroup:     msg.IsGroup,
@@ -100,58 +151,35 @@ func (h *Handler) serveWhatsApp(w http.ResponseWriter, r *http.Request) {
 		Attachments: msg.Attachments,
 		Audio:       msg.Audio,
 	}); hErr != nil {
-		log.Printf("webhooks/whatsapp: dispatch: %v", hErr)
+		log.Printf("webhooks/%s: dispatch: %v", channelType, hErr)
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-// serveTwilio handles Twilio SMS/MMS webhooks.
-// POST: application/x-www-form-urlencoded (From, Body, etc.).
-func (h *Handler) serveTwilio(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func isEmptyMessage(msg *models.Message) bool {
+	return msg == nil || (msg.Content == "" && len(msg.Attachments) == 0 && msg.Audio == nil)
+}
 
-	adapter := h.adapters.Get("twilio")
-	if adapter == nil {
-		http.Error(w, "twilio not configured", http.StatusServiceUnavailable)
-		return
+func channelTypeFromWebhookPath(path string) (string, bool) {
+	p := strings.TrimSpace(path)
+	if !strings.HasPrefix(p, "/webhook/") {
+		return "", false
 	}
+	rest := strings.TrimPrefix(p, "/webhook/")
+	rest = strings.Trim(rest, "/")
+	if rest == "" || strings.Contains(rest, "/") {
+		return "", false
+	}
+	return strings.ToLower(rest), true
+}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Printf("webhooks/twilio: read body: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+func isWebhookNotSupportedError(err error) bool {
+	if err == nil {
+		return false
 	}
-	r.Body.Close()
-
-	msg, err := adapter.HandleWebhook(r.Context(), body)
-	if err != nil {
-		log.Printf("webhooks/twilio: parse: %v", err)
-		http.Error(w, "invalid payload", http.StatusBadRequest)
-		return
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, webhookNotSupportedPrefix) {
+		return true
 	}
-	if msg == nil || (msg.Content == "" && len(msg.Attachments) == 0 && msg.Audio == nil) {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	senderID := msg.SenderID
-	if senderID == "" {
-		senderID = msg.ChannelID
-	}
-	if hErr := h.dispatcher.Handle(r.Context(), domainhandlers.HandleMessageInput{
-		ChannelID:   msg.ChannelID,
-		Content:     msg.Content,
-		ChannelType: "twilio",
-		SenderID:    senderID,
-		SenderName:  msg.SenderName,
-		Attachments: msg.Attachments,
-		Audio:       msg.Audio,
-	}); hErr != nil {
-		log.Printf("webhooks/twilio: dispatch: %v", hErr)
-	}
-	w.WriteHeader(http.StatusOK)
+	return strings.Contains(msg, `function "`+handleWebhookFn+`" not exported`)
 }

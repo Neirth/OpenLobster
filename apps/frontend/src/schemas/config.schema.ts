@@ -586,19 +586,6 @@ export const configGroups = [
     title: "GENERAL CONFIGURATION",
     fields: [
       "agentName",
-      "provider",
-      "model",
-      // OpenAI / OpenRouter / OpenCode Zen / OpenAI-compatible
-      "apiKey",
-      // OpenAI-compatible only
-      "baseURL",
-      // Ollama
-      "ollamaHost",
-      "ollamaApiKey",
-      // Anthropic
-      "anthropicApiKey",
-      // Docker Model Runner
-      "dockerModelRunnerEndpoint",
       // Reasoning
       "reasoningLevel",
     ],
@@ -612,11 +599,6 @@ export const configGroups = [
     id: "database",
     title: "DATABASE CONFIGURATION",
     fields: ["databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns"],
-  },
-  {
-    id: "memory",
-    title: "MEMORY CONFIGURATION",
-    fields: ["memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword"],
   },
   {
     id: "subagents",
@@ -634,33 +616,8 @@ export const configGroups = [
     fields: ["loggingLevel", "loggingPath"],
   },
   {
-    id: "secrets",
-    title: "SECRETS CONFIGURATION",
-    fields: ["secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken"],
-  },
-  {
     id: "scheduler",
     title: "SCHEDULER CONFIGURATION",
     fields: ["schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval"],
-  },
-  {
-    id: "channels",
-    title: "CHANNEL CONFIGURATION",
-    fields: [
-      "channelTelegramEnabled",
-      "channelTelegramToken",
-      "channelDiscordEnabled",
-      "channelDiscordToken",
-      "channelSlackEnabled",
-      "channelSlackBotToken",
-      "channelSlackAppToken",
-      "channelWhatsAppEnabled",
-      "channelWhatsAppPhoneId",
-      "channelWhatsAppApiToken",
-      "channelTwilioEnabled",
-      "channelTwilioAccountSid",
-      "channelTwilioAuthToken",
-      "channelTwilioFromNumber",
-    ],
   },
 ];

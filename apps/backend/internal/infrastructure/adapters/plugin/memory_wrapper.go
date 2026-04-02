@@ -15,6 +15,10 @@ type MemoryWrapper struct {
 	cfg    map[string]interface{}
 }
 
+func (w *MemoryWrapper) currentConfig() map[string]interface{} {
+	return liveConfigForPlugin(w.plugin.ID(), w.cfg)
+}
+
 // NewMemoryWrapper returns a MemoryWrapper backed by p.
 func NewMemoryWrapper(p ports.PluginPort, cfg map[string]interface{}) *MemoryWrapper {
 	return &MemoryWrapper{plugin: p, cfg: cfg}
@@ -30,7 +34,7 @@ func (w *MemoryWrapper) call(fn string, payload interface{}) ([]byte, error) {
 
 func (w *MemoryWrapper) AddKnowledge(ctx context.Context, userID, content, label, relation, entityType string, embedding []float64) error {
 	_, err := w.call("store", map[string]interface{}{
-		"config":      w.cfg,
+		"config":      w.currentConfig(),
 		"user_id":     userID,
 		"content":     content,
 		"label":       label,
@@ -43,7 +47,7 @@ func (w *MemoryWrapper) AddKnowledge(ctx context.Context, userID, content, label
 
 func (w *MemoryWrapper) SearchSimilar(ctx context.Context, query string, limit int) ([]ports.Knowledge, error) {
 	out, err := w.call("retrieve", map[string]interface{}{
-		"config": w.cfg,
+		"config": w.currentConfig(),
 		"query":  query,
 		"limit":  limit,
 	})
@@ -59,7 +63,7 @@ func (w *MemoryWrapper) SearchSimilar(ctx context.Context, query string, limit i
 
 func (w *MemoryWrapper) GetUserGraph(ctx context.Context, userID string) (ports.Graph, error) {
 	out, err := w.call("query", map[string]interface{}{
-		"config":  w.cfg,
+		"config":  w.currentConfig(),
 		"user_id": userID,
 		"op":      "user_graph",
 	})
@@ -75,7 +79,7 @@ func (w *MemoryWrapper) GetUserGraph(ctx context.Context, userID string) (ports.
 
 func (w *MemoryWrapper) AddRelation(ctx context.Context, from, to, relType string) error {
 	_, err := w.call("store", map[string]interface{}{
-		"config":   w.cfg,
+		"config":   w.currentConfig(),
 		"op":       "add_relation",
 		"from":     from,
 		"to":       to,
@@ -86,7 +90,7 @@ func (w *MemoryWrapper) AddRelation(ctx context.Context, from, to, relType strin
 
 func (w *MemoryWrapper) DeleteRelation(ctx context.Context, from, to string) error {
 	_, err := w.call("store", map[string]interface{}{
-		"config": w.cfg,
+		"config": w.currentConfig(),
 		"op":     "delete_relation",
 		"from":   from,
 		"to":     to,
@@ -96,7 +100,7 @@ func (w *MemoryWrapper) DeleteRelation(ctx context.Context, from, to string) err
 
 func (w *MemoryWrapper) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
 	out, err := w.call("query", map[string]interface{}{
-		"config": w.cfg,
+		"config": w.currentConfig(),
 		"op":     "cypher",
 		"cypher": cypher,
 	})
@@ -110,7 +114,7 @@ func (w *MemoryWrapper) QueryGraph(ctx context.Context, cypher string) (ports.Gr
 
 func (w *MemoryWrapper) InvalidateMemoryCache(ctx context.Context, userID string) error {
 	_, err := w.call("store", map[string]interface{}{
-		"config":  w.cfg,
+		"config":  w.currentConfig(),
 		"op":      "invalidate_cache",
 		"user_id": userID,
 	})
@@ -119,7 +123,7 @@ func (w *MemoryWrapper) InvalidateMemoryCache(ctx context.Context, userID string
 
 func (w *MemoryWrapper) SetUserProperty(ctx context.Context, userID, key, value string) error {
 	_, err := w.call("store", map[string]interface{}{
-		"config":  w.cfg,
+		"config":  w.currentConfig(),
 		"op":      "set_user_property",
 		"user_id": userID,
 		"key":     key,
@@ -130,7 +134,7 @@ func (w *MemoryWrapper) SetUserProperty(ctx context.Context, userID, key, value 
 
 func (w *MemoryWrapper) EditMemoryNode(ctx context.Context, userID, nodeID, newValue string) error {
 	_, err := w.call("store", map[string]interface{}{
-		"config":    w.cfg,
+		"config":    w.currentConfig(),
 		"op":        "edit_node",
 		"user_id":   userID,
 		"node_id":   nodeID,
@@ -141,7 +145,7 @@ func (w *MemoryWrapper) EditMemoryNode(ctx context.Context, userID, nodeID, newV
 
 func (w *MemoryWrapper) DeleteMemoryNode(ctx context.Context, userID, nodeID string) error {
 	_, err := w.call("store", map[string]interface{}{
-		"config":  w.cfg,
+		"config":  w.currentConfig(),
 		"op":      "delete_node",
 		"user_id": userID,
 		"node_id": nodeID,
@@ -151,7 +155,7 @@ func (w *MemoryWrapper) DeleteMemoryNode(ctx context.Context, userID, nodeID str
 
 func (w *MemoryWrapper) UpdateUserLabel(ctx context.Context, userID, displayName string) error {
 	_, err := w.call("store", map[string]interface{}{
-		"config":       w.cfg,
+		"config":       w.currentConfig(),
 		"op":           "update_user_label",
 		"user_id":      userID,
 		"display_name": displayName,

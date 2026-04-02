@@ -7,6 +7,7 @@ type Plugin {
   description: String!
   pluginType:  String!
   schemaJson:  String!
+  configJson:  String!
   enabled:     Boolean!
   available:   Boolean!
   lastError:   String
@@ -19,5 +20,6 @@ extend type Query {
 
 extend type Mutation {
   reloadPlugins:                               [Plugin!]!
+  setPluginEnabled(pluginId: String!, enabled: Boolean!): Boolean!
   updatePluginConfig(pluginId: String!, configJson: String!): Boolean!
 }

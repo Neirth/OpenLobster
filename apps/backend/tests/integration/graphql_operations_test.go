@@ -447,10 +447,10 @@ func TestIntegration_Query_Config(t *testing.T) {
 		Secrets:      &dto.SecretsConfigSnapshot{Backend: "file", File: &dto.FileSecretsSnapshot{Path: "/tmp/secrets"}},
 		ChannelSecrets: &dto.ChannelSecretsSnapshot{
 			TelegramEnabled: true, TelegramToken: "tok",
-			DiscordEnabled: false,
+			DiscordEnabled:  false,
 			WhatsAppEnabled: false,
-			TwilioEnabled:  false,
-			SlackEnabled:   false,
+			TwilioEnabled:   false,
+			SlackEnabled:    false,
 		},
 		WizardCompleted: true,
 	}
@@ -476,15 +476,15 @@ func TestIntegration_Query_Config_ChannelSecrets(t *testing.T) {
 		Agent: &dto.AgentSnapshot{Name: "Bot", Status: "ok"},
 	})
 	deps.ConfigSnapshot = &dto.AppConfigSnapshot{
-		Agent:       &dto.AgentConfigSnapshot{Name: "Bot"},
+		Agent:        &dto.AgentConfigSnapshot{Name: "Bot"},
 		Capabilities: &dto.CapabilitiesSnapshot{},
-		Database:    &dto.DatabaseConfigSnapshot{},
-		Memory:      &dto.MemoryConfigSnapshot{},
-		Subagents:   &dto.SubagentsConfigSnapshot{},
-		GraphQL:     &dto.GraphQLConfigSnapshot{},
-		Logging:     &dto.LoggingConfigSnapshot{},
-		Scheduler:   &dto.SchedulerConfigSnapshot{},
-		Secrets:     &dto.SecretsConfigSnapshot{File: &dto.FileSecretsSnapshot{}},
+		Database:     &dto.DatabaseConfigSnapshot{},
+		Memory:       &dto.MemoryConfigSnapshot{},
+		Subagents:    &dto.SubagentsConfigSnapshot{},
+		GraphQL:      &dto.GraphQLConfigSnapshot{},
+		Logging:      &dto.LoggingConfigSnapshot{},
+		Scheduler:    &dto.SchedulerConfigSnapshot{},
+		Secrets:      &dto.SecretsConfigSnapshot{File: &dto.FileSecretsSnapshot{}},
 		ChannelSecrets: &dto.ChannelSecretsSnapshot{
 			TelegramEnabled:  true,
 			TelegramToken:    "tg-token",
@@ -820,15 +820,15 @@ func TestIntegration_Mutation_UpdateConfig_AgentFields(t *testing.T) {
 	reg.UpdateAgent(&dto.AgentSnapshot{Name: "Bot", Status: "ok"})
 	configWriter := &stubConfigWriter{}
 	snap := &dto.AppConfigSnapshot{
-		Agent:        &dto.AgentConfigSnapshot{Name: "Bot", Provider: "openai"},
-		Capabilities: &dto.CapabilitiesSnapshot{},
-		Database:     &dto.DatabaseConfigSnapshot{},
-		Memory:       &dto.MemoryConfigSnapshot{},
-		Subagents:    &dto.SubagentsConfigSnapshot{},
-		GraphQL:      &dto.GraphQLConfigSnapshot{},
-		Logging:      &dto.LoggingConfigSnapshot{},
-		Scheduler:    &dto.SchedulerConfigSnapshot{},
-		Secrets:      &dto.SecretsConfigSnapshot{File: &dto.FileSecretsSnapshot{}},
+		Agent:          &dto.AgentConfigSnapshot{Name: "Bot", Provider: "openai"},
+		Capabilities:   &dto.CapabilitiesSnapshot{},
+		Database:       &dto.DatabaseConfigSnapshot{},
+		Memory:         &dto.MemoryConfigSnapshot{},
+		Subagents:      &dto.SubagentsConfigSnapshot{},
+		GraphQL:        &dto.GraphQLConfigSnapshot{},
+		Logging:        &dto.LoggingConfigSnapshot{},
+		Scheduler:      &dto.SchedulerConfigSnapshot{},
+		Secrets:        &dto.SecretsConfigSnapshot{File: &dto.FileSecretsSnapshot{}},
 		ChannelSecrets: &dto.ChannelSecretsSnapshot{},
 	}
 	deps := &resolvers.Deps{

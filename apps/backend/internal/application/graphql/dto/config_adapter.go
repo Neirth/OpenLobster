@@ -4,6 +4,7 @@ package dto
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 	"github.com/spf13/viper"
@@ -13,6 +14,7 @@ import (
 // When provider/agent keys change, OnApplied receives providerTouched=true and
 // must refresh ConfigSnapshot and perform a soft reboot (recreate AI provider).
 type ConfigUpdateAdapter struct {
+	mu            sync.Mutex
 	ConfigPath    string
 	ReloadChannel func(channelType string)
 	ViperKeys     map[string]string
@@ -22,6 +24,9 @@ type ConfigUpdateAdapter struct {
 // Apply saves the input fields to viper, persists to disk, and triggers any
 // required channel reloads or provider soft-reboots.
 func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interface{}) ([]string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	var changedChannels []string
 	channelTouched := make(map[string]bool)
 
@@ -50,6 +55,18 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 
 	for inputKey, val := range input {
 		if inputKey == "capabilities" || a.isProviderInputKey(inputKey) {
+			continue
+		}
+		if inputKey == "pluginsEnabled" {
+			if enabledMap, ok := val.(map[string]interface{}); ok {
+				for pluginID, rawEnabled := range enabledMap {
+					enabled, ok := rawEnabled.(bool)
+					if !ok {
+						continue
+					}
+					viper.Set(fmt.Sprintf("plugins.enabled.%s", pluginID), enabled)
+				}
+			}
 			continue
 		}
 		if inputKey == "pluginsSettings" {
@@ -221,6 +238,10 @@ func InputToViperKeyMap() map[string]string {
 		"secretsFilePath":         "secrets.file.path",
 		"secretsOpenbaoURL":       "secrets.openbao.url",
 		"secretsOpenbaoToken":     "secrets.openbao.token",
+		"pluginDefaultMemory":     "plugins.defaults.memory",
+		"pluginDefaultSecrets":    "plugins.defaults.secrets",
+		"pluginDefaultAudio":      "plugins.defaults.audio",
+		"pluginDefaultAi":         "plugins.defaults.ai",
 		"schedulerEnabled":        "scheduler.enabled",
 		"schedulerMemoryEnabled":  "scheduler.memory_enabled",
 		"schedulerMemoryInterval": "scheduler.memory_interval",

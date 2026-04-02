@@ -26,6 +26,9 @@ type MessagingPort interface {
 	// SendTyping shows a typing indicator to the user. No-op if not supported.
 	// Used before sending a delayed response to give feedback.
 	SendTyping(ctx context.Context, channelID string) error
+	// HandleWebhook processes inbound HTTP webhook payloads.
+	// Payload is a JSON-serialized webhook envelope produced by the host
+	// (method, path, query, headers, body).
 	HandleWebhook(ctx context.Context, payload []byte) (*models.Message, error)
 	GetUserInfo(ctx context.Context, userID string) (*UserInfo, error)
 	React(ctx context.Context, messageID string, emoji string) error

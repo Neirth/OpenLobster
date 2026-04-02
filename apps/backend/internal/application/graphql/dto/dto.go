@@ -207,6 +207,7 @@ type AppConfigSnapshot struct {
 	ActiveSessions  []ActiveSessionSnapshot
 	Channels        []ChannelConfigSnapshot
 	ChannelSecrets  *ChannelSecretsSnapshot
+	PluginDefaults  *PluginDefaultsSnapshot
 	WizardCompleted bool
 }
 
@@ -280,6 +281,13 @@ type SecretsConfigSnapshot struct {
 	Backend string
 	File    *FileSecretsSnapshot
 	Openbao *OpenbaoSecretsSnapshot
+}
+
+type PluginDefaultsSnapshot struct {
+	AI      string
+	Memory  string
+	Secrets string
+	Audio   string
 }
 
 type FileSecretsSnapshot struct {

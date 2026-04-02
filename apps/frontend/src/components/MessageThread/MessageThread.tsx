@@ -252,7 +252,7 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
       class="chat-thread__messages"
       ref={(el) => {
         scrollEl = el;
-        if (el && (import.meta.env.MODE === 'test' || process.env.NODE_ENV === 'test')) {
+        if (el && import.meta.env.MODE === 'test') {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (el as any).__test_loadOlder = loadOlder;
         }

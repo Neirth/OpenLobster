@@ -16,23 +16,34 @@ type AIWrapper struct {
 	cfg    map[string]interface{} // per-plugin settings from config
 }
 
+func (w *AIWrapper) currentConfig() map[string]interface{} {
+	live := liveConfigForPlugin(w.plugin.ID(), w.cfg)
+	out := make(map[string]interface{}, len(live)+1)
+	for k, v := range live {
+		out[k] = v
+	}
+	// Internal hint for WASI plugins that need a writable HOME.
+	out["__plugin_home"] = "plugin-home"
+	return out
+}
+
 // NewAIWrapper returns an AIWrapper backed by p.
 func NewAIWrapper(p ports.PluginPort, cfg map[string]interface{}) *AIWrapper {
 	return &AIWrapper{plugin: p, cfg: cfg}
 }
 
 type chatPluginInput struct {
-	Model     string             `json:"model"`
-	Messages  []ports.ChatMessage `json:"messages"`
-	Tools     []ports.Tool       `json:"tools,omitempty"`
-	MaxTokens int                `json:"max_tokens,omitempty"`
+	Model     string                 `json:"model"`
+	Messages  []ports.ChatMessage    `json:"messages"`
+	Tools     []ports.Tool           `json:"tools,omitempty"`
+	MaxTokens int                    `json:"max_tokens,omitempty"`
 	Config    map[string]interface{} `json:"config,omitempty"`
 }
 
 type chatPluginOutput struct {
-	Content    string          `json:"content"`
+	Content    string           `json:"content"`
 	ToolCalls  []ports.ToolCall `json:"tool_calls,omitempty"`
-	StopReason string          `json:"stop_reason"`
+	StopReason string           `json:"stop_reason"`
 	Usage      struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
@@ -46,7 +57,7 @@ func (w *AIWrapper) Chat(ctx context.Context, req ports.ChatRequest) (ports.Chat
 		Messages:  req.Messages,
 		Tools:     req.Tools,
 		MaxTokens: req.MaxTokens,
-		Config:    w.cfg,
+		Config:    w.currentConfig(),
 	}
 	raw, err := json.Marshal(input)
 	if err != nil {

@@ -6,13 +6,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
+	"github.com/neirth/openlobster/internal/domain/models"
+	"github.com/neirth/openlobster/internal/domain/ports"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/memory_consolidation"
-	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
@@ -61,15 +63,18 @@ func (a *App) startAndWait() {
 		log.Printf("lifecycle: changed working directory to %s", a.Cfg.Workspace.Path)
 	}
 
-	// Start messaging plugin event loops.
+	// Start messaging adapters (plugins and native).
 	for _, adapter := range a.MessagingAdapters {
-		if mw, ok := adapter.(*pluginadapter.MessagingWrapper); ok {
-			ct := mw.ChannelType()
-			if err := mw.Start(ctx, nil); err != nil {
-				log.Printf("channel %s: failed to start plugin loop: %v", ct, err)
-			} else {
-				log.Printf("channel: %s — plugin loop started", ct)
-			}
+		if adapter == nil {
+			continue
+		}
+		channelType := messagingChannelType(adapter)
+		if err := adapter.Start(ctx, func(_ context.Context, msg *models.Message) {
+			a.handleInboundMessage(msg, channelType)
+		}); err != nil {
+			log.Printf("channel %s: failed to start adapter: %v", channelType, err)
+		} else {
+			log.Printf("channel: %s - adapter started", channelType)
 		}
 	}
 
@@ -115,4 +120,19 @@ func (a *App) startAndWait() {
 	if err := logging.Close(); err != nil {
 		log.Printf("logging close error: %v", err)
 	}
+}
+
+func messagingChannelType(adapter ports.MessagingPort) string {
+	if adapter == nil {
+		return "unknown"
+	}
+	typed, ok := adapter.(interface{ ChannelType() string })
+	if !ok {
+		return "unknown"
+	}
+	channelType := strings.ToLower(strings.TrimSpace(typed.ChannelType()))
+	if channelType == "" {
+		return "unknown"
+	}
+	return channelType
 }

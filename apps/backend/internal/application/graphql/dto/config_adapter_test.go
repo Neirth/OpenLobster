@@ -8,7 +8,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 	"github.com/spf13/viper"
@@ -405,6 +408,35 @@ func TestConfigAdapter_ChannelSlack(t *testing.T) {
 	assert.Equal(t, "xapp-app", viper.GetString("channels.slack.app_token"))
 }
 
+// TestConfigAdapter_Plugins verifies plugin enable flags and settings persistence.
+func TestConfigAdapter_Plugins(t *testing.T) {
+	resetViper()
+	a, _ := newAdapter(t)
+
+	_, err := a.Apply(context.Background(), map[string]interface{}{
+		"pluginsEnabled": map[string]interface{}{
+			"openlobster-ai-openai":         false,
+			"openlobster-messages-telegram": true,
+			"invalid":                       "skip",
+		},
+		"pluginsSettings": map[string]interface{}{
+			"openlobster-ai-openai": map[string]interface{}{
+				"api_key": "sk-plugin",
+				"model":   "gpt-4o-mini",
+			},
+			"invalid": "skip",
+		},
+	})
+	require.NoError(t, err)
+
+	assert.False(t, viper.GetBool("plugins.enabled.openlobster-ai-openai"))
+	assert.True(t, viper.GetBool("plugins.enabled.openlobster-messages-telegram"))
+
+	cfg := viper.GetStringMap("plugins.settings.openlobster-ai-openai")
+	assert.Equal(t, "sk-plugin", cfg["api_key"])
+	assert.Equal(t, "gpt-4o-mini", cfg["model"])
+}
+
 // TestConfigAdapter_WizardCompleted verifies the wizard completion flag.
 func TestConfigAdapter_WizardCompleted(t *testing.T) {
 	resetViper()
@@ -655,6 +687,50 @@ func TestApplyProviderKeys_EmptyStringsDoNotOverwrite(t *testing.T) {
 	assert.Equal(t, "sk-ant-new", viper.GetString("providers.anthropic.api_key"))
 	// openai key must remain untouched
 	assert.Equal(t, "sk-openai-existing", viper.GetString("providers.openai.api_key"))
+}
+
+func TestConfigAdapter_Apply_SerializesConcurrentCalls(t *testing.T) {
+	resetViper()
+	a, _ := newAdapter(t)
+
+	var inFlight int32
+	var maxInFlight int32
+	a.OnApplied = func(_ bool) {
+		cur := atomic.AddInt32(&inFlight, 1)
+		for {
+			prev := atomic.LoadInt32(&maxInFlight)
+			if cur <= prev {
+				break
+			}
+			if atomic.CompareAndSwapInt32(&maxInFlight, prev, cur) {
+				break
+			}
+		}
+		time.Sleep(15 * time.Millisecond)
+		atomic.AddInt32(&inFlight, -1)
+	}
+
+	errCh := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(enabled bool) {
+			defer wg.Done()
+			_, err := a.Apply(context.Background(), map[string]interface{}{
+				"pluginsEnabled": map[string]interface{}{
+					"openlobster-ai-openai": enabled,
+				},
+			})
+			errCh <- err
+		}(i%2 == 0)
+	}
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, int32(1), atomic.LoadInt32(&maxInFlight))
 }
 
 // TestApplyProviderKeys_EmptyModelDoesNotOverwrite verifies that an empty model
@@ -917,7 +993,7 @@ var agentSnapshotBuildCases = []struct {
 //     (apps/backend/tests/integration/config_roundtrip_integration_test.go).
 //  3. Add/remove the corresponding assertion after queryConfig() in that same test.
 //  4. Update expectedViperKeyCount below to the new total.
-const expectedViperKeyCount = 42
+const expectedViperKeyCount = 46
 
 func TestInputToViperKeyMap_FieldCount(t *testing.T) {
 	keys := InputToViperKeyMap()

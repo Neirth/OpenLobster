@@ -125,7 +125,7 @@ func TestJobQueue_DrainUser_CollapsesSameUser(t *testing.T) {
 	first := q.dequeue()
 	assert.Equal(t, "msg1", first.inp.Content)
 
-	latest := q.drainUser("u1")
+	latest := q.drainUser(messageRoutingKey(HandleMessageInput{SenderID: "u1"}))
 	require.NotNil(t, latest)
 	assert.Equal(t, "msg3", latest.inp.Content, "latest should be the last enqueued")
 
@@ -155,7 +155,7 @@ func TestJobQueue_DrainUser_PreservesOtherUsers(t *testing.T) {
 	q.enqueue(convJob{inp: HandleMessageInput{SenderID: "alice", Content: "a2"}, done: doneA2})
 
 	_ = q.dequeue() // worker picks up alice's first job
-	latest := q.drainUser("alice")
+	latest := q.drainUser(messageRoutingKey(HandleMessageInput{SenderID: "alice"}))
 
 	require.NotNil(t, latest)
 	assert.Equal(t, "a2", latest.inp.Content)
@@ -180,7 +180,7 @@ func TestJobQueue_DrainUser_SkipsLoopback(t *testing.T) {
 	_ = q.dequeue() // worker picks loopback task1
 
 	// drainUser for the loopback pairKey must not collapse task2.
-	latest := q.drainUser(loopID)
+	latest := q.drainUser(messageRoutingKey(HandleMessageInput{SenderID: loopID, ChannelType: "loopback"}))
 	assert.Nil(t, latest, "loopback entries must not be drained")
 
 	// Both remaining jobs still in the queue.
@@ -191,14 +191,58 @@ func TestJobQueue_DrainUser_SkipsLoopback(t *testing.T) {
 	assert.Contains(t, keys, loopID)
 }
 
+func TestJobQueue_DrainUser_SkipsAgentChannel(t *testing.T) {
+	q := newJobQueue()
+	doneA := make(chan error, 1)
+	doneU := make(chan error, 1)
+	doneA2 := make(chan error, 1)
+
+	agentPairKey := "agent"
+	q.enqueue(convJob{inp: HandleMessageInput{SenderID: agentPairKey, ChannelID: "agent", ChannelType: "agent", Content: "task1"}, done: doneA})
+	q.enqueue(convJob{inp: HandleMessageInput{SenderID: "user1", Content: "hi"}, done: doneU})
+	q.enqueue(convJob{inp: HandleMessageInput{SenderID: agentPairKey, ChannelID: "agent", ChannelType: "agent", Content: "task2"}, done: doneA2})
+
+	_ = q.dequeue() // worker picks agent task1
+
+	// drainUser for the agent pairKey must not collapse task2.
+	latest := q.drainUser(messageRoutingKey(HandleMessageInput{SenderID: agentPairKey, ChannelID: "agent", ChannelType: "agent"}))
+	assert.Nil(t, latest, "agent entries must not be drained")
+
+	// Both remaining jobs still in the queue.
+	j1 := q.dequeue()
+	j2 := q.dequeue()
+	keys := []string{j1.inp.SenderID, j2.inp.SenderID}
+	assert.Contains(t, keys, "user1")
+	assert.Contains(t, keys, agentPairKey)
+}
+
 func TestJobQueue_DrainUser_NothingToDrain(t *testing.T) {
 	q := newJobQueue()
 	done := make(chan error, 1)
 	q.enqueue(convJob{inp: HandleMessageInput{SenderID: "u1"}, done: done})
 	_ = q.dequeue()
 
-	latest := q.drainUser("u1")
+	latest := q.drainUser(messageRoutingKey(HandleMessageInput{SenderID: "u1"}))
 	assert.Nil(t, latest)
+}
+
+func TestJobQueue_DrainUser_DoesNotCollapseDifferentChannelTypes(t *testing.T) {
+	q := newJobQueue()
+	doneDiscord := make(chan error, 1)
+	doneTelegram := make(chan error, 1)
+
+	q.enqueue(convJob{inp: HandleMessageInput{SenderID: "u-shared", ChannelType: "discord", Content: "d1"}, done: doneDiscord})
+	q.enqueue(convJob{inp: HandleMessageInput{SenderID: "u-shared", ChannelType: "telegram", Content: "t1"}, done: doneTelegram})
+
+	first := q.dequeue()
+	assert.Equal(t, "d1", first.inp.Content)
+
+	latest := q.drainUser(messageRoutingKey(HandleMessageInput{SenderID: "u-shared", ChannelType: "discord"}))
+	assert.Nil(t, latest, "different channel_type should not be drained together")
+
+	remaining := q.dequeue()
+	assert.Equal(t, "t1", remaining.inp.Content)
+	assert.Equal(t, "telegram", remaining.inp.ChannelType)
 }
 
 // ─── pool / Handle integration tests ─────────────────────────────────────────
@@ -293,6 +337,45 @@ func TestHandle_DifferentUsersConcurrent(t *testing.T) {
 
 	close(gate)
 	for _, ch := range []chan error{done1, done2} {
+		select {
+		case err := <-ch:
+			assert.NoError(t, err)
+		case <-time.After(2 * time.Second):
+			t.Fatal("message did not complete within timeout")
+		}
+	}
+}
+
+// TestHandle_SameSenderDifferentChannelsConcurrent verifies that channel_type
+// participates in the worker routing key. Same sender IDs on different
+// platforms must not serialize or collapse into a single queue lane.
+func TestHandle_SameSenderDifferentChannelsConcurrent(t *testing.T) {
+	gate := make(chan struct{})
+	checker := &recordingChecker{gate: gate, ready: make(chan string, 2)}
+	h := newPoolHandler(2, checker, &countingAI{})
+
+	ctx := context.Background()
+	doneDiscord := make(chan error, 1)
+	doneTelegram := make(chan error, 1)
+
+	go func() {
+		doneDiscord <- h.Handle(ctx, HandleMessageInput{ChannelID: "discord-1", SenderID: "same-user", ChannelType: "discord", Content: "hola"})
+	}()
+	go func() {
+		doneTelegram <- h.Handle(ctx, HandleMessageInput{ChannelID: "telegram-1", SenderID: "same-user", ChannelType: "telegram", Content: "hey"})
+	}()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-checker.ready:
+		case <-time.After(2 * time.Second):
+			t.Fatal("expected both channels to start concurrently")
+		}
+	}
+
+	close(gate)
+
+	for _, ch := range []chan error{doneDiscord, doneTelegram} {
 		select {
 		case err := <-ch:
 			assert.NoError(t, err)

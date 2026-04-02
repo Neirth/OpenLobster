@@ -27,14 +27,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/neirth/openlobster/internal/infrastructure/secrets"
+	"github.com/neirth/openlobster/internal/domain/ports"
 )
 
 // Timeouts for OAuth flow so failures surface quickly (no long freezes).
 const (
-	oauthDiscoveryTimeout    = 3 * time.Second
-	oauthRegistrationTimeout = 3 * time.Second
-	oauthSecretsTimeout      = 5 * time.Second
+	oauthDiscoveryTimeout     = 3 * time.Second
+	oauthRegistrationTimeout  = 3 * time.Second
+	oauthSecretsTimeout       = 5 * time.Second
 	oauthTokenExchangeTimeout = 5 * time.Second
 	oauthInitiateTotalTimeout = 12 * time.Second
 )
@@ -257,7 +257,7 @@ const (
 // OAuthManager orchestrates the OAuth 2.1 Authorization Code + PKCE flow for
 // Streamable HTTP MCP servers.
 type OAuthManager struct {
-	secrets       secrets.SecretsProvider
+	secrets       ports.SecretsProvider
 	callbackURLFn func() string // returns current redirect_uri; evaluated on each InitiateOAuth call
 	pending       map[string]*oauthPendingEntry
 	statuses      map[string]OAuthStatus
@@ -270,7 +270,7 @@ type OAuthManager struct {
 // callbackURLFn is called on every InitiateOAuth invocation to obtain the
 // current redirect_uri (e.g. after the user updates graphqlBaseUrl at runtime).
 // If nil, DefaultCallbackBaseURL is always used.
-func NewOAuthManager(sp secrets.SecretsProvider, callbackURLFn func() string) *OAuthManager {
+func NewOAuthManager(sp ports.SecretsProvider, callbackURLFn func() string) *OAuthManager {
 	if callbackURLFn == nil {
 		callbackURLFn = func() string { return DefaultCallbackBaseURL }
 	}

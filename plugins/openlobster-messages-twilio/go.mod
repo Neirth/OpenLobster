@@ -4,6 +4,7 @@ go 1.24
 
 require (
 	github.com/extism/go-pdk v1.1.3
+	github.com/stealthrocket/net v0.2.1
 	github.com/twilio/twilio-go v1.30.4
 )
 

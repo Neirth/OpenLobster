@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"time"
 
-	appmcp "github.com/neirth/openlobster/internal/application/mcp"
 	"github.com/neirth/openlobster/internal/application/graphql"
 	"github.com/neirth/openlobster/internal/application/graphql/dto"
 	"github.com/neirth/openlobster/internal/application/graphql/resolvers"
 	"github.com/neirth/openlobster/internal/application/graphql/subscriptions"
+	appmcp "github.com/neirth/openlobster/internal/application/mcp"
 	"github.com/neirth/openlobster/internal/application/registry"
 	appcontext "github.com/neirth/openlobster/internal/domain/context"
 	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
@@ -21,20 +21,20 @@ import (
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
 	"github.com/neirth/openlobster/internal/domain/services/permissions"
-	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
-	msgrouter "github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/router"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
+	msgrouter "github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/router"
+	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 	"github.com/neirth/openlobster/internal/infrastructure/persistence"
-	"github.com/neirth/openlobster/internal/infrastructure/secrets"
 )
 
 // App holds every component wired during startup. All init* methods populate
 // its fields; lifecycle methods (startAndWait) use them.
 type App struct {
 	// Meta
-	Version  string
-	PublicFS fs.FS
+	Version          string
+	PublicFS         fs.FS
+	BuiltinPluginsFS fs.FS
 
 	// CLI flag overrides (set by Command before calling Run)
 	FlagHost    string
@@ -55,9 +55,9 @@ type App struct {
 	ConvRepo    *repositories.ConversationRepository
 	DashMsgRepo *repositories.DashboardMessageRepository
 
-	ToolPermRepo  repositories.ToolPermissionRepositoryPort
-	MCPServerRepo repositories.MCPServerRepositoryPort
-	PairingRepo   ports.PairingRepositoryPort
+	ToolPermRepo    repositories.ToolPermissionRepositoryPort
+	MCPServerRepo   repositories.MCPServerRepositoryPort
+	PairingRepo     ports.PairingRepositoryPort
 	UserChannelRepo ports.UserChannelRepositoryPort
 
 	// Plugin registry (loaded before services)
@@ -69,8 +69,8 @@ type App struct {
 	MemoryAdapter ports.MemoryPort
 
 	// Messaging
-	ChanReg          *msgrouter.Registry
-	MsgRouter        *msgrouter.Router
+	ChanReg           *msgrouter.Registry
+	MsgRouter         *msgrouter.Router
 	MessagingAdapters []ports.MessagingPort
 
 	// Domain services
@@ -98,7 +98,7 @@ type App struct {
 	ConfigWriter   *dto.ConfigUpdateAdapter
 
 	// MCP
-	SecretsProvider secrets.SecretsProvider
+	SecretsProvider ports.SecretsProvider
 	MCPClientSDK    *mcp.MCPClientSDK
 	OAuthMgr        *mcp.OAuthManager
 	McpConnectPort  *appmcp.ConnectAdapter
@@ -115,8 +115,8 @@ type App struct {
 }
 
 // New returns an uninitialised App. Call Run() to start the daemon.
-func New(version string, publicFS fs.FS) *App {
-	return &App{Version: version, PublicFS: publicFS}
+func New(version string, publicFS fs.FS, builtinPluginsFS fs.FS) *App {
+	return &App{Version: version, PublicFS: publicFS, BuiltinPluginsFS: builtinPluginsFS}
 }
 
 // Run initialises all subsystems in order and blocks until a shutdown signal
@@ -125,7 +125,7 @@ func (a *App) Run() {
 	a.initConfig()
 	a.initWorkspace()
 	a.initDatabase()
-	a.initPlugins()  // plugins load before services so AI/memory providers are ready
+	a.initPlugins() // plugins load before services so AI/memory providers are ready
 	a.initServices()
 	a.initGraphQL()
 	a.initMCP()

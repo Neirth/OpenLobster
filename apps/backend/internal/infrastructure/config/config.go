@@ -178,6 +178,12 @@ type PluginsConfig struct {
 	// Dir is the directory scanned for *.wasm plugin files at startup.
 	// Defaults to $HOME/.openlobster/plugins.
 	Dir string `mapstructure:"dir"`
+	// Defaults maps plugin categories to preferred plugin IDs.
+	// Supported keys: "memory", "secrets", "audio".
+	Defaults map[string]string `mapstructure:"defaults"`
+	// Enabled maps plugin IDs to activation state. If a plugin ID is absent,
+	// it is considered enabled by default for backward compatibility.
+	Enabled map[string]bool `mapstructure:"enabled"`
 	// Settings maps plugin IDs to their per-plugin configuration key/value pairs.
 	// These are forwarded to the plugin as the "config" field in every call.
 	Settings map[string]map[string]interface{} `mapstructure:"settings"`
@@ -210,7 +216,6 @@ type Config struct {
 	Wizard      WizardConfig      `mapstructure:"wizard"`
 	Plugins     PluginsConfig     `mapstructure:"plugins"`
 }
-
 
 // WizardConfig holds first-boot wizard state (server-side).
 type WizardConfig struct {
@@ -282,11 +287,11 @@ type ProvidersConfig struct {
 }
 
 type OpenRouterConfig struct {
-	APIKey        string `mapstructure:"api_key"`
-	DefaultModel  string `mapstructure:"default_model"`
+	APIKey       string `mapstructure:"api_key"`
+	DefaultModel string `mapstructure:"default_model"`
 	// ContextWindow overrides the context window used for message chunking.
 	// Required because OpenRouter does not expose this via API.
-	ContextWindow int    `mapstructure:"context_window"`
+	ContextWindow int `mapstructure:"context_window"`
 }
 
 type OllamaConfig struct {
@@ -332,10 +337,10 @@ type AnthropicConfig struct {
 
 // DockerModelRunnerConfig holds settings for Docker Desktop's Model Runner.
 type DockerModelRunnerConfig struct {
-	Endpoint      string `mapstructure:"endpoint"`
-	DefaultModel  string `mapstructure:"default_model"`
+	Endpoint     string `mapstructure:"endpoint"`
+	DefaultModel string `mapstructure:"default_model"`
 	// ContextWindow overrides the context window used for message chunking.
-	ContextWindow int    `mapstructure:"context_window"`
+	ContextWindow int `mapstructure:"context_window"`
 }
 
 type ChannelsConfig struct {
@@ -521,6 +526,7 @@ func setDefaults() {
 	viper.SetDefault("channels.slack.app_token", "")
 	// Default agent name (shown in navbar)
 	viper.SetDefault("agent.name", "OpenLobster")
+	viper.SetDefault("agent.provider", "ollama")
 	viper.SetDefault("agent.reasoning_level", "medium")
 	// Default capabilities: all enabled except browser and terminal (opt-in)
 	viper.SetDefault("agent.capabilities.browser", false)
@@ -534,12 +540,16 @@ func setDefaults() {
 	viper.SetDefault("plugins.dir", filepath.Join(home, ".openlobster", "plugins"))
 	viper.SetDefault("plugins.data_dir", filepath.Join(home, ".openlobster"))
 	viper.SetDefault("plugins.call_timeout", "10s")
+	viper.SetDefault("plugins.defaults", map[string]string{
+		"ai":      "",
+		"memory":  "",
+		"secrets": "",
+		"audio":   "",
+	})
+	viper.SetDefault("plugins.enabled", map[string]bool{})
 	viper.SetDefault("plugins.builtins", []string{
 		"openlobster-messages-telegram",
 		"openlobster-messages-discord",
-		"openlobster-messages-slack",
-		"openlobster-messages-twilio",
-		"openlobster-messages-whatsapp",
 		"openlobster-ai-anthropic",
 		"openlobster-ai-openai",
 		"openlobster-ai-ollama",
@@ -595,6 +605,7 @@ func bootstrapEncryptedConfig(path string) error {
 	v.SetDefault("permissions.default_mode", "deny")
 	v.SetDefault("providers.ollama.endpoint", "http://localhost:11434")
 	v.SetDefault("agent.name", "OpenLobster")
+	v.SetDefault("agent.provider", "ollama")
 	v.SetDefault("agent.capabilities.browser", false)
 	v.SetDefault("agent.capabilities.terminal", false)
 	v.SetDefault("agent.capabilities.subagents", true)
@@ -603,6 +614,13 @@ func bootstrapEncryptedConfig(path string) error {
 	v.SetDefault("agent.capabilities.filesystem", true)
 	v.SetDefault("agent.capabilities.sessions", true)
 	v.SetDefault("wizard.completed", false)
+	v.SetDefault("plugins.defaults", map[string]string{
+		"ai":      "",
+		"memory":  "",
+		"secrets": "",
+		"audio":   "",
+	})
+	v.SetDefault("plugins.enabled", map[string]bool{})
 	return WriteEncryptedConfigFromViper(v, absPath)
 }
 
@@ -671,6 +689,7 @@ func DefaultConfig() *Config {
 		Agent: AgentConfig{
 			Name:         "openlobster",
 			SystemPrompt: "You are openlobster, an autonomous messaging agent.",
+			Provider:     "ollama",
 		},
 		Scheduler: SchedulerConfig{
 			Interval:       30 * time.Second,
