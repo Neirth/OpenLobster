@@ -55,6 +55,7 @@ type AppConfig struct {
 	ActiveSessions  []*ActiveSession      `json:"activeSessions"`
 	Channels        []*ChannelConfig      `json:"channels"`
 	ChannelSecrets  *ChannelSecretsConfig `json:"channelSecrets,omitempty"`
+	PluginDefaults  *PluginDefaultsConfig `json:"pluginDefaults,omitempty"`
 	WizardCompleted *bool                 `json:"wizardCompleted,omitempty"`
 }
 
@@ -367,10 +368,18 @@ type Plugin struct {
 	Description string  `json:"description"`
 	PluginType  string  `json:"pluginType"`
 	SchemaJSON  string  `json:"schemaJson"`
+	ConfigJSON  string  `json:"configJson"`
 	Enabled     bool    `json:"enabled"`
 	Available   bool    `json:"available"`
 	LastError   *string `json:"lastError,omitempty"`
 	Builtin     bool    `json:"builtin"`
+}
+
+type PluginDefaultsConfig struct {
+	Ai      *string `json:"ai,omitempty"`
+	Memory  *string `json:"memory,omitempty"`
+	Secrets *string `json:"secrets,omitempty"`
+	Audio   *string `json:"audio,omitempty"`
 }
 
 type Query struct {
@@ -505,6 +514,10 @@ type UpdateConfigInput struct {
 	SecretsFilePath           *string            `json:"secretsFilePath,omitempty"`
 	SecretsOpenbaoURL         *string            `json:"secretsOpenbaoURL,omitempty"`
 	SecretsOpenbaoToken       *string            `json:"secretsOpenbaoToken,omitempty"`
+	PluginDefaultMemory       *string            `json:"pluginDefaultMemory,omitempty"`
+	PluginDefaultSecrets      *string            `json:"pluginDefaultSecrets,omitempty"`
+	PluginDefaultAudio        *string            `json:"pluginDefaultAudio,omitempty"`
+	PluginDefaultAi           *string            `json:"pluginDefaultAi,omitempty"`
 	SchedulerEnabled          *bool              `json:"schedulerEnabled,omitempty"`
 	SchedulerMemoryEnabled    *bool              `json:"schedulerMemoryEnabled,omitempty"`
 	SchedulerMemoryInterval   *string            `json:"schedulerMemoryInterval,omitempty"`

@@ -1,8 +1,12 @@
 package resolvers
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
 	"github.com/neirth/openlobster/internal/domain/ports"
+	"github.com/spf13/viper"
 )
 
 // pluginsFromRegistry converts domain PluginPort slice to GraphQL Plugin slice.
@@ -21,8 +25,9 @@ func pluginsFromRegistry(plugins []ports.PluginPort) []*generated.Plugin {
 			Description: p.Description(),
 			PluginType:  p.Type(),
 			SchemaJSON:  schemaStr,
-			Enabled:     true,
-			Available:   pluginAvailable(p),
+			ConfigJSON:  pluginConfigJSON(p.ID()),
+			Enabled:     pluginEnabled(p.ID()),
+			Available:   pluginEnabled(p.ID()) && pluginAvailable(p),
 			LastError:   pluginLastError(p),
 			Builtin:     pluginBuiltin(p),
 		})
@@ -55,3 +60,39 @@ func pluginBuiltin(p ports.PluginPort) bool {
 	return false
 }
 
+func pluginEnabled(pluginID string) bool {
+	key := fmt.Sprintf("plugins.enabled.%s", pluginID)
+	if !viper.IsSet(key) {
+		return true
+	}
+	return viper.GetBool(key)
+}
+
+func pluginConfigJSON(pluginID string) string {
+	cfg := viper.GetStringMap(fmt.Sprintf("plugins.settings.%s", pluginID))
+	if len(cfg) == 0 {
+		return "{}"
+	}
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return "{}"
+	}
+	return string(raw)
+}
+
+func messagingChannelInputKeyForPluginID(pluginID string) string {
+	switch pluginID {
+	case "openlobster-messages-telegram":
+		return "channelTelegramEnabled"
+	case "openlobster-messages-discord":
+		return "channelDiscordEnabled"
+	case "openlobster-messages-slack":
+		return "channelSlackEnabled"
+	case "openlobster-messages-whatsapp":
+		return "channelWhatsAppEnabled"
+	case "openlobster-messages-twilio":
+		return "channelTwilioEnabled"
+	default:
+		return ""
+	}
+}

@@ -434,6 +434,14 @@ func AppConfigSnapshotToGenerated(cfg *dto.AppConfigSnapshot) *generated.AppConf
 		cs.SlackAppToken = strOrNil(cfg.ChannelSecrets.SlackAppToken)
 		out.ChannelSecrets = cs
 	}
+	if cfg.PluginDefaults != nil {
+		out.PluginDefaults = &generated.PluginDefaultsConfig{
+			Ai:      strOrNil(cfg.PluginDefaults.AI),
+			Memory:  strOrNil(cfg.PluginDefaults.Memory),
+			Secrets: strOrNil(cfg.PluginDefaults.Secrets),
+			Audio:   strOrNil(cfg.PluginDefaults.Audio),
+		}
+	}
 	out.WizardCompleted = BoolPtr(cfg.WizardCompleted)
 	return out
 }
@@ -606,6 +614,18 @@ func UpdateConfigInputToMap(input generated.UpdateConfigInput) map[string]interf
 	}
 	if input.SecretsOpenbaoToken != nil {
 		m["secretsOpenbaoToken"] = *input.SecretsOpenbaoToken
+	}
+	if input.PluginDefaultMemory != nil {
+		m["pluginDefaultMemory"] = *input.PluginDefaultMemory
+	}
+	if input.PluginDefaultSecrets != nil {
+		m["pluginDefaultSecrets"] = *input.PluginDefaultSecrets
+	}
+	if input.PluginDefaultAudio != nil {
+		m["pluginDefaultAudio"] = *input.PluginDefaultAudio
+	}
+	if input.PluginDefaultAi != nil {
+		m["pluginDefaultAi"] = *input.PluginDefaultAi
 	}
 	if input.SchedulerEnabled != nil {
 		m["schedulerEnabled"] = *input.SchedulerEnabled

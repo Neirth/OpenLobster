@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/extism/go-pdk v1.1.3
 	github.com/openai/openai-go/v3 v3.30.0
+	github.com/stealthrocket/net v0.2.1
 )
 
 require (

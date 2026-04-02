@@ -19,6 +19,10 @@ type AudioWrapper struct {
 	cfg    map[string]interface{}
 }
 
+func (w *AudioWrapper) currentConfig() map[string]interface{} {
+	return liveConfigForPlugin(w.plugin.ID(), w.cfg)
+}
+
 // NewAudioWrapper returns an AudioWrapper backed by p.
 func NewAudioWrapper(p ports.PluginPort, cfg map[string]interface{}) *AudioWrapper {
 	return &AudioWrapper{plugin: p, cfg: cfg}
@@ -42,7 +46,7 @@ type ttsPluginOutput struct {
 func (w *AudioWrapper) TextToSpeech(_ context.Context, req ports.TTSRequest) (ports.TTSResponse, error) {
 	cfg := req.Config
 	if cfg == nil {
-		cfg = w.cfg
+		cfg = w.currentConfig()
 	}
 	input := ttsPluginInput{
 		Text:    req.Text,
@@ -90,7 +94,7 @@ type sttPluginOutput struct {
 func (w *AudioWrapper) SpeechToText(_ context.Context, req ports.STTRequest) (ports.STTResponse, error) {
 	cfg := req.Config
 	if cfg == nil {
-		cfg = w.cfg
+		cfg = w.currentConfig()
 	}
 	input := sttPluginInput{
 		Audio:    base64.StdEncoding.EncodeToString(req.Audio),

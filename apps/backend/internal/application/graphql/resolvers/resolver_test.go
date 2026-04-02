@@ -1261,7 +1261,7 @@ func (m *mockMemoryPort) GetUserGraph(ctx context.Context, userID string) (ports
 	return ports.Graph{}, nil
 }
 func (m *mockMemoryPort) AddRelation(ctx context.Context, from, to, relType string) error { return nil }
-func (m *mockMemoryPort) DeleteRelation(ctx context.Context, from, to string) error { return nil }
+func (m *mockMemoryPort) DeleteRelation(ctx context.Context, from, to string) error       { return nil }
 func (m *mockMemoryPort) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
 	return ports.GraphResult{}, nil
 }
@@ -1463,7 +1463,7 @@ func (m *mockPairingPort) Deny(ctx context.Context, code, reason string) error {
 	return m.denyErr
 }
 
-	// Verify that concrete types implement the generated interfaces.
+// Verify that concrete types implement the generated interfaces.
 var (
 	_ generated.QueryResolver        = (*queryResolver)(nil)
 	_ generated.MutationResolver     = (*mutationResolver)(nil)

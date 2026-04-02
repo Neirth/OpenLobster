@@ -297,6 +297,12 @@ export const CONFIG_QUERY = /* GraphQL */ `
         slackBotToken
         slackAppToken
       }
+      pluginDefaults {
+        ai
+        memory
+        secrets
+        audio
+      }
       wizardCompleted
     }
   }
@@ -324,6 +330,7 @@ export const PLUGINS_QUERY = /* GraphQL */ `
       description
       pluginType
       schemaJson
+      configJson
       enabled
       available
       lastError

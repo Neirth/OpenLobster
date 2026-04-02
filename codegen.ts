@@ -14,6 +14,7 @@ const config: CodegenConfig = {
     "./schema/skills.graphql",
     "./schema/tools.graphql",
     "./schema/subscriptions.graphql",
+    "./schema/plugins.graphql",
   ],
 
   documents: [

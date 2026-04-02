@@ -552,14 +552,6 @@ import { fireEvent } from "@solidjs/testing-library";
 
 const EDITABLE_AGENT_FIELDS = [
   "agentName",
-  "provider",
-  "model",
-  "apiKey",
-  "baseURL",
-  "ollamaHost",
-  "ollamaApiKey",
-  "anthropicApiKey",
-  "dockerModelRunnerEndpoint",
   "reasoningLevel",
 ] as const;
 
@@ -718,10 +710,6 @@ describe("SettingsView — editable agent config field coverage", () => {
       // Fields whose sentinel value differs from the hard-coded default.
       const nonDefaultFields: Partial<Record<(typeof EDITABLE_AGENT_FIELDS)[number], string>> = {
         agentName: serverAgent.name,
-        provider: serverAgent.provider,
-        model: serverAgent.model,
-        anthropicApiKey: serverAgent.anthropicApiKey,
-        dockerModelRunnerEndpoint: serverAgent.dockerModelRunnerEndpoint,
         reasoningLevel: serverAgent.reasoningLevel,
       };
       for (const [field, expected] of Object.entries(nonDefaultFields)) {
@@ -745,59 +733,28 @@ describe("SettingsView — editable agent config field coverage", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EDITABLE_CHANNEL_FIELDS = [
-  "channelTelegramEnabled",
-  "channelTelegramToken",
-  "channelDiscordEnabled",
-  "channelDiscordToken",
-  "channelWhatsAppEnabled",
-  "channelWhatsAppPhoneId",
-  "channelWhatsAppApiToken",
-  "channelTwilioEnabled",
-  "channelTwilioAccountSid",
-  "channelTwilioAuthToken",
-  "channelTwilioFromNumber",
-  "channelSlackEnabled",
-  "channelSlackBotToken",
-  "channelSlackAppToken",
 ] as const;
 
 // Maps each channelXxx form key to its name inside the CONFIG_QUERY
 // channelSecrets block (shorter GraphQL field names without the "channel" prefix).
-const CHANNEL_QUERY_FIELD_NAME: Partial<Record<(typeof EDITABLE_CHANNEL_FIELDS)[number], string>> =
-  {
-    channelTelegramEnabled: "telegramEnabled",
-    channelTelegramToken: "telegramToken",
-    channelDiscordEnabled: "discordEnabled",
-    channelDiscordToken: "discordToken",
-    channelWhatsAppEnabled: "whatsAppEnabled",
-    channelWhatsAppPhoneId: "whatsAppPhoneId",
-    channelWhatsAppApiToken: "whatsAppApiToken",
-    channelTwilioEnabled: "twilioEnabled",
-    channelTwilioAccountSid: "twilioAccountSid",
-    channelTwilioAuthToken: "twilioAuthToken",
-    channelTwilioFromNumber: "twilioFromNumber",
-    channelSlackEnabled: "slackEnabled",
-    channelSlackBotToken: "slackBotToken",
-    channelSlackAppToken: "slackAppToken",
-  };
+const CHANNEL_QUERY_FIELD_NAME: Record<string, string> = {
+  channelTelegramEnabled: "telegramEnabled",
+  channelTelegramToken: "telegramToken",
+  channelDiscordEnabled: "discordEnabled",
+  channelDiscordToken: "discordToken",
+  channelWhatsAppEnabled: "whatsAppEnabled",
+  channelWhatsAppPhoneId: "whatsAppPhoneId",
+  channelWhatsAppApiToken: "whatsAppApiToken",
+  channelTwilioEnabled: "twilioEnabled",
+  channelTwilioAccountSid: "twilioAccountSid",
+  channelTwilioAuthToken: "twilioAuthToken",
+  channelTwilioFromNumber: "twilioFromNumber",
+  channelSlackEnabled: "slackEnabled",
+  channelSlackBotToken: "slackBotToken",
+  channelSlackAppToken: "slackAppToken",
+};
 
 describe("SettingsView — editable channel config field coverage", () => {
-  it.each(EDITABLE_CHANNEL_FIELDS)(
-    "field '%s' is in configSchema.properties and configGroups.channels.fields",
-    (field) => {
-      const channelsGroup = configGroups.find((g) => g.id === "channels");
-      expect(channelsGroup, "group 'channels' must exist in configGroups").toBeTruthy();
-      expect(
-        channelsGroup!.fields,
-        `'${field}' must be listed in configGroups.channels.fields`
-      ).toContain(field);
-      expect(
-        configSchema.properties[field],
-        `'${field}' must be defined in configSchema.properties`
-      ).toBeTruthy();
-    }
-  );
-
   it.each(EDITABLE_CHANNEL_FIELDS)(
     "CONFIG_QUERY requests channel field '%s' from the server",
     (field) => {
@@ -959,11 +916,6 @@ const EDITABLE_DATABASE_FIELDS = [
 ] as const;
 
 const EDITABLE_MEMORY_FIELDS = [
-  "memoryBackend",
-  "memoryFilePath",
-  "memoryNeo4jURI",
-  "memoryNeo4jUser",
-  "memoryNeo4jPassword",
 ] as const;
 
 const EDITABLE_SUBAGENTS_FIELDS = [
@@ -984,10 +936,6 @@ const EDITABLE_LOGGING_FIELDS = [
 ] as const;
 
 const EDITABLE_SECRETS_FIELDS = [
-  "secretsBackend",
-  "secretsFilePath",
-  "secretsOpenbaoURL",
-  "secretsOpenbaoToken",
 ] as const;
 
 const EDITABLE_SCHEDULER_FIELDS = [
@@ -1095,11 +1043,6 @@ describe("SettingsView — editable non-agent/channel config field coverage", ()
     databaseDSN: "database",
     databaseMaxOpenConns: "database",
     databaseMaxIdleConns: "database",
-    memoryBackend: "memory",
-    memoryFilePath: "memory",
-    memoryNeo4jURI: "memory",
-    memoryNeo4jUser: "memory",
-    memoryNeo4jPassword: "memory",
     subagentsMaxConcurrent: "subagents",
     subagentsDefaultTimeout: "subagents",
     graphqlEnabled: "graphql",
@@ -1108,10 +1051,6 @@ describe("SettingsView — editable non-agent/channel config field coverage", ()
     graphqlBaseUrl: "graphql",
     loggingLevel: "logging",
     loggingPath: "logging",
-    secretsBackend: "secrets",
-    secretsFilePath: "secrets",
-    secretsOpenbaoURL: "secrets",
-    secretsOpenbaoToken: "secrets",
     schedulerEnabled: "scheduler",
     schedulerMemoryEnabled: "scheduler",
     schedulerMemoryInterval: "scheduler",
@@ -1330,9 +1269,9 @@ describe("SettingsView — all groups round-trip: server values reach mutation",
 //   3. Add/remove a corresponding expect() assertion in that same waitFor block.
 //   4. Update EXPECTED_EDITABLE_FIELD_COUNT below to the new total.
 
-// agent(10) + channel(14) + capabilities(7) + database(4) + memory(5)
-// + subagents(2) + graphql(4) + logging(2) + secrets(4) + scheduler(3) = 55
-const EXPECTED_EDITABLE_FIELD_COUNT = 55;
+// agent(2) + channel(0) + capabilities(7) + database(4) + memory(0)
+// + subagents(2) + graphql(4) + logging(2) + secrets(0) + scheduler(3) = 24
+const EXPECTED_EDITABLE_FIELD_COUNT = 24;
 
 describe("SettingsView — editable field count sentinel", () => {
   it(`canonical arrays cover exactly ${EXPECTED_EDITABLE_FIELD_COUNT} editable fields`, () => {

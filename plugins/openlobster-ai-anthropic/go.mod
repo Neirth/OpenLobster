@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/anthropics/anthropic-sdk-go v1.27.1
 	github.com/extism/go-pdk v1.1.3
+	github.com/stealthrocket/net v0.2.1
 )
 
 require (

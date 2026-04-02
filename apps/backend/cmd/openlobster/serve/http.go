@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
-	appmcp "github.com/neirth/openlobster/internal/application/mcp"
-	"github.com/neirth/openlobster/internal/application/webhooks"
+	appa2a "github.com/neirth/openlobster/internal/application/a2a"
 	"github.com/neirth/openlobster/internal/application/health"
+	appmcp "github.com/neirth/openlobster/internal/application/mcp"
 	"github.com/neirth/openlobster/internal/application/metrics"
+	"github.com/neirth/openlobster/internal/application/webhooks"
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
 	"github.com/neirth/openlobster/internal/infrastructure/logging"
 
@@ -23,7 +24,7 @@ import (
 )
 
 // initHTTP builds the HTTP mux, registers all routes (GraphQL, WebSocket
-// subscriptions, webhooks, OAuth callback, static assets, health and metrics)
+// subscriptions, dynamic webhooks, OAuth callback, static assets, health and metrics)
 // and creates the http.Server.
 func (a *App) initHTTP() {
 	cfg := a.Cfg
@@ -61,6 +62,7 @@ func (a *App) initHTTP() {
 	})
 
 	webhooks.NewHandler(a.ChanReg, a.MsgHandler).Register(a.Mux)
+	appa2a.NewHandler(a.Cfg, a.Deps).Register(a.Mux)
 
 	a.Mux.HandleFunc("/oauth/callback", a.oauthCallbackHandler)
 	log.Println("oauth: /oauth/callback registered")

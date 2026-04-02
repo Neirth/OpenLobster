@@ -99,6 +99,12 @@ func BuildConfigSnapshot(cfg *config.Config, providerNameFn func(*config.Config)
 			SlackBotToken:    cfg.Channels.Slack.BotToken,
 			SlackAppToken:    cfg.Channels.Slack.AppToken,
 		},
+		PluginDefaults: &PluginDefaultsSnapshot{
+			AI:      cfg.Plugins.Defaults["ai"],
+			Memory:  cfg.Plugins.Defaults["memory"],
+			Secrets: cfg.Plugins.Defaults["secrets"],
+			Audio:   cfg.Plugins.Defaults["audio"],
+		},
 		WizardCompleted: cfg.Wizard.Completed,
 	}
 }

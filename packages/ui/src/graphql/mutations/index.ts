@@ -263,11 +263,18 @@ export const RELOAD_PLUGINS_MUTATION = /* GraphQL */ `
       description
       pluginType
       schemaJson
+      configJson
       enabled
       available
       lastError
       builtin
     }
+  }
+`;
+
+export const SET_PLUGIN_ENABLED_MUTATION = /* GraphQL */ `
+  mutation SetPluginEnabled($pluginId: String!, $enabled: Boolean!) {
+    setPluginEnabled(pluginId: $pluginId, enabled: $enabled)
   }
 `;
 

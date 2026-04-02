@@ -32,9 +32,10 @@
     "solid-js": "^1.9.11"
   },
   "peerDependencies": {
-    "@tanstack/solid-query": "^5.0.0"
+    "@tanstack/solid-query": "^5.95.2"
   },
   "devDependencies": {
+    "@tanstack/solid-query": "^5.95.2",
     "graphql-ws": "^6.0.7",
     "@turbo/gen": "^2.8.20",
     "@types/eslint": "^9.6.1",

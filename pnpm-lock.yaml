@@ -142,9 +142,6 @@ importers:
 
   packages/ui:
     dependencies:
-      '@tanstack/solid-query':
-        specifier: ^5.0.0
-        version: 5.90.26(solid-js@1.9.11)
       graphql:
         specifier: ^16.13.2
         version: 16.13.2
@@ -158,6 +155,9 @@ importers:
         specifier: ^1.9.11
         version: 1.9.11
     devDependencies:
+      '@tanstack/solid-query':
+        specifier: ^5.95.2
+        version: 5.95.2(solid-js@1.9.11)
       '@turbo/gen':
         specifier: ^2.8.20
         version: 2.8.20(@types/node@25.5.0)
@@ -216,6 +216,10 @@ importers:
   plugins/openlobster-messages-twilio: {}
 
   plugins/openlobster-messages-whatsapp: {}
+
+  plugins/openlobster-secrets-json: {}
+
+  plugins/openlobster-secrets-openbao: {}
 
 packages:
 
@@ -1244,16 +1248,8 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@tanstack/query-core@5.90.20':
-    resolution: {integrity: sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg==}
-
   '@tanstack/query-core@5.95.2':
     resolution: {integrity: sha512-o4T8vZHZET4Bib3jZ/tCW9/7080urD4c+0/AUaYVpIqOsr7y0reBc1oX3ttNaSW5mYyvZHctiQ/UOP2PfdmFEQ==}
-
-  '@tanstack/solid-query@5.90.26':
-    resolution: {integrity: sha512-hcpJpZisOXeupB2arMAtz+RDLHi/s3Pen+rNCmoAPeAzwbhTPDMpVDF/1PAbwIGWAklvp9DTxWSI9rD3K3k04A==}
-    peerDependencies:
-      solid-js: ^1.6.0
 
   '@tanstack/solid-query@5.95.2':
     resolution: {integrity: sha512-1xsEybSKZhgaSMUmU71f4Ows5cLWtA6YyLMDUxhSwe8J9nD1b8J2VQF7KxiSESxDOznX7WabYCSv6CtcR4XVbg==}
@@ -3955,14 +3951,7 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@tanstack/query-core@5.90.20': {}
-
   '@tanstack/query-core@5.95.2': {}
-
-  '@tanstack/solid-query@5.90.26(solid-js@1.9.11)':
-    dependencies:
-      '@tanstack/query-core': 5.90.20
-      solid-js: 1.9.11
 
   '@tanstack/solid-query@5.95.2(solid-js@1.9.11)':
     dependencies:

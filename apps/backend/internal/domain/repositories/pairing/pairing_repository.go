@@ -34,9 +34,9 @@ func (r *repository) Create(ctx context.Context, p *ports.Pairing) error {
 		PlatformUserID:   p.PlatformUserID,
 		PlatformUserName: p.PlatformUserName,
 		ChannelType:      p.ChannelType,
-		ExpiresAt:        time.Unix(p.ExpiresAt, 0),
+		ExpiresAt:        time.Unix(p.ExpiresAt, 0).UTC(),
 		Status:           p.Status,
-		CreatedAt:        time.Unix(p.CreatedAt, 0),
+		CreatedAt:        time.Unix(p.CreatedAt, 0).UTC(),
 	}
 	return r.db.WithContext(ctx).Create(&m).Error
 }

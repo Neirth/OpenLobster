@@ -5,22 +5,59 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
+	"sync"
 	"testing"
 
-	"github.com/neirth/openlobster/internal/infrastructure/secrets"
+	"github.com/neirth/openlobster/internal/domain/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestSecretsProvider(t *testing.T) secrets.SecretsProvider {
-	tmpFile := t.TempDir() + "/secrets.json"
-	key := make([]byte, 32)
-	for i := range key {
-		key[i] = byte(i)
+type inMemorySecretsProvider struct {
+	mu   sync.RWMutex
+	data map[string]string
+}
+
+func (s *inMemorySecretsProvider) Get(ctx context.Context, key string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.data[key]
+	if !ok {
+		return "", ports.ErrNotFound
 	}
-	sp, err := secrets.NewFileSecretsProvider(tmpFile, key)
-	require.NoError(t, err)
-	return sp
+	return v, nil
+}
+
+func (s *inMemorySecretsProvider) Set(ctx context.Context, key string, value string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data[key] = value
+	return nil
+}
+
+func (s *inMemorySecretsProvider) Delete(ctx context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.data, key)
+	return nil
+}
+
+func (s *inMemorySecretsProvider) List(ctx context.Context, prefix string) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]string, 0)
+	for k := range s.data {
+		if strings.HasPrefix(k, prefix) {
+			out = append(out, k)
+		}
+	}
+	return out, nil
+}
+
+func newTestSecretsProvider(t *testing.T) ports.SecretsProvider {
+	t.Helper()
+	return &inMemorySecretsProvider{data: map[string]string{}}
 }
 
 func TestCodeChallenge(t *testing.T) {

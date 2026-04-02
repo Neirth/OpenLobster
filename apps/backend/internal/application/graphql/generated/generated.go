@@ -85,6 +85,7 @@ type ComplexityRoot struct {
 		Graphql         func(childComplexity int) int
 		Logging         func(childComplexity int) int
 		Memory          func(childComplexity int) int
+		PluginDefaults  func(childComplexity int) int
 		Scheduler       func(childComplexity int) int
 		Secrets         func(childComplexity int) int
 		Subagents       func(childComplexity int) int
@@ -369,6 +370,7 @@ type ComplexityRoot struct {
 		RemoveTask            func(childComplexity int, taskID string) int
 		SendMessage           func(childComplexity int, conversationID *string, channelID *string, content string) int
 		SetAllToolPermissions func(childComplexity int, userID string, mode string) int
+		SetPluginEnabled      func(childComplexity int, pluginID string, enabled bool) int
 		SetToolPermission     func(childComplexity int, userID string, toolName string, mode string) int
 		SpawnSubAgent         func(childComplexity int, name string, model string, task *string) int
 		ToggleTask            func(childComplexity int, id string, enabled bool) int
@@ -419,6 +421,7 @@ type ComplexityRoot struct {
 	Plugin struct {
 		Available   func(childComplexity int) int
 		Builtin     func(childComplexity int) int
+		ConfigJSON  func(childComplexity int) int
 		Description func(childComplexity int) int
 		Enabled     func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -427,6 +430,13 @@ type ComplexityRoot struct {
 		PluginType  func(childComplexity int) int
 		SchemaJSON  func(childComplexity int) int
 		Version     func(childComplexity int) int
+	}
+
+	PluginDefaultsConfig struct {
+		Ai      func(childComplexity int) int
+		Audio   func(childComplexity int) int
+		Memory  func(childComplexity int) int
+		Secrets func(childComplexity int) int
 	}
 
 	Query struct {
@@ -624,6 +634,7 @@ type MutationResolver interface {
 	ApprovePairing(ctx context.Context, code string, userID *string, displayName *string) (*ApprovePairingResult, error)
 	DenyPairing(ctx context.Context, code string, reason *string) (*DenyPairingResult, error)
 	ReloadPlugins(ctx context.Context) ([]*Plugin, error)
+	SetPluginEnabled(ctx context.Context, pluginID string, enabled bool) (bool, error)
 	UpdatePluginConfig(ctx context.Context, pluginID string, configJSON string) (bool, error)
 }
 type QueryResolver interface {
@@ -915,6 +926,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AppConfig.Memory(childComplexity), true
+	case "AppConfig.pluginDefaults":
+		if e.ComplexityRoot.AppConfig.PluginDefaults == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AppConfig.PluginDefaults(childComplexity), true
 	case "AppConfig.scheduler":
 		if e.ComplexityRoot.AppConfig.Scheduler == nil {
 			break
@@ -2161,6 +2178,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetAllToolPermissions(childComplexity, args["userId"].(string), args["mode"].(string)), true
+	case "Mutation.setPluginEnabled":
+		if e.ComplexityRoot.Mutation.SetPluginEnabled == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setPluginEnabled_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetPluginEnabled(childComplexity, args["pluginId"].(string), args["enabled"].(bool)), true
 	case "Mutation.setToolPermission":
 		if e.ComplexityRoot.Mutation.SetToolPermission == nil {
 			break
@@ -2382,6 +2410,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Plugin.Builtin(childComplexity), true
+	case "Plugin.configJson":
+		if e.ComplexityRoot.Plugin.ConfigJSON == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Plugin.ConfigJSON(childComplexity), true
 	case "Plugin.description":
 		if e.ComplexityRoot.Plugin.Description == nil {
 			break
@@ -2430,6 +2464,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Plugin.Version(childComplexity), true
+
+	case "PluginDefaultsConfig.ai":
+		if e.ComplexityRoot.PluginDefaultsConfig.Ai == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginDefaultsConfig.Ai(childComplexity), true
+	case "PluginDefaultsConfig.audio":
+		if e.ComplexityRoot.PluginDefaultsConfig.Audio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginDefaultsConfig.Audio(childComplexity), true
+	case "PluginDefaultsConfig.memory":
+		if e.ComplexityRoot.PluginDefaultsConfig.Memory == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginDefaultsConfig.Memory(childComplexity), true
+	case "PluginDefaultsConfig.secrets":
+		if e.ComplexityRoot.PluginDefaultsConfig.Secrets == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PluginDefaultsConfig.Secrets(childComplexity), true
 
 	case "Query.agent":
 		if e.ComplexityRoot.Query.Agent == nil {
@@ -3423,6 +3482,13 @@ type SecretsConfig {
   openbao: OpenbaoSecretsConfig
 }
 
+type PluginDefaultsConfig {
+  ai: String
+  memory: String
+  secrets: String
+  audio: String
+}
+
 type SchedulerConfig {
   enabled:        Boolean
   memoryEnabled:  Boolean
@@ -3473,6 +3539,7 @@ type AppConfig {
   activeSessions: [ActiveSession!]!
   channels:       [ChannelConfig!]!
   channelSecrets: ChannelSecretsConfig
+  pluginDefaults: PluginDefaultsConfig
   wizardCompleted: Boolean  # True when first-boot wizard has been completed (server-side)
 }
 
@@ -3524,6 +3591,11 @@ input UpdateConfigInput {
   secretsFilePath:    String
   secretsOpenbaoURL:  String
   secretsOpenbaoToken: String
+
+  pluginDefaultMemory:  String
+  pluginDefaultSecrets: String
+  pluginDefaultAudio:   String
+  pluginDefaultAi:      String
 
   schedulerEnabled:        Boolean
   schedulerMemoryEnabled:  Boolean
@@ -3962,6 +4034,7 @@ type Plugin {
   description: String!
   pluginType:  String!
   schemaJson:  String!
+  configJson:  String!
   enabled:     Boolean!
   available:   Boolean!
   lastError:   String
@@ -3974,6 +4047,7 @@ extend type Query {
 
 extend type Mutation {
   reloadPlugins:                               [Plugin!]!
+  setPluginEnabled(pluginId: String!, enabled: Boolean!): Boolean!
   updatePluginConfig(pluginId: String!, configJson: String!): Boolean!
 }
 `, BuiltIn: false},
@@ -4330,6 +4404,22 @@ func (ec *executionContext) field_Mutation_setAllToolPermissions_args(ctx contex
 		return nil, err
 	}
 	args["mode"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setPluginEnabled_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "pluginId", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["pluginId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "enabled", ec.unmarshalNBoolean2bool)
+	if err != nil {
+		return nil, err
+	}
+	args["enabled"] = arg1
 	return args, nil
 }
 
@@ -5946,6 +6036,45 @@ func (ec *executionContext) fieldContext_AppConfig_channelSecrets(_ context.Cont
 				return ec.fieldContext_ChannelSecretsConfig_slackAppToken(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ChannelSecretsConfig", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppConfig_pluginDefaults(ctx context.Context, field graphql.CollectedField, obj *AppConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppConfig_pluginDefaults,
+		func(ctx context.Context) (any, error) {
+			return obj.PluginDefaults, nil
+		},
+		nil,
+		ec.marshalOPluginDefaultsConfig2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐPluginDefaultsConfig,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppConfig_pluginDefaults(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "ai":
+				return ec.fieldContext_PluginDefaultsConfig_ai(ctx, field)
+			case "memory":
+				return ec.fieldContext_PluginDefaultsConfig_memory(ctx, field)
+			case "secrets":
+				return ec.fieldContext_PluginDefaultsConfig_secrets(ctx, field)
+			case "audio":
+				return ec.fieldContext_PluginDefaultsConfig_audio(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PluginDefaultsConfig", field.Name)
 		},
 	}
 	return fc, nil
@@ -12018,6 +12147,8 @@ func (ec *executionContext) fieldContext_Mutation_reloadPlugins(_ context.Contex
 				return ec.fieldContext_Plugin_pluginType(ctx, field)
 			case "schemaJson":
 				return ec.fieldContext_Plugin_schemaJson(ctx, field)
+			case "configJson":
+				return ec.fieldContext_Plugin_configJson(ctx, field)
 			case "enabled":
 				return ec.fieldContext_Plugin_enabled(ctx, field)
 			case "available":
@@ -12029,6 +12160,47 @@ func (ec *executionContext) fieldContext_Mutation_reloadPlugins(_ context.Contex
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Plugin", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setPluginEnabled(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_setPluginEnabled,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetPluginEnabled(ctx, fc.Args["pluginId"].(string), fc.Args["enabled"].(bool))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_setPluginEnabled(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setPluginEnabled_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -12799,6 +12971,35 @@ func (ec *executionContext) fieldContext_Plugin_schemaJson(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Plugin_configJson(ctx context.Context, field graphql.CollectedField, obj *Plugin) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Plugin_configJson,
+		func(ctx context.Context) (any, error) {
+			return obj.ConfigJSON, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Plugin_configJson(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Plugin",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Plugin_enabled(ctx context.Context, field graphql.CollectedField, obj *Plugin) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -12910,6 +13111,122 @@ func (ec *executionContext) fieldContext_Plugin_builtin(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PluginDefaultsConfig_ai(ctx context.Context, field graphql.CollectedField, obj *PluginDefaultsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PluginDefaultsConfig_ai,
+		func(ctx context.Context) (any, error) {
+			return obj.Ai, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PluginDefaultsConfig_ai(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PluginDefaultsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PluginDefaultsConfig_memory(ctx context.Context, field graphql.CollectedField, obj *PluginDefaultsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PluginDefaultsConfig_memory,
+		func(ctx context.Context) (any, error) {
+			return obj.Memory, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PluginDefaultsConfig_memory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PluginDefaultsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PluginDefaultsConfig_secrets(ctx context.Context, field graphql.CollectedField, obj *PluginDefaultsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PluginDefaultsConfig_secrets,
+		func(ctx context.Context) (any, error) {
+			return obj.Secrets, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PluginDefaultsConfig_secrets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PluginDefaultsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PluginDefaultsConfig_audio(ctx context.Context, field graphql.CollectedField, obj *PluginDefaultsConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PluginDefaultsConfig_audio,
+		func(ctx context.Context) (any, error) {
+			return obj.Audio, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PluginDefaultsConfig_audio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PluginDefaultsConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -13268,6 +13585,8 @@ func (ec *executionContext) fieldContext_Query_config(_ context.Context, field g
 				return ec.fieldContext_AppConfig_channels(ctx, field)
 			case "channelSecrets":
 				return ec.fieldContext_AppConfig_channelSecrets(ctx, field)
+			case "pluginDefaults":
+				return ec.fieldContext_AppConfig_pluginDefaults(ctx, field)
 			case "wizardCompleted":
 				return ec.fieldContext_AppConfig_wizardCompleted(ctx, field)
 			}
@@ -14015,6 +14334,8 @@ func (ec *executionContext) fieldContext_Query_plugins(_ context.Context, field 
 				return ec.fieldContext_Plugin_pluginType(ctx, field)
 			case "schemaJson":
 				return ec.fieldContext_Plugin_schemaJson(ctx, field)
+			case "configJson":
+				return ec.fieldContext_Plugin_configJson(ctx, field)
 			case "enabled":
 				return ec.fieldContext_Plugin_enabled(ctx, field)
 			case "available":
@@ -18262,10 +18583,6 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 func (ec *executionContext) unmarshalInputCapabilitiesInput(ctx context.Context, obj any) (CapabilitiesInput, error) {
 	var it CapabilitiesInput
-	if obj == nil {
-		return it, nil
-	}
-
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
@@ -18334,16 +18651,12 @@ func (ec *executionContext) unmarshalInputCapabilitiesInput(ctx context.Context,
 
 func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context, obj any) (UpdateConfigInput, error) {
 	var it UpdateConfigInput
-	if obj == nil {
-		return it, nil
-	}
-
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"agentName", "systemPrompt", "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey", "anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel", "reasoningLevel", "capabilities", "databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns", "memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword", "subagentsMaxConcurrent", "subagentsDefaultTimeout", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "loggingLevel", "loggingPath", "secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken", "schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "channelTelegramEnabled", "channelTelegramToken", "channelDiscordEnabled", "channelDiscordToken", "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken", "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber", "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken", "wizardCompleted"}
+	fieldsInOrder := [...]string{"agentName", "systemPrompt", "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey", "anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel", "reasoningLevel", "capabilities", "databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns", "memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword", "subagentsMaxConcurrent", "subagentsDefaultTimeout", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "loggingLevel", "loggingPath", "secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken", "pluginDefaultMemory", "pluginDefaultSecrets", "pluginDefaultAudio", "pluginDefaultAi", "schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "channelTelegramEnabled", "channelTelegramToken", "channelDiscordEnabled", "channelDiscordToken", "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken", "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber", "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken", "wizardCompleted"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -18588,6 +18901,34 @@ func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context,
 				return it, err
 			}
 			it.SecretsOpenbaoToken = data
+		case "pluginDefaultMemory":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pluginDefaultMemory"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PluginDefaultMemory = data
+		case "pluginDefaultSecrets":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pluginDefaultSecrets"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PluginDefaultSecrets = data
+		case "pluginDefaultAudio":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pluginDefaultAudio"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PluginDefaultAudio = data
+		case "pluginDefaultAi":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pluginDefaultAi"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PluginDefaultAi = data
 		case "schedulerEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("schedulerEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -18984,6 +19325,8 @@ func (ec *executionContext) _AppConfig(ctx context.Context, sel ast.SelectionSet
 			}
 		case "channelSecrets":
 			out.Values[i] = ec._AppConfig_channelSecrets(ctx, field, obj)
+		case "pluginDefaults":
+			out.Values[i] = ec._AppConfig_pluginDefaults(ctx, field, obj)
 		case "wizardCompleted":
 			out.Values[i] = ec._AppConfig_wizardCompleted(ctx, field, obj)
 		default:
@@ -20851,6 +21194,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setPluginEnabled":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setPluginEnabled(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updatePluginConfig":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updatePluginConfig(ctx, field)
@@ -21182,6 +21532,11 @@ func (ec *executionContext) _Plugin(ctx context.Context, sel ast.SelectionSet, o
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "configJson":
+			out.Values[i] = ec._Plugin_configJson(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "enabled":
 			out.Values[i] = ec._Plugin_enabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -21199,6 +21554,48 @@ func (ec *executionContext) _Plugin(ctx context.Context, sel ast.SelectionSet, o
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var pluginDefaultsConfigImplementors = []string{"PluginDefaultsConfig"}
+
+func (ec *executionContext) _PluginDefaultsConfig(ctx context.Context, sel ast.SelectionSet, obj *PluginDefaultsConfig) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pluginDefaultsConfigImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PluginDefaultsConfig")
+		case "ai":
+			out.Values[i] = ec._PluginDefaultsConfig_ai(ctx, field, obj)
+		case "memory":
+			out.Values[i] = ec._PluginDefaultsConfig_memory(ctx, field, obj)
+		case "secrets":
+			out.Values[i] = ec._PluginDefaultsConfig_secrets(ctx, field, obj)
+		case "audio":
+			out.Values[i] = ec._PluginDefaultsConfig_audio(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -24143,6 +24540,13 @@ func (ec *executionContext) marshalOPairingInfo2ᚖgithubᚗcomᚋneirthᚋopenl
 		return graphql.Null
 	}
 	return ec._PairingInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOPluginDefaultsConfig2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐPluginDefaultsConfig(ctx context.Context, sel ast.SelectionSet, v *PluginDefaultsConfig) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._PluginDefaultsConfig(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOSchedulerConfig2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐSchedulerConfig(ctx context.Context, sel ast.SelectionSet, v *SchedulerConfig) graphql.Marshaler {

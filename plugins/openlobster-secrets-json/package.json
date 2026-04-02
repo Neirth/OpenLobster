@@ -1,0 +1,9 @@
+{
+  "name": "@openlobster/openlobster-secrets-json",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o ../../dist/plugins/openlobster-secrets-json.wasm .",
+    "test": "GOOS=wasip1 GOARCH=wasm go test ./..."
+  }
+}

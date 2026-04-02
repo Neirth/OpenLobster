@@ -76,6 +76,13 @@ type SecretsConfig {
   openbao: OpenbaoSecretsConfig
 }
 
+type PluginDefaultsConfig {
+  ai: String
+  memory: String
+  secrets: String
+  audio: String
+}
+
 type SchedulerConfig {
   enabled:        Boolean
   memoryEnabled:  Boolean
@@ -126,6 +133,7 @@ type AppConfig {
   activeSessions: [ActiveSession!]!
   channels:       [ChannelConfig!]!
   channelSecrets: ChannelSecretsConfig
+  pluginDefaults: PluginDefaultsConfig
   wizardCompleted: Boolean  # True when first-boot wizard has been completed (server-side)
 }
 
@@ -177,6 +185,11 @@ input UpdateConfigInput {
   secretsFilePath:    String
   secretsOpenbaoURL:  String
   secretsOpenbaoToken: String
+
+  pluginDefaultMemory:  String
+  pluginDefaultSecrets: String
+  pluginDefaultAudio:   String
+  pluginDefaultAi:      String
 
   schedulerEnabled:        Boolean
   schedulerMemoryEnabled:  Boolean
