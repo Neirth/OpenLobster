@@ -1,210 +1,252 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"strings"
+"context"
+"encoding/json"
+"fmt"
 
-	anthropic "github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/extism/go-pdk"
+anthropic "github.com/anthropics/anthropic-sdk-go"
+"github.com/anthropics/anthropic-sdk-go/option"
+pdk "github.com/extism/go-pdk"
 )
 
-type InputMessage struct {
-	Role    string      `json:"role"`
-	Content interface{} `json:"content"`
-}
-
-type ToolDefinition struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	InputSchema any    `json:"input_schema,omitempty"`
-}
-
-type InputPayload struct {
-	Model     string         `json:"model"`
-	Messages  []InputMessage `json:"messages"`
-	Tools     []ToolDefinition `json:"tools,omitempty"`
-	MaxTokens int            `json:"max_tokens,omitempty"`
-	Config    struct {
-		APIKey       string `json:"api_key"`
-		DefaultModel string `json:"default_model,omitempty"`
-	} `json:"config"`
-}
-
-type OutputToolCall struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Input string `json:"input"`
-}
-
-type OutputUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-}
-
-type OutputPayload struct {
-	Content    string           `json:"content"`
-	ToolCalls  []OutputToolCall `json:"tool_calls,omitempty"`
-	StopReason string           `json:"stop_reason"`
-	Usage      OutputUsage      `json:"usage"`
-}
+// ---------------------------------------------------------------------------
+// Metadata
+// ---------------------------------------------------------------------------
 
 //go:wasmexport get_name
-func getName() int32 {
-	pdk.OutputString("openlobster-ai-anthropic")
-	return 0
-}
+func getName() int32 { pdk.OutputString("openlobster-ai-anthropic"); return 0 }
 
 //go:wasmexport get_version
-func getVersion() int32 {
-	pdk.OutputString("0.1.0")
-	return 0
-}
+func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
 //go:wasmexport get_description
 func getDescription() int32 {
-	pdk.OutputString("Anthropic Claude API plugin for OpenLobster")
-	return 0
+pdk.OutputString("Anthropic Claude AI provider plugin for OpenLobster")
+return 0
 }
 
 //go:wasmexport get_type
-func getType() int32 {
-	pdk.OutputString("ai")
-	return 0
-}
+func getType() int32 { pdk.OutputString("ai"); return 0 }
 
 //go:wasmexport get_schema
 func getSchema() int32 {
-	pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key"},"default_model":{"type":"string","title":"Default Model","default":"claude-opus-4-6"}},"required":["api_key"]}`)
-	return 0
+pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key"},"model":{"type":"string","title":"Model","default":"claude-sonnet-4-5"}},"required":["api_key"]}`)
+return 0
 }
 
-func encodeToolName(name string) string { return strings.ReplaceAll(name, ":", "__") }
-func decodeToolName(name string) string { return strings.ReplaceAll(name, "__", ":") }
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-func convertMessages(in []InputMessage) []anthropic.MessageParam {
-	out := make([]anthropic.MessageParam, 0, len(in))
-	for _, m := range in {
-		role := strings.ToLower(strings.TrimSpace(m.Role))
-		content := ""
-		switch v := m.Content.(type) {
-		case string:
-			content = v
-		default:
-			b, _ := json.Marshal(v)
-			content = string(b)
-		}
-		msgRole := anthropic.MessageParamRoleUser
-		if role == "assistant" {
-			msgRole = anthropic.MessageParamRoleAssistant
-		}
-		out = append(out, anthropic.MessageParam{
-			Role: msgRole,
-			Content: []anthropic.ContentBlockParamUnion{
-				anthropic.NewTextBlock(content),
-			},
-		})
-	}
-	return out
+type contentBlock struct {
+Type     string `json:"type"`
+Text     string `json:"text,omitempty"`
+Data     string `json:"data,omitempty"`
+MIMEType string `json:"mime_type,omitempty"`
 }
 
-func convertTools(in []ToolDefinition) []anthropic.ToolUnionParam {
-	out := make([]anthropic.ToolUnionParam, 0, len(in))
-	for _, t := range in {
-		name := strings.TrimSpace(t.Name)
-		if name == "" {
-			continue
-		}
-		tool := anthropic.ToolUnionParam{
-			OfTool: &anthropic.ToolParam{
-				Name:        encodeToolName(name),
-				Description: anthropic.String(t.Description),
-			},
-		}
-		if t.InputSchema != nil {
-			if raw, err := json.Marshal(t.InputSchema); err == nil {
-				tool.OfTool.InputSchema = raw
-			}
-		}
-		out = append(out, tool)
-	}
-	return out
+type toolCall struct {
+ID   string `json:"id"`
+Type string `json:"type"`
+Function struct {
+Name      string `json:"name"`
+Arguments string `json:"arguments"`
+} `json:"function"`
 }
+
+type chatMessage struct {
+Role       string         `json:"role"`
+Content    string         `json:"content"`
+Blocks     []contentBlock `json:"blocks,omitempty"`
+ToolCalls  []toolCall     `json:"tool_calls,omitempty"`
+ToolCallID string         `json:"tool_call_id,omitempty"`
+}
+
+type toolDef struct {
+Type     string `json:"type"`
+Function struct {
+Name        string `json:"name"`
+Description string `json:"description,omitempty"`
+Parameters  any    `json:"parameters,omitempty"`
+} `json:"function"`
+}
+
+type inputPayload struct {
+Model     string        `json:"model"`
+Messages  []chatMessage `json:"messages"`
+Tools     []toolDef     `json:"tools,omitempty"`
+MaxTokens int           `json:"max_tokens,omitempty"`
+Config    struct {
+APIKey string `json:"api_key"`
+Model  string `json:"model,omitempty"`
+} `json:"config"`
+}
+
+type outputPayload struct {
+Content    string     `json:"content"`
+ToolCalls  []toolCall `json:"tool_calls,omitempty"`
+StopReason string     `json:"stop_reason"`
+Usage      struct {
+PromptTokens     int `json:"prompt_tokens"`
+CompletionTokens int `json:"completion_tokens"`
+} `json:"usage"`
+Error string `json:"error,omitempty"`
+}
+
+// ---------------------------------------------------------------------------
+// chat
+// ---------------------------------------------------------------------------
 
 //go:wasmexport chat
 func chat() int32 {
-	var input InputPayload
-	if err := pdk.InputJSON(&input); err != nil {
-		pdk.SetError(err)
-		return 1
-	}
-	if strings.TrimSpace(input.Config.APIKey) == "" {
-		pdk.SetErrorString("api_key required")
-		return 1
-	}
+var input inputPayload
+if err := pdk.InputJSON(&input); err != nil {
+pdk.SetError(err)
+return 1
+}
 
-	model := strings.TrimSpace(input.Model)
-	if model == "" {
-		model = strings.TrimSpace(input.Config.DefaultModel)
-	}
-	if model == "" {
-		model = "claude-opus-4-6"
-	}
-	maxTokens := input.MaxTokens
-	if maxTokens <= 0 {
-		maxTokens = 4096
-	}
+apiKey := input.Config.APIKey
+if apiKey == "" {
+pdk.SetError(fmt.Errorf("api_key required"))
+return 1
+}
 
-	client := anthropic.NewClient(option.WithAPIKey(input.Config.APIKey))
-	params := anthropic.MessageNewParams{
-		Model:     anthropic.Model(model),
-		MaxTokens: int64(maxTokens),
-		Messages:  convertMessages(input.Messages),
-	}
-	if tools := convertTools(input.Tools); len(tools) > 0 {
-		params.Tools = tools
-	}
+client := anthropic.NewClient(option.WithAPIKey(apiKey))
 
-	resp, err := client.Messages.New(context.Background(), params)
-	if err != nil {
-		pdk.SetError(err)
-		return 1
-	}
+model := input.Model
+if model == "" {
+model = input.Config.Model
+}
+if model == "" {
+model = "claude-sonnet-4-5"
+}
 
-	out := OutputPayload{StopReason: resp.StopReason}
-	if out.StopReason == "end_turn" {
-		out.StopReason = "stop"
-	}
-	if out.StopReason == "tool_use" {
-		out.StopReason = "tool_use"
-	}
-	out.Usage = OutputUsage{
-		PromptTokens:     int(resp.Usage.InputTokens),
-		CompletionTokens: int(resp.Usage.OutputTokens),
-	}
+maxTokens := int64(500)
+if input.MaxTokens > 0 {
+maxTokens = int64(input.MaxTokens)
+}
 
-	for _, block := range resp.Content {
-		switch block.AsAny().(type) {
-		case anthropic.TextBlock:
-			tb := block.OfText
-			out.Content += tb.Text
-		case anthropic.ToolUseBlock:
-			tool := block.OfToolUse
-			inputBytes, _ := json.Marshal(tool.Input)
-			out.ToolCalls = append(out.ToolCalls, OutputToolCall{
-				ID:    tool.ID,
-				Name:  decodeToolName(tool.Name),
-				Input: string(inputBytes),
-			})
-		}
-	}
+// Separate system messages
+var systemText string
+var messages []anthropic.MessageParam
+for _, m := range input.Messages {
+switch m.Role {
+case "system":
+systemText = m.Content
+case "assistant":
+if len(m.ToolCalls) > 0 {
+var blocks []anthropic.ContentBlockParamUnion
+if m.Content != "" {
+blocks = append(blocks, anthropic.NewTextBlock(m.Content))
+}
+for _, tc := range m.ToolCalls {
+var inp map[string]interface{}
+_ = json.Unmarshal([]byte(tc.Function.Arguments), &inp)
+blocks = append(blocks, anthropic.NewToolUseBlock(tc.ID, inp, tc.Function.Name))
+}
+messages = append(messages, anthropic.NewAssistantMessage(blocks...))
+} else {
+messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(m.Content)))
+}
+case "tool":
+messages = append(messages, anthropic.NewUserMessage(
+anthropic.NewToolResultBlock(m.ToolCallID, m.Content, false),
+))
+default:
+if len(m.Blocks) > 0 {
+var parts []anthropic.ContentBlockParamUnion
+for _, b := range m.Blocks {
+switch b.Type {
+case "text":
+parts = append(parts, anthropic.NewTextBlock(b.Text))
+case "image":
+if b.Data != "" {
+parts = append(parts, anthropic.NewImageBlockBase64(b.MIMEType, b.Data))
+}
+}
+}
+messages = append(messages, anthropic.NewUserMessage(parts...))
+} else {
+messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(m.Content)))
+}
+}
+}
 
-	if err := pdk.OutputJSON(out); err != nil {
-		pdk.SetError(err)
-		return 1
-	}
-	return 0
+// Build tools
+var anthropicTools []anthropic.ToolUnionParam
+for _, t := range input.Tools {
+var props any
+var required []string
+if p, ok := t.Function.Parameters.(map[string]interface{}); ok {
+props = p["properties"]
+if r, ok := p["required"].([]interface{}); ok {
+for _, rv := range r {
+if s, ok := rv.(string); ok {
+required = append(required, s)
+}
+}
+}
+}
+anthropicTools = append(anthropicTools, anthropic.ToolUnionParam{
+OfTool: &anthropic.ToolParam{
+Name:        t.Function.Name,
+Description: anthropic.String(t.Function.Description),
+InputSchema: anthropic.ToolInputSchemaParam{
+Properties: props,
+Required:   required,
+},
+},
+})
+}
+
+params := anthropic.MessageNewParams{
+Model:     anthropic.Model(model),
+MaxTokens: maxTokens,
+Messages:  messages,
+}
+if systemText != "" {
+params.System = []anthropic.TextBlockParam{{Type: "text", Text: systemText}}
+}
+if len(anthropicTools) > 0 {
+params.Tools = anthropicTools
+}
+
+resp, err := client.Messages.New(context.Background(), params)
+if err != nil {
+out := outputPayload{Error: err.Error()}
+_ = pdk.OutputJSON(out)
+return 1
+}
+
+out := outputPayload{StopReason: string(resp.StopReason)}
+out.Usage.PromptTokens = int(resp.Usage.InputTokens)
+out.Usage.CompletionTokens = int(resp.Usage.OutputTokens)
+
+for _, block := range resp.Content {
+switch block.Type {
+case "text":
+tb := block.AsText()
+out.Content += tb.Text
+case "tool_use":
+tu := block.AsToolUse()
+argsJSON, _ := json.Marshal(tu.Input)
+out.ToolCalls = append(out.ToolCalls, toolCall{
+ID:   tu.ID,
+Type: "function",
+Function: struct {
+Name      string `json:"name"`
+Arguments string `json:"arguments"`
+}{Name: tu.Name, Arguments: string(argsJSON)},
+})
+}
+}
+
+if err := pdk.OutputJSON(out); err != nil {
+pdk.SetError(err)
+return 1
+}
+return 0
 }
 
 func main() {}

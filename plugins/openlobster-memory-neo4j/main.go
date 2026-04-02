@@ -1,13 +1,10 @@
 package main
 
 import (
-"bytes"
-"encoding/json"
+"context"
 "fmt"
-"io"
-"net/http"
-"strings"
 
+neo4j "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 pdk "github.com/extism/go-pdk"
 )
 
@@ -32,80 +29,62 @@ func getType() int32 { pdk.OutputString("memory"); return 0 }
 
 //go:wasmexport get_schema
 func getSchema() int32 {
-pdk.OutputString(`{"type":"object","properties":{"url":{"type":"string","title":"Neo4j HTTP URL","default":"http://localhost:7474"},"username":{"type":"string","title":"Username","default":"neo4j"},"password":{"type":"string","title":"Password"}},"required":["url"]}`)
+pdk.OutputString(`{"type":"object","properties":{"uri":{"type":"string","title":"Bolt URI","default":"bolt://localhost:7687"},"username":{"type":"string","title":"Username","default":"neo4j"},"password":{"type":"string","title":"Password"},"database":{"type":"string","title":"Database","default":"neo4j"}},"required":["uri"]}`)
 return 0
 }
 
 // ---------------------------------------------------------------------------
-// Neo4j HTTP helper
+// Config helper
 // ---------------------------------------------------------------------------
 
 type neo4jConfig struct {
-URL      string `json:"url"`
+URI      string `json:"uri"`
 Username string `json:"username"`
 Password string `json:"password"`
+Database string `json:"database"`
 }
 
-func neo4jQuery(cfg neo4jConfig, cypher string, params map[string]interface{}) ([]map[string]interface{}, error) {
-body := map[string]interface{}{
-"statements": []map[string]interface{}{
-{"statement": cypher, "parameters": params},
-},
+func newDriver(cfg neo4jConfig) (neo4j.DriverWithContext, error) {
+if cfg.URI == "" {
+cfg.URI = "bolt://localhost:7687"
 }
-bodyBytes, err := json.Marshal(body)
+if cfg.Username == "" {
+cfg.Username = "neo4j"
+}
+if cfg.Database == "" {
+cfg.Database = "neo4j"
+}
+return neo4j.NewDriverWithContext(cfg.URI, neo4j.BasicAuth(cfg.Username, cfg.Password, ""))
+}
+
+func runWrite(ctx context.Context, driver neo4j.DriverWithContext, db, cypher string, params map[string]any) error {
+session := driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeWrite})
+defer session.Close(ctx)
+_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+res, err := tx.Run(ctx, cypher, params)
 if err != nil {
 return nil, err
 }
-url := strings.TrimRight(cfg.URL, "/") + "/db/data/transaction/commit"
-req, err := http.NewRequest("POST", url, bytes.NewReader(bodyBytes))
+return res.Collect(ctx)
+})
+return err
+}
+
+func runRead(ctx context.Context, driver neo4j.DriverWithContext, db, cypher string, params map[string]any) ([]*neo4j.Record, error) {
+session := driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: db, AccessMode: neo4j.AccessModeRead})
+defer session.Close(ctx)
+result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+res, err := tx.Run(ctx, cypher, params)
 if err != nil {
 return nil, err
 }
-req.Header.Set("Content-Type", "application/json")
-req.Header.Set("Accept", "application/json")
-if cfg.Username != "" {
-req.SetBasicAuth(cfg.Username, cfg.Password)
-}
-resp, err := http.DefaultClient.Do(req)
+return res.Collect(ctx)
+})
 if err != nil {
 return nil, err
 }
-defer resp.Body.Close()
-respBytes, err := io.ReadAll(resp.Body)
-if err != nil {
-return nil, err
-}
-var result struct {
-Results []struct {
-Columns []string `json:"columns"`
-Data    []struct {
-Row []interface{} `json:"row"`
-} `json:"data"`
-} `json:"results"`
-Errors []struct {
-Message string `json:"message"`
-} `json:"errors"`
-}
-if err := json.Unmarshal(respBytes, &result); err != nil {
-return nil, fmt.Errorf("parse response: %w", err)
-}
-if len(result.Errors) > 0 {
-return nil, fmt.Errorf("neo4j error: %s", result.Errors[0].Message)
-}
-var rows []map[string]interface{}
-if len(result.Results) > 0 {
-res := result.Results[0]
-for _, d := range res.Data {
-row := make(map[string]interface{})
-for i, col := range res.Columns {
-if i < len(d.Row) {
-row[col] = d.Row[i]
-}
-}
-rows = append(rows, row)
-}
-}
-return rows, nil
+records, _ := result.([]*neo4j.Record)
+return records, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -113,20 +92,19 @@ return rows, nil
 // ---------------------------------------------------------------------------
 
 type storeInput struct {
-Op          string      `json:"op"`
-UserID      string      `json:"user_id,omitempty"`
-Content     string      `json:"content,omitempty"`
-Label       string      `json:"label,omitempty"`
-Relation    string      `json:"relation,omitempty"`
-EntityType  string      `json:"entity_type,omitempty"`
-Key         string      `json:"key,omitempty"`
-Value       string      `json:"value,omitempty"`
-From        string      `json:"from,omitempty"`
-To          string      `json:"to,omitempty"`
-RelType     string      `json:"rel_type,omitempty"`
-NodeID      string      `json:"node_id,omitempty"`
-NewValue    string      `json:"new_value,omitempty"`
-DisplayName string      `json:"display_name,omitempty"`
+Op          string    `json:"op"`
+UserID      string    `json:"user_id,omitempty"`
+Content     string    `json:"content,omitempty"`
+Label       string    `json:"label,omitempty"`
+EntityType  string    `json:"entity_type,omitempty"`
+Key         string    `json:"key,omitempty"`
+Value       string    `json:"value,omitempty"`
+From        string    `json:"from,omitempty"`
+To          string    `json:"to,omitempty"`
+RelType     string    `json:"rel_type,omitempty"`
+NodeID      string    `json:"node_id,omitempty"`
+NewValue    string    `json:"new_value,omitempty"`
+DisplayName string    `json:"display_name,omitempty"`
 Config      neo4jConfig `json:"config"`
 }
 
@@ -137,8 +115,22 @@ if err := pdk.InputJSON(&input); err != nil {
 pdk.SetError(err)
 return 1
 }
+
+ctx := context.Background()
+driver, err := newDriver(input.Config)
+if err != nil {
+pdk.SetError(fmt.Errorf("driver: %w", err))
+return 1
+}
+defer driver.Close(ctx)
+
+db := input.Config.Database
+if db == "" {
+db = "neo4j"
+}
+
 var cypher string
-params := map[string]interface{}{}
+params := map[string]any{}
 
 switch input.Op {
 case "add_relation":
@@ -181,7 +173,7 @@ params["label"] = input.Label
 params["etype"] = input.EntityType
 }
 
-if _, err := neo4jQuery(input.Config, cypher, params); err != nil {
+if err := runWrite(ctx, driver, db, cypher, params); err != nil {
 pdk.SetError(err)
 return 1
 }
@@ -193,18 +185,17 @@ return 0
 }
 
 // ---------------------------------------------------------------------------
-// retrieve — SearchSimilar
+// retrieve
 // ---------------------------------------------------------------------------
 
 type retrieveInput struct {
-Query  string      `json:"query"`
-Limit  int         `json:"limit,omitempty"`
+Query  string    `json:"query"`
+Limit  int       `json:"limit,omitempty"`
 Config neo4jConfig `json:"config"`
 }
 
 type knowledgeEntry struct {
 ID      string `json:"id"`
-UserID  string `json:"user_id"`
 Content string `json:"content"`
 }
 
@@ -219,18 +210,35 @@ limit := input.Limit
 if limit <= 0 {
 limit = 20
 }
+
+ctx := context.Background()
+driver, err := newDriver(input.Config)
+if err != nil {
+pdk.SetError(fmt.Errorf("driver: %w", err))
+return 1
+}
+defer driver.Close(ctx)
+
+db := input.Config.Database
+if db == "" {
+db = "neo4j"
+}
+
 cypher := `MATCH (m:Memory) WHERE toLower(m.content) CONTAINS toLower($q) OR toLower(m.label) CONTAINS toLower($q) RETURN m.id AS id, m.content AS content LIMIT $limit`
-params := map[string]interface{}{"q": input.Query, "limit": limit}
-rows, err := neo4jQuery(input.Config, cypher, params)
+records, err := runRead(ctx, driver, db, cypher, map[string]any{"q": input.Query, "limit": limit})
 if err != nil {
 pdk.SetError(err)
 return 1
 }
-results := make([]knowledgeEntry, 0, len(rows))
-for _, r := range rows {
-id, _ := r["id"].(string)
-content, _ := r["content"].(string)
-results = append(results, knowledgeEntry{ID: id, Content: content})
+
+results := make([]knowledgeEntry, 0, len(records))
+for _, r := range records {
+id, _ := r.Get("id")
+content, _ := r.Get("content")
+results = append(results, knowledgeEntry{
+ID:      fmt.Sprintf("%v", id),
+Content: fmt.Sprintf("%v", content),
+})
 }
 if err := pdk.OutputJSON(results); err != nil {
 pdk.SetError(err)
@@ -240,13 +248,13 @@ return 0
 }
 
 // ---------------------------------------------------------------------------
-// query — GetUserGraph, cypher
+// query
 // ---------------------------------------------------------------------------
 
 type queryInput struct {
-Op     string      `json:"op"`
-UserID string      `json:"user_id,omitempty"`
-Cypher string      `json:"cypher,omitempty"`
+Op     string    `json:"op"`
+UserID string    `json:"user_id,omitempty"`
+Cypher string    `json:"cypher,omitempty"`
 Config neo4jConfig `json:"config"`
 }
 
@@ -275,37 +283,69 @@ if err := pdk.InputJSON(&input); err != nil {
 pdk.SetError(err)
 return 1
 }
+
+ctx := context.Background()
+driver, err := newDriver(input.Config)
+if err != nil {
+pdk.SetError(fmt.Errorf("driver: %w", err))
+return 1
+}
+defer driver.Close(ctx)
+
+db := input.Config.Database
+if db == "" {
+db = "neo4j"
+}
+
 switch input.Op {
 case "user_graph":
-nodeRows, _ := neo4jQuery(input.Config,
-`MATCH (u:User {id:$uid})-[:KNOWS]->(m:Memory) RETURN m.id AS id, m.label AS label, m.type AS type, m.content AS content`,
-map[string]interface{}{"uid": input.UserID})
-edgeRows, _ := neo4jQuery(input.Config,
-`MATCH (a:Node)-[r:RELATED]->(b:Node) RETURN a.id AS src, b.id AS tgt, r.type AS lbl`,
-map[string]interface{}{})
 g := graph{}
-for _, r := range nodeRows {
-id, _ := r["id"].(string)
-lbl, _ := r["label"].(string)
-tp, _ := r["type"].(string)
-val, _ := r["content"].(string)
-g.Nodes = append(g.Nodes, graphNode{ID: id, Label: lbl, Type: tp, Value: val})
+nodeRecords, _ := runRead(ctx, driver, db,
+`MATCH (u:User {id:$uid})-[:KNOWS]->(m:Memory) RETURN m.id AS id, m.label AS label, m.type AS type, m.content AS content`,
+map[string]any{"uid": input.UserID})
+edgeRecords, _ := runRead(ctx, driver, db,
+`MATCH (a:Node)-[r:RELATED]->(b:Node) RETURN a.id AS src, b.id AS tgt, r.type AS lbl`,
+map[string]any{})
+for _, r := range nodeRecords {
+id, _ := r.Get("id")
+lbl, _ := r.Get("label")
+tp, _ := r.Get("type")
+val, _ := r.Get("content")
+g.Nodes = append(g.Nodes, graphNode{
+ID:    fmt.Sprintf("%v", id),
+Label: fmt.Sprintf("%v", lbl),
+Type:  fmt.Sprintf("%v", tp),
+Value: fmt.Sprintf("%v", val),
+})
 }
-for _, r := range edgeRows {
-src, _ := r["src"].(string)
-tgt, _ := r["tgt"].(string)
-lbl, _ := r["lbl"].(string)
-g.Edges = append(g.Edges, graphEdge{Source: src, Target: tgt, Label: lbl})
+for _, r := range edgeRecords {
+src, _ := r.Get("src")
+tgt, _ := r.Get("tgt")
+lbl, _ := r.Get("lbl")
+g.Edges = append(g.Edges, graphEdge{
+Source: fmt.Sprintf("%v", src),
+Target: fmt.Sprintf("%v", tgt),
+Label:  fmt.Sprintf("%v", lbl),
+})
 }
 if err := pdk.OutputJSON(g); err != nil {
 pdk.SetError(err)
 return 1
 }
 case "cypher":
-rows, err := neo4jQuery(input.Config, input.Cypher, map[string]interface{}{})
+records, err := runRead(ctx, driver, db, input.Cypher, map[string]any{})
 if err != nil {
 pdk.SetError(err)
 return 1
+}
+rows := make([]map[string]interface{}, 0, len(records))
+for _, r := range records {
+row := make(map[string]interface{})
+for _, key := range r.Keys {
+v, _ := r.Get(key)
+row[key] = v
+}
+rows = append(rows, row)
 }
 if err := pdk.OutputJSON(map[string]interface{}{"data": rows, "errors": []interface{}{}}); err != nil {
 pdk.SetError(err)

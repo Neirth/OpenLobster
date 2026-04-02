@@ -1,234 +1,213 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"strconv"
-	"time"
-	"unsafe"
+"context"
+"encoding/json"
+"fmt"
+"strconv"
+"strings"
+"time"
 
-	_ "github.com/stealthrocket/net/wasip1"
+tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+pdk "github.com/extism/go-pdk"
 )
-
-var (
-	inputBuf  []byte
-	resultBuf []byte
-)
-
-//go:wasmexport openlobster_alloc_input
-func allocInput(size uint32) uint32 {
-	inputBuf = make([]byte, size)
-	return uint32(uintptr(unsafe.Pointer(&inputBuf[0])))
-}
-
-//go:wasmexport openlobster_result_ptr
-func resultPtr() uint32 {
-	if len(resultBuf) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-}
-
-//go:wasmexport openlobster_result_len
-func resultLen() uint32 {
-	return uint32(len(resultBuf))
-}
-
-func writeResult(v interface{}) int32 {
-	b, err := json.Marshal(v)
-	if err != nil {
-		resultBuf = []byte(`{"error":"marshal failed"}`)
-		return 1
-	}
-	resultBuf = b
-	return 0
-}
-
-func writeStringResult(s string) int64 {
-	resultBuf = []byte(s)
-	ptr := uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-	return int64(ptr)<<32 | int64(len(resultBuf))
-}
 
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_get_name
-func getName() int64 { return writeStringResult("openlobster-messages-telegram") }
+//go:wasmexport get_name
+func getName() int32 { pdk.OutputString("openlobster-messages-telegram"); return 0 }
 
-//go:wasmexport openlobster_get_version
-func getVersion() int64 { return writeStringResult("0.1.0") }
+//go:wasmexport get_version
+func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport openlobster_get_description
-func getDescription() int64 {
-	return writeStringResult("Telegram Bot API messaging plugin for OpenLobster")
+//go:wasmexport get_description
+func getDescription() int32 {
+pdk.OutputString("Telegram Bot API messaging plugin for OpenLobster")
+return 0
 }
 
-//go:wasmexport openlobster_get_type
-func getType() int64 { return writeStringResult("messaging") }
+//go:wasmexport get_type
+func getType() int32 { pdk.OutputString("messaging"); return 0 }
 
-//go:wasmexport openlobster_get_schema
-func getSchema() int64 {
-	return writeStringResult(`{"type":"object","properties":{"token":{"type":"string","title":"Bot Token"}},"required":["token"]}`)
-}
-
-// ---------------------------------------------------------------------------
-// Host function: emit message to the OpenLobster runtime
-// ---------------------------------------------------------------------------
-
-//go:wasmimport openlobster host_emit_message
-func hostEmitMessage(ptr uint32, size uint32)
-
-func emitMessage(msg map[string]interface{}) {
-	b, err := json.Marshal(msg)
-	if err != nil {
-		return
-	}
-	if len(b) == 0 {
-		return
-	}
-	hostEmitMessage(uint32(uintptr(unsafe.Pointer(&b[0]))), uint32(len(b)))
+//go:wasmexport get_schema
+func getSchema() int32 {
+pdk.OutputString(`{"type":"object","properties":{"token":{"type":"string","title":"Bot Token"}},"required":["token"]}`)
+return 0
 }
 
 // ---------------------------------------------------------------------------
-// Telegram types
+// Host emit_message (Extism PDK offset-based)
 // ---------------------------------------------------------------------------
 
-type tgUpdate struct {
-	UpdateID int `json:"update_id"`
-	Message  *struct {
-		MessageID int `json:"message_id"`
-		From      *struct {
-			ID        int64  `json:"id"`
-			FirstName string `json:"first_name"`
-			LastName  string `json:"last_name"`
-			Username  string `json:"username"`
-		} `json:"from"`
-		Chat struct {
-			ID   int64  `json:"id"`
-			Type string `json:"type"`
-		} `json:"chat"`
-		Text string `json:"text"`
-	} `json:"message"`
+//go:wasmimport openlobster emit_message
+func hostEmitMessage(offset uint64)
+
+type pluginMessage struct {
+ChannelID   string                 `json:"channel_id"`
+SenderID    string                 `json:"sender_id,omitempty"`
+SenderName  string                 `json:"sender_name,omitempty"`
+Content     string                 `json:"content"`
+IsGroup     bool                   `json:"is_group,omitempty"`
+IsMentioned bool                   `json:"is_mentioned,omitempty"`
+GroupName   string                 `json:"group_name,omitempty"`
+Timestamp   time.Time              `json:"timestamp"`
+Metadata    map[string]interface{} `json:"metadata"`
 }
 
-type tgGetUpdatesResponse struct {
-	OK     bool       `json:"ok"`
-	Result []tgUpdate `json:"result"`
+func emitMessage(msg *pluginMessage) {
+b, err := json.Marshal(msg)
+if err != nil {
+return
 }
-
-// ---------------------------------------------------------------------------
-// openlobster_start — long-polling loop (blocks until context cancelled)
-// ---------------------------------------------------------------------------
-
-//go:wasmexport openlobster_start
-func start() int32 {
-	var input struct {
-		Config struct {
-			Token string `json:"token"`
-		} `json:"config"`
-	}
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input"}`)
-		return 1
-	}
-	token := input.Config.Token
-	if token == "" {
-		resultBuf = []byte(`{"error":"telegram token required"}`)
-		return 1
-	}
-
-	baseURL := "https://api.telegram.org/bot" + token
-	offset := 0
-
-	for {
-		apiURL := fmt.Sprintf("%s/getUpdates?timeout=30&offset=%d", baseURL, offset)
-		resp, err := http.Get(apiURL)
-		if err != nil {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		var updates tgGetUpdatesResponse
-		if err := json.Unmarshal(body, &updates); err != nil || !updates.OK {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		for _, upd := range updates.Result {
-			offset = upd.UpdateID + 1
-			if upd.Message == nil {
-				continue
-			}
-			msg := upd.Message
-			senderID := ""
-			senderName := ""
-			if msg.From != nil {
-				senderID = strconv.FormatInt(msg.From.ID, 10)
-				senderName = msg.From.FirstName
-				if msg.From.LastName != "" {
-					senderName += " " + msg.From.LastName
-				}
-				if msg.From.Username != "" {
-					senderName = "@" + msg.From.Username
-				}
-			}
-			emitMessage(map[string]interface{}{
-				"channel_id":   strconv.FormatInt(msg.Chat.ID, 10),
-				"sender_id":    senderID,
-				"sender_name":  senderName,
-				"content":      msg.Text,
-				"is_group":     msg.Chat.Type != "private",
-				"is_mentioned": false,
-				"metadata":     map[string]string{"channel_type": "telegram"},
-			})
-		}
-	}
+mem := pdk.AllocateBytes(b)
+hostEmitMessage(mem.Offset())
 }
 
 // ---------------------------------------------------------------------------
-// openlobster_send
+// capabilities
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_send
+//go:wasmexport capabilities
+func capabilities() int32 {
+_ = pdk.OutputJSON(map[string]bool{
+"HasVoiceMessage": true,
+"HasCallStream":   false,
+"HasTextStream":   true,
+"HasMediaSupport": true,
+})
+return 0
+}
+
+// ---------------------------------------------------------------------------
+// send
+// ---------------------------------------------------------------------------
+
+type sendInput struct {
+Config  map[string]interface{} `json:"config"`
+Message struct {
+ChannelID string `json:"channel_id"`
+Content   string `json:"content"`
+} `json:"message"`
+}
+
+//go:wasmexport send
 func send() int32 {
-	var input struct {
-		ChannelID string `json:"channel_id"`
-		Content   string `json:"content"`
-		Config    struct {
-			Token string `json:"token"`
-		} `json:"config"`
-	}
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input"}`)
-		return 1
-	}
-	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", input.Config.Token)
-	resp, err := http.PostForm(apiURL, url.Values{
-		"chat_id": {input.ChannelID},
-		"text":    {input.Content},
-	})
-	if err != nil {
-		writeResult(map[string]string{"error": err.Error()})
-		return 1
-	}
-	defer resp.Body.Close()
-	return writeResult(map[string]bool{"ok": true})
+var input sendInput
+if err := pdk.InputJSON(&input); err != nil {
+pdk.SetError(err)
+return 1
 }
 
-//go:wasmexport openlobster_configure
-func configure() int32 {
-	return writeResult(map[string]bool{"ok": true})
+token, _ := input.Config["token"].(string)
+if token == "" {
+pdk.SetError(fmt.Errorf("telegram token required"))
+return 1
+}
+
+bot, err := tgbotapi.NewBotAPI(token)
+if err != nil {
+pdk.SetError(fmt.Errorf("bot init: %w", err))
+return 1
+}
+
+chatID, err := strconv.ParseInt(input.Message.ChannelID, 10, 64)
+if err != nil {
+pdk.SetError(fmt.Errorf("invalid channel_id: %w", err))
+return 1
+}
+
+msg := tgbotapi.NewMessage(chatID, input.Message.Content)
+msg.ParseMode = tgbotapi.ModeHTML
+if _, err := bot.Send(msg); err != nil {
+pdk.SetError(err)
+return 1
+}
+return 0
+}
+
+// ---------------------------------------------------------------------------
+// start — long-polling loop
+// ---------------------------------------------------------------------------
+
+//go:wasmexport start
+func start() int32 {
+var cfg map[string]interface{}
+if err := pdk.InputJSON(&cfg); err != nil {
+pdk.SetError(err)
+return 1
+}
+
+token, _ := cfg["token"].(string)
+if token == "" {
+pdk.SetError(fmt.Errorf("telegram token required"))
+return 1
+}
+
+bot, err := tgbotapi.NewBotAPI(token)
+if err != nil {
+pdk.SetError(fmt.Errorf("bot init: %w", err))
+return 1
+}
+
+u := tgbotapi.NewUpdate(0)
+u.Timeout = 60
+updates := bot.GetUpdatesChan(u)
+
+ctx := context.Background()
+for {
+select {
+case <-ctx.Done():
+bot.StopReceivingUpdates()
+return 0
+case update, ok := <-updates:
+if !ok {
+return 0
+}
+if update.Message == nil {
+continue
+}
+// Skip messages from the bot itself
+if from := update.Message.From; from != nil && from.ID == bot.Self.ID {
+continue
+}
+
+tgMsg := update.Message
+senderID := ""
+senderName := ""
+if from := tgMsg.From; from != nil {
+senderID = strconv.FormatInt(from.ID, 10)
+if from.UserName != "" {
+senderName = "@" + from.UserName
+} else {
+senderName = strings.TrimSpace(from.FirstName + " " + from.LastName)
+}
+}
+
+isGroup := tgMsg.Chat.IsGroup() || tgMsg.Chat.IsSuperGroup() || tgMsg.Chat.IsChannel()
+groupName := ""
+if isGroup {
+groupName = tgMsg.Chat.Title
+}
+
+content := tgMsg.Text
+if content == "" && tgMsg.Caption != "" {
+content = tgMsg.Caption
+}
+
+emitMessage(&pluginMessage{
+ChannelID:  strconv.FormatInt(tgMsg.Chat.ID, 10),
+SenderID:   senderID,
+SenderName: senderName,
+Content:    content,
+IsGroup:    isGroup,
+GroupName:  groupName,
+Timestamp:  tgMsg.Time(),
+Metadata:   map[string]interface{}{"channel_type": "telegram"},
+})
+}
+}
 }
 
 func main() {}
