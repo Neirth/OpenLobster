@@ -473,4 +473,12 @@ describe("Root Component", () => {
     ));
     expect(qc.invalidateQueries).toHaveBeenCalled();
   });
+
+  it("does not throw when QueryClientProvider is absent", () => {
+    // Regression test: App (Router root) must not throw 'No QueryClient set'
+    // when rendered outside a QueryClientProvider context.
+    expect(() => {
+      render(() => <Root />);
+    }).not.toThrow();
+  });
 });
