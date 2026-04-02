@@ -195,6 +195,28 @@ importers:
         specifier: ^1.9.11
         version: 1.9.11
 
+  plugins/openlobster-ai-anthropic: {}
+
+  plugins/openlobster-ai-ollama: {}
+
+  plugins/openlobster-ai-openai: {}
+
+  plugins/openlobster-audio-elevenlabs: {}
+
+  plugins/openlobster-memory-gml: {}
+
+  plugins/openlobster-memory-neo4j: {}
+
+  plugins/openlobster-messages-discord: {}
+
+  plugins/openlobster-messages-slack: {}
+
+  plugins/openlobster-messages-telegram: {}
+
+  plugins/openlobster-messages-twilio: {}
+
+  plugins/openlobster-messages-whatsapp: {}
+
 packages:
 
   '@ardatan/relay-compiler@13.0.0':

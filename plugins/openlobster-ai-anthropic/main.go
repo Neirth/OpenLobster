@@ -1,85 +1,14 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"io"
-	"net/http"
-	"unsafe"
+	"strings"
 
-	_ "github.com/stealthrocket/net/wasip1"
+	anthropic "github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/extism/go-pdk"
 )
-
-var (
-	inputBuf  []byte
-	resultBuf []byte
-)
-
-// ---------------------------------------------------------------------------
-// ABI buffer helpers
-// ---------------------------------------------------------------------------
-
-//go:wasmexport openlobster_alloc_input
-func allocInput(size uint32) uint32 {
-	inputBuf = make([]byte, size)
-	return uint32(uintptr(unsafe.Pointer(&inputBuf[0])))
-}
-
-//go:wasmexport openlobster_result_ptr
-func resultPtr() uint32 {
-	if len(resultBuf) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-}
-
-//go:wasmexport openlobster_result_len
-func resultLen() uint32 {
-	return uint32(len(resultBuf))
-}
-
-func writeResult(v interface{}) int32 {
-	b, err := json.Marshal(v)
-	if err != nil {
-		resultBuf = []byte(`{"error":"marshal failed"}`)
-		return 1
-	}
-	resultBuf = b
-	return 0
-}
-
-func writeStringResult(s string) int64 {
-	resultBuf = []byte(s)
-	ptr := uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-	return int64(ptr)<<32 | int64(len(resultBuf))
-}
-
-// ---------------------------------------------------------------------------
-// Metadata
-// ---------------------------------------------------------------------------
-
-//go:wasmexport openlobster_get_name
-func getName() int64 { return writeStringResult("openlobster-ai-anthropic") }
-
-//go:wasmexport openlobster_get_version
-func getVersion() int64 { return writeStringResult("0.1.0") }
-
-//go:wasmexport openlobster_get_description
-func getDescription() int64 {
-	return writeStringResult("Anthropic Claude API plugin for OpenLobster")
-}
-
-//go:wasmexport openlobster_get_type
-func getType() int64 { return writeStringResult("ai") }
-
-//go:wasmexport openlobster_get_schema
-func getSchema() int64 {
-	return writeStringResult(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key"},"default_model":{"type":"string","title":"Default Model","default":"claude-opus-4-6"}},"required":["api_key"]}`)
-}
-
-// ---------------------------------------------------------------------------
-// Anthropic request / response types
-// ---------------------------------------------------------------------------
 
 type InputMessage struct {
 	Role    string      `json:"role"`
@@ -103,35 +32,6 @@ type InputPayload struct {
 	} `json:"config"`
 }
 
-type AnthropicRequest struct {
-	Model     string         `json:"model"`
-	Messages  []InputMessage `json:"messages"`
-	Tools     []ToolDefinition `json:"tools,omitempty"`
-	MaxTokens int            `json:"max_tokens"`
-}
-
-type AnthropicContentBlock struct {
-	Type  string `json:"type"`
-	Text  string `json:"text,omitempty"`
-	ID    string `json:"id,omitempty"`
-	Name  string `json:"name,omitempty"`
-	Input any    `json:"input,omitempty"`
-}
-
-type AnthropicUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
-}
-
-type AnthropicResponse struct {
-	Content    []AnthropicContentBlock `json:"content"`
-	StopReason string                  `json:"stop_reason"`
-	Usage      AnthropicUsage          `json:"usage"`
-	Error      *struct {
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
-}
-
 type OutputToolCall struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -150,104 +50,161 @@ type OutputPayload struct {
 	Usage      OutputUsage      `json:"usage"`
 }
 
-type ErrorPayload struct {
-	Error string `json:"error"`
+//go:wasmexport get_name
+func getName() int32 {
+	pdk.OutputString("openlobster-ai-anthropic")
+	return 0
 }
 
-// ---------------------------------------------------------------------------
-// openlobster_chat
-// ---------------------------------------------------------------------------
+//go:wasmexport get_version
+func getVersion() int32 {
+	pdk.OutputString("0.1.0")
+	return 0
+}
 
-//go:wasmexport openlobster_chat
+//go:wasmexport get_description
+func getDescription() int32 {
+	pdk.OutputString("Anthropic Claude API plugin for OpenLobster")
+	return 0
+}
+
+//go:wasmexport get_type
+func getType() int32 {
+	pdk.OutputString("ai")
+	return 0
+}
+
+//go:wasmexport get_schema
+func getSchema() int32 {
+	pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key"},"default_model":{"type":"string","title":"Default Model","default":"claude-opus-4-6"}},"required":["api_key"]}`)
+	return 0
+}
+
+func encodeToolName(name string) string { return strings.ReplaceAll(name, ":", "__") }
+func decodeToolName(name string) string { return strings.ReplaceAll(name, "__", ":") }
+
+func convertMessages(in []InputMessage) []anthropic.MessageParam {
+	out := make([]anthropic.MessageParam, 0, len(in))
+	for _, m := range in {
+		role := strings.ToLower(strings.TrimSpace(m.Role))
+		content := ""
+		switch v := m.Content.(type) {
+		case string:
+			content = v
+		default:
+			b, _ := json.Marshal(v)
+			content = string(b)
+		}
+		msgRole := anthropic.MessageParamRoleUser
+		if role == "assistant" {
+			msgRole = anthropic.MessageParamRoleAssistant
+		}
+		out = append(out, anthropic.MessageParam{
+			Role: msgRole,
+			Content: []anthropic.ContentBlockParamUnion{
+				anthropic.NewTextBlock(content),
+			},
+		})
+	}
+	return out
+}
+
+func convertTools(in []ToolDefinition) []anthropic.ToolUnionParam {
+	out := make([]anthropic.ToolUnionParam, 0, len(in))
+	for _, t := range in {
+		name := strings.TrimSpace(t.Name)
+		if name == "" {
+			continue
+		}
+		tool := anthropic.ToolUnionParam{
+			OfTool: &anthropic.ToolParam{
+				Name:        encodeToolName(name),
+				Description: anthropic.String(t.Description),
+			},
+		}
+		if t.InputSchema != nil {
+			if raw, err := json.Marshal(t.InputSchema); err == nil {
+				tool.OfTool.InputSchema = raw
+			}
+		}
+		out = append(out, tool)
+	}
+	return out
+}
+
+//go:wasmexport chat
 func chat() int32 {
 	var input InputPayload
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input JSON"}`)
+	if err := pdk.InputJSON(&input); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	if strings.TrimSpace(input.Config.APIKey) == "" {
+		pdk.SetErrorString("api_key required")
 		return 1
 	}
 
-	model := input.Model
+	model := strings.TrimSpace(input.Model)
 	if model == "" {
-		model = input.Config.DefaultModel
+		model = strings.TrimSpace(input.Config.DefaultModel)
 	}
 	if model == "" {
 		model = "claude-opus-4-6"
 	}
-
 	maxTokens := input.MaxTokens
-	if maxTokens == 0 {
+	if maxTokens <= 0 {
 		maxTokens = 4096
 	}
 
-	reqBody := AnthropicRequest{
-		Model:     model,
-		Messages:  input.Messages,
-		Tools:     input.Tools,
-		MaxTokens: maxTokens,
+	client := anthropic.NewClient(option.WithAPIKey(input.Config.APIKey))
+	params := anthropic.MessageNewParams{
+		Model:     anthropic.Model(model),
+		MaxTokens: int64(maxTokens),
+		Messages:  convertMessages(input.Messages),
+	}
+	if tools := convertTools(input.Tools); len(tools) > 0 {
+		params.Tools = tools
 	}
 
-	bodyBytes, err := json.Marshal(reqBody)
+	resp, err := client.Messages.New(context.Background(), params)
 	if err != nil {
-		resultBuf = []byte(`{"error":"failed to marshal request"}`)
+		pdk.SetError(err)
 		return 1
 	}
 
-	req, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(bodyBytes))
-	if err != nil {
-		resultBuf = []byte(`{"error":"failed to create request"}`)
-		return 1
+	out := OutputPayload{StopReason: resp.StopReason}
+	if out.StopReason == "end_turn" {
+		out.StopReason = "stop"
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", input.Config.APIKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		writeResult(ErrorPayload{Error: "http request failed: " + err.Error()})
-		return 1
+	if out.StopReason == "tool_use" {
+		out.StopReason = "tool_use"
 	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		resultBuf = []byte(`{"error":"failed to read response"}`)
-		return 1
+	out.Usage = OutputUsage{
+		PromptTokens:     int(resp.Usage.InputTokens),
+		CompletionTokens: int(resp.Usage.OutputTokens),
 	}
 
-	var antResp AnthropicResponse
-	if err := json.Unmarshal(respBytes, &antResp); err != nil {
-		resultBuf = []byte(`{"error":"failed to parse Anthropic response"}`)
-		return 1
-	}
-
-	if antResp.Error != nil {
-		writeResult(ErrorPayload{Error: antResp.Error.Message})
-		return 1
-	}
-
-	out := OutputPayload{
-		StopReason: antResp.StopReason,
-		Usage: OutputUsage{
-			PromptTokens:     antResp.Usage.InputTokens,
-			CompletionTokens: antResp.Usage.OutputTokens,
-		},
-	}
-
-	for _, block := range antResp.Content {
-		switch block.Type {
-		case "text":
-			out.Content += block.Text
-		case "tool_use":
-			inputJSON, _ := json.Marshal(block.Input)
+	for _, block := range resp.Content {
+		switch block.AsAny().(type) {
+		case anthropic.TextBlock:
+			tb := block.OfText
+			out.Content += tb.Text
+		case anthropic.ToolUseBlock:
+			tool := block.OfToolUse
+			inputBytes, _ := json.Marshal(tool.Input)
 			out.ToolCalls = append(out.ToolCalls, OutputToolCall{
-				ID:    block.ID,
-				Name:  block.Name,
-				Input: string(inputJSON),
+				ID:    tool.ID,
+				Name:  decodeToolName(tool.Name),
+				Input: string(inputBytes),
 			})
 		}
 	}
 
-	return writeResult(out)
+	if err := pdk.OutputJSON(out); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	return 0
 }
 
 func main() {}

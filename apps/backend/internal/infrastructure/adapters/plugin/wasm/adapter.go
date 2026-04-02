@@ -3,39 +3,18 @@ package wasm
 import (
 	"context"
 	"fmt"
-	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
+	extism "github.com/extism/go-sdk"
 )
 
-// Adapter implements ports.PluginPort for a single loaded WASM plugin.
-//
-// # Memory calling convention (host ↔ plugin)
-//
-// Each plugin must export:
-//
-//	openlobster_alloc_input(size uint32) uint32
-//	    Allocates an input buffer of `size` bytes inside the plugin, returns a
-//	    pointer to it. The plugin keeps a reference so the GC won't collect it.
-//
-//	openlobster_result_ptr() uint32
-//	openlobster_result_len() uint32
-//	    Return the pointer and byte length of the last function's result buffer.
-//
-//	openlobster_<fn>() int32
-//	    Execute the function (reads inputBuf, writes resultBuf). Returns 0 on
-//	    success, non-zero on error. For get_name/get_version/get_type functions
-//	    that take no input, alloc_input is not called before invoking them.
-//
-// The host allocates the input, writes JSON to it, calls the function, then
-// reads the result via result_ptr/result_len.
+// Adapter implements ports.PluginPort for a single loaded Extism plugin.
 type Adapter struct {
 	id        string
-	mod       api.Module
-	ctx       context.Context // per-plugin context carrying the WASI system instance
+	plugin    *extism.Plugin
+	ctx       context.Context
 	rt        *Runtime
 	wasmPath  string
 	mu        sync.Mutex
@@ -50,48 +29,22 @@ type Adapter struct {
 	dataDir     string
 }
 
-// NewAdapter loads the WASM file at wasmPath, gives it a fresh WASI system
-// (including socket support) via rt.InstantiateWASI, compiles and instantiates
-// it inside rt, and returns a ready-to-use Adapter.
+// NewAdapter loads and instantiates an Extism plugin.
 func NewAdapter(ctx context.Context, rt *Runtime, wasmPath string, callTimeout time.Duration, allowFS bool, dataDir string) (*Adapter, error) {
 	if callTimeout <= 0 {
 		callTimeout = 10 * time.Second
 	}
-	code, err := os.ReadFile(wasmPath)
+	callTimeoutMs := uint64(callTimeout / time.Millisecond)
+	plugin, err := rt.newPlugin(ctx, wasmPath, callTimeoutMs, allowFS, dataDir)
 	if err != nil {
-		return nil, fmt.Errorf("plugin: read %s: %w", wasmPath, err)
+		return nil, fmt.Errorf("plugin: instantiate %s: %w", wasmPath, err)
 	}
-
-	compiled, err := rt.CompileModule(ctx, code)
-	if err != nil {
-		return nil, fmt.Errorf("plugin: compile %s: %w", wasmPath, err)
-	}
-	defer compiled.Close(ctx)
 
 	stem := moduleStem(wasmPath)
-
-	// Give this plugin its own WASI system context (socket extensions included).
-	pluginCtx, err := rt.InstantiateWASI(ctx, allowFS, dataDir)
-	if err != nil {
-		return nil, fmt.Errorf("plugin: wasi instantiate %s: %w", stem, err)
-	}
-
-	mod, err := rt.InstantiateModule(pluginCtx, compiled, wazero.NewModuleConfig().
-		WithName(stem).
-		WithStdout(os.Stdout).
-		WithStderr(os.Stderr).
-		// _initialize runs Go package init() functions without starting main().
-		// Plugins must NOT use main() for logic — only for optional long-lived loops.
-		WithStartFunctions("_initialize"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("plugin: instantiate %s: %w", stem, err)
-	}
-
 	return &Adapter{
 		id:          stem,
-		mod:         mod,
-		ctx:         pluginCtx,
+		plugin:      plugin,
+		ctx:         ctx,
 		rt:          rt,
 		wasmPath:    wasmPath,
 		callTimeout: callTimeout,
@@ -145,15 +98,7 @@ func (a *Adapter) Call(function string, input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	var (
-		out []byte
-		err error
-	)
-	if len(input) == 0 {
-		out, err = a.callNoInputLocked(function)
-	} else {
-		out, err = a.callWithInputLocked(function, input)
-	}
+	out, err := a.callLocked(function, input)
 	if err != nil {
 		a.handleFailureLocked(function, err)
 		return nil, err
@@ -168,10 +113,12 @@ func (a *Adapter) Call(function string, input []byte) ([]byte, error) {
 func (a *Adapter) Close() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.mod == nil {
+	if a.plugin == nil {
 		return nil
 	}
-	return a.mod.Close(a.ctx)
+	err := a.plugin.Close(a.ctx)
+	a.plugin = nil
+	return err
 }
 
 // Available returns whether the plugin is currently available for calls.
@@ -213,7 +160,7 @@ func (a *Adapter) callNoInput(fn string) ([]byte, error) {
 	if err := a.ensureReadyLocked(); err != nil {
 		return nil, err
 	}
-	out, err := a.callNoInputLocked(fn)
+	out, err := a.callLocked(fn, nil)
 	if err != nil {
 		a.handleFailureLocked(fn, err)
 		return nil, err
@@ -221,91 +168,36 @@ func (a *Adapter) callNoInput(fn string) ([]byte, error) {
 	return out, nil
 }
 
-func (a *Adapter) callNoInputLocked(fn string) ([]byte, error) {
-	fnName := "openlobster_" + fn
-	f := a.mod.ExportedFunction(fnName)
-	if f == nil {
-		return nil, fmt.Errorf("plugin %s: function %q not exported", a.id, fnName)
+func (a *Adapter) callLocked(fn string, input []byte) ([]byte, error) {
+	if a.plugin == nil {
+		return nil, fmt.Errorf("plugin %s unavailable", a.id)
+	}
+	if !a.plugin.FunctionExists(fn) {
+		return nil, fmt.Errorf("plugin %s: function %q not exported", a.id, fn)
 	}
 	callCtx, cancel := context.WithTimeout(a.ctx, a.callTimeout)
 	defer cancel()
-	ret, err := f.Call(callCtx)
+	rc, out, err := a.plugin.CallWithContext(callCtx, fn, input)
 	if err != nil {
-		return nil, fmt.Errorf("plugin %s: call %s: %w", a.id, fnName, err)
+		errMsg := a.plugin.GetErrorWithContext(callCtx)
+		if errMsg != "" {
+			return nil, fmt.Errorf("plugin %s: call %s: %s (%w)", a.id, fn, errMsg, err)
+		}
+		return nil, fmt.Errorf("plugin %s: call %s: %w", a.id, fn, err)
 	}
-	if len(ret) > 0 && ret[0] != 0 {
-		return nil, fmt.Errorf("plugin %s: %s returned error %d", a.id, fnName, ret[0])
+	if rc != 0 {
+		errMsg := a.plugin.GetErrorWithContext(callCtx)
+		if errMsg != "" {
+			return nil, fmt.Errorf("plugin %s: %s failed (%d): %s", a.id, fn, rc, errMsg)
+		}
+		return nil, fmt.Errorf("plugin %s: %s failed (%d)", a.id, fn, rc)
 	}
-	return a.readResult()
-}
-
-func (a *Adapter) callWithInputLocked(fn string, input []byte) ([]byte, error) {
-	// 1. Allocate an input buffer inside the plugin.
-	allocFn := a.mod.ExportedFunction("openlobster_alloc_input")
-	if allocFn == nil {
-		return nil, fmt.Errorf("plugin %s: openlobster_alloc_input not exported", a.id)
-	}
-	callCtx, cancel := context.WithTimeout(a.ctx, a.callTimeout)
-	defer cancel()
-	res, err := allocFn.Call(callCtx, uint64(len(input)))
-	if err != nil {
-		return nil, fmt.Errorf("plugin %s: alloc_input: %w", a.id, err)
-	}
-	ptr := uint32(res[0])
-
-	// 2. Write the JSON input into the plugin's memory.
-	if !a.mod.Memory().Write(ptr, input) {
-		return nil, fmt.Errorf("plugin %s: memory write out of bounds (ptr=%d len=%d)", a.id, ptr, len(input))
-	}
-
-	// 3. Call the plugin function (reads from inputBuf global, writes to resultBuf).
-	fnName := "openlobster_" + fn
-	f := a.mod.ExportedFunction(fnName)
-	if f == nil {
-		return nil, fmt.Errorf("plugin %s: function %q not exported", a.id, fnName)
-	}
-	ret, err := f.Call(callCtx)
-	if err != nil {
-		return nil, fmt.Errorf("plugin %s: call %s: %w", a.id, fnName, err)
-	}
-	if len(ret) > 0 && ret[0] != 0 {
-		return nil, fmt.Errorf("plugin %s: %s returned error %d", a.id, fnName, ret[0])
-	}
-	return a.readResult()
-}
-
-// readResult reads the output written by the plugin into its resultBuf global.
-func (a *Adapter) readResult() ([]byte, error) {
-	ptrFn := a.mod.ExportedFunction("openlobster_result_ptr")
-	lenFn := a.mod.ExportedFunction("openlobster_result_len")
-	if ptrFn == nil || lenFn == nil {
-		return nil, nil
-	}
-	ptrRes, err := ptrFn.Call(a.ctx)
-	if err != nil || len(ptrRes) == 0 {
-		return nil, err
-	}
-	lenRes, err := lenFn.Call(a.ctx)
-	if err != nil || len(lenRes) == 0 {
-		return nil, err
-	}
-	ptr := uint32(ptrRes[0])
-	length := uint32(lenRes[0])
-	if ptr == 0 || length == 0 {
-		return nil, nil
-	}
-	data, ok := a.mod.Memory().Read(ptr, length)
-	if !ok {
-		return nil, fmt.Errorf("plugin %s: result memory read out of bounds (ptr=%d len=%d)", a.id, ptr, length)
-	}
-	out := make([]byte, length)
-	copy(out, data)
 	return out, nil
 }
 
 func (a *Adapter) ensureReadyLocked() error {
 	now := time.Now()
-	if a.mod != nil {
+	if a.plugin != nil {
 		return nil
 	}
 	if !a.retryAt.IsZero() && now.Before(a.retryAt) {
@@ -313,32 +205,13 @@ func (a *Adapter) ensureReadyLocked() error {
 		return fmt.Errorf("plugin %s unavailable, retry in %s", a.id, wait)
 	}
 
-	code, err := os.ReadFile(a.wasmPath)
-	if err != nil {
-		return fmt.Errorf("plugin %s: reload read: %w", a.id, err)
-	}
-	compiled, err := a.rt.CompileModule(a.ctx, code)
-	if err != nil {
-		return fmt.Errorf("plugin %s: reload compile: %w", a.id, err)
-	}
-	defer compiled.Close(a.ctx)
-
-	pluginCtx, err := a.rt.InstantiateWASI(a.ctx, a.allowFS, a.dataDir)
-	if err != nil {
-		return fmt.Errorf("plugin %s: reload wasi: %w", a.id, err)
-	}
-	mod, err := a.rt.InstantiateModule(pluginCtx, compiled, wazero.NewModuleConfig().
-		WithName(moduleStem(a.wasmPath)).
-		WithStdout(os.Stdout).
-		WithStderr(os.Stderr).
-		WithStartFunctions("_initialize"),
-	)
+	callTimeoutMs := uint64(a.callTimeout / time.Millisecond)
+	plugin, err := a.rt.newPlugin(a.ctx, a.wasmPath, callTimeoutMs, a.allowFS, a.dataDir)
 	if err != nil {
 		return fmt.Errorf("plugin %s: reload instantiate: %w", a.id, err)
 	}
 
-	a.ctx = pluginCtx
-	a.mod = mod
+	a.plugin = plugin
 	a.available = true
 	a.lastError = nil
 	return nil
@@ -350,25 +223,18 @@ func (a *Adapter) handleFailureLocked(function string, err error) {
 	a.lastError = fmt.Errorf("plugin %s %s failed: %w", a.id, function, err)
 	backoff := time.Second * time.Duration(1<<min(a.failures-1, 5))
 	a.retryAt = time.Now().Add(backoff)
-	if a.mod != nil {
-		_ = a.mod.Close(a.ctx)
-		a.mod = nil
+	if a.plugin != nil {
+		_ = a.plugin.Close(a.ctx)
+		a.plugin = nil
 	}
 }
 
 // moduleStem returns the filename without directory path and extension.
 func moduleStem(path string) string {
-	base := path
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' || path[i] == '\\' {
-			base = path[i+1:]
-			break
-		}
+	base := filepath.Base(path)
+	ext := filepath.Ext(base)
+	if ext == "" {
+		return base
 	}
-	for i := len(base) - 1; i > 0; i-- {
-		if base[i] == '.' {
-			return base[:i]
-		}
-	}
-	return base
+	return base[:len(base)-len(ext)]
 }
