@@ -1,6 +1,6 @@
 module github.com/neirth/openlobster/plugins/openlobster-ai-anthropic
 
-go 1.26
+go 1.24
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.27.1
