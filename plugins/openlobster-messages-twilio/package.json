@@ -1,0 +1,9 @@
+{
+  "name": "@openlobster/openlobster-messages-twilio",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "sh -c \"if command -v tinygo >/dev/null 2>&1; then tinygo build -target=wasip1 -o ../../dist/plugins/openlobster-messages-twilio.wasm main.go; else echo tinygo not installed, skipping openlobster-messages-twilio; fi\"",
+    "test": "go test ./..."
+  }
+}

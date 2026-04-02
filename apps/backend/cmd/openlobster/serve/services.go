@@ -5,19 +5,20 @@ import (
 	"encoding/json"
 	"log"
 	"path/filepath"
+	"strings"
 
 	"github.com/neirth/openlobster/internal/application/graphql/subscriptions"
 	appcontext "github.com/neirth/openlobster/internal/domain/context"
-	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
 	"github.com/neirth/openlobster/internal/domain/events"
+	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
 	"github.com/neirth/openlobster/internal/domain/models"
 	"github.com/neirth/openlobster/internal/domain/repositories"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
 	"github.com/neirth/openlobster/internal/domain/services/permissions"
-	inframc "github.com/neirth/openlobster/internal/infrastructure/adapters/mcp"
 	browser "github.com/neirth/openlobster/internal/infrastructure/adapters/browser/chromedp"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
+	inframc "github.com/neirth/openlobster/internal/infrastructure/adapters/mcp"
 	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/terminal"
 )
@@ -32,7 +33,14 @@ func (a *App) initPlugins() {
 	a.initChannels()
 
 	ctx := context.Background()
-	plugins, err := pluginadapter.LoadPlugins(ctx, a.Cfg.Plugins.Dir, a.onPluginMessage)
+	plugins, err := pluginadapter.LoadPlugins(
+		ctx,
+		a.Cfg.Plugins.Dir,
+		a.onPluginMessage,
+		a.Cfg.Plugins.Builtins,
+		a.Cfg.Plugins.CallTimeout,
+		a.Cfg.Plugins.DataDir,
+	)
 	if err != nil {
 		log.Printf("plugins: failed to load: %v", err)
 		return
@@ -41,6 +49,29 @@ func (a *App) initPlugins() {
 	// Register all plugins first, then wire in two passes so that the audio
 	// provider is available when the AI wrapper is created.
 	for _, p := range plugins {
+		schema, schemaErr := p.Schema()
+		if schemaErr != nil {
+			log.Printf("plugins: %s schema read failed: %v", p.ID(), schemaErr)
+		} else {
+			if err := pluginadapter.ValidateConfigSchema(schema, a.Cfg.Plugins.Settings[p.ID()]); err != nil {
+				log.Printf("plugins: skip %s — config validation failed: %v", p.ID(), err)
+				_ = p.Close()
+				continue
+			}
+		}
+
+		if p.Type() == "memory" || p.Type() == "secrets" {
+			cfg := a.Cfg.Plugins.Settings[p.ID()]
+			if cfg == nil {
+				cfg = map[string]interface{}{}
+			}
+			pathVal, hasPath := cfg["path"].(string)
+			if !hasPath || strings.TrimSpace(pathVal) == "" {
+				cfg["path"] = a.Cfg.Plugins.DataDir
+				a.Cfg.Plugins.Settings[p.ID()] = cfg
+			}
+		}
+
 		a.PluginRegistry.Register(p)
 	}
 
@@ -83,6 +114,11 @@ func (a *App) initPlugins() {
 			if a.MemoryAdapter == nil {
 				a.MemoryAdapter = pluginadapter.NewMemoryWrapper(p, cfg)
 				log.Printf("plugins: memory backend → %s", p.Name())
+			}
+		case "secrets":
+			if a.SecretsProvider == nil {
+				a.SecretsProvider = pluginadapter.NewSecretsWrapper(p, cfg)
+				log.Printf("plugins: secrets backend → %s", p.Name())
 			}
 		}
 	}

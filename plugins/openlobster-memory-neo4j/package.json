@@ -1,0 +1,9 @@
+{
+  "name": "@openlobster/openlobster-memory-neo4j",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "sh -c \"if command -v tinygo >/dev/null 2>&1; then tinygo build -target=wasip1 -o ../../dist/plugins/openlobster-memory-neo4j.wasm main.go; else echo tinygo not installed, skipping openlobster-memory-neo4j; fi\"",
+    "test": "go test ./..."
+  }
+}

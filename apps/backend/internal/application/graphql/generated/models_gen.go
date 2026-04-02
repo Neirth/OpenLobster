@@ -361,13 +361,16 @@ type PendingPairing struct {
 }
 
 type Plugin struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Description string `json:"description"`
-	PluginType  string `json:"pluginType"`
-	SchemaJSON  string `json:"schemaJson"`
-	Enabled     bool   `json:"enabled"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Version     string  `json:"version"`
+	Description string  `json:"description"`
+	PluginType  string  `json:"pluginType"`
+	SchemaJSON  string  `json:"schemaJson"`
+	Enabled     bool    `json:"enabled"`
+	Available   bool    `json:"available"`
+	LastError   *string `json:"lastError,omitempty"`
+	Builtin     bool    `json:"builtin"`
 }
 
 type Query struct {

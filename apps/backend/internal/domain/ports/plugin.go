@@ -26,6 +26,20 @@ type PluginPort interface {
 	Close() error
 }
 
+// PluginStatePort is an optional extension implemented by runtime plugin
+// adapters to expose lifecycle/runtime state to GraphQL and diagnostics.
+type PluginStatePort interface {
+	Available() bool
+	LastError() string
+	Builtin() bool
+}
+
+// PluginStateSetterPort is an optional extension used by loaders/managers to
+// mark plugins with static metadata such as builtin catalog membership.
+type PluginStateSetterPort interface {
+	SetBuiltin(v bool)
+}
+
 // PluginRegistryPort is the read interface used by GraphQL resolvers.
 type PluginRegistryPort interface {
 	All() []PluginPort

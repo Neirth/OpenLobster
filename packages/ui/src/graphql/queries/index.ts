@@ -325,6 +325,9 @@ export const PLUGINS_QUERY = /* GraphQL */ `
       pluginType
       schemaJson
       enabled
+      available
+      lastError
+      builtin
     }
   }
 `;

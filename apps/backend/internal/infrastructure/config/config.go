@@ -170,6 +170,7 @@ func (c *Config) ResolvePaths() {
 	c.Logging.Path = makeAbs(c.Logging.Path)
 	c.Secrets.File.Path = makeAbs(c.Secrets.File.Path)
 	c.Workspace.Path = makeAbs(c.Workspace.Path)
+	c.Plugins.DataDir = makeAbs(c.Plugins.DataDir)
 }
 
 // PluginsConfig holds WASM plugin loading configuration.
@@ -180,6 +181,12 @@ type PluginsConfig struct {
 	// Settings maps plugin IDs to their per-plugin configuration key/value pairs.
 	// These are forwarded to the plugin as the "config" field in every call.
 	Settings map[string]map[string]interface{} `mapstructure:"settings"`
+	// Builtins is the curated builtin catalog allowed by the core.
+	Builtins []string `mapstructure:"builtins"`
+	// CallTimeout is the timeout for a single plugin call.
+	CallTimeout time.Duration `mapstructure:"call_timeout"`
+	// DataDir is the only filesystem scope allowed for memory/secrets plugins.
+	DataDir string `mapstructure:"data_dir"`
 }
 
 type Config struct {
@@ -525,6 +532,19 @@ func setDefaults() {
 	viper.SetDefault("agent.capabilities.sessions", true)
 	viper.SetDefault("wizard.completed", false)
 	viper.SetDefault("plugins.dir", filepath.Join(home, ".openlobster", "plugins"))
+	viper.SetDefault("plugins.data_dir", filepath.Join(home, ".openlobster"))
+	viper.SetDefault("plugins.call_timeout", "10s")
+	viper.SetDefault("plugins.builtins", []string{
+		"openlobster-messages-telegram",
+		"openlobster-messages-discord",
+		"openlobster-ai-anthropic",
+		"openlobster-ai-openai",
+		"openlobster-audio-elevenlabs",
+		"openlobster-memory-gml",
+		"openlobster-memory-neo4j",
+		"openlobster-secrets-json",
+		"openlobster-secrets-openbao",
+	})
 }
 
 // bootstrapEncryptedConfig creates a default config at path if the file does not exist.
