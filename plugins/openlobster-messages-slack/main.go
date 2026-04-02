@@ -1,246 +1,196 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"time"
-	"unsafe"
+"context"
+"encoding/json"
+"fmt"
+"time"
 
-	_ "github.com/stealthrocket/net/wasip1"
+slackgo "github.com/slack-go/slack"
+pdk "github.com/extism/go-pdk"
 )
-
-var (
-	inputBuf  []byte
-	resultBuf []byte
-)
-
-//go:wasmexport openlobster_alloc_input
-func allocInput(size uint32) uint32 {
-	inputBuf = make([]byte, size)
-	return uint32(uintptr(unsafe.Pointer(&inputBuf[0])))
-}
-
-//go:wasmexport openlobster_result_ptr
-func resultPtr() uint32 {
-	if len(resultBuf) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-}
-
-//go:wasmexport openlobster_result_len
-func resultLen() uint32 {
-	return uint32(len(resultBuf))
-}
-
-func writeResult(v interface{}) int32 {
-	b, err := json.Marshal(v)
-	if err != nil {
-		resultBuf = []byte(`{"error":"marshal failed"}`)
-		return 1
-	}
-	resultBuf = b
-	return 0
-}
-
-func writeStringResult(s string) int64 {
-	resultBuf = []byte(s)
-	ptr := uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-	return int64(ptr)<<32 | int64(len(resultBuf))
-}
 
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_get_name
-func getName() int64 { return writeStringResult("openlobster-messages-slack") }
+//go:wasmexport get_name
+func getName() int32 { pdk.OutputString("openlobster-messages-slack"); return 0 }
 
-//go:wasmexport openlobster_get_version
-func getVersion() int64 { return writeStringResult("0.1.0") }
+//go:wasmexport get_version
+func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport openlobster_get_description
-func getDescription() int64 {
-	return writeStringResult("Slack Bot messaging plugin for OpenLobster")
+//go:wasmexport get_description
+func getDescription() int32 {
+pdk.OutputString("Slack Bot messaging plugin for OpenLobster")
+return 0
 }
 
-//go:wasmexport openlobster_get_type
-func getType() int64 { return writeStringResult("messaging") }
+//go:wasmexport get_type
+func getType() int32 { pdk.OutputString("messaging"); return 0 }
 
-//go:wasmexport openlobster_get_schema
-func getSchema() int64 {
-	return writeStringResult(`{"type":"object","properties":{"bot_token":{"type":"string","title":"Bot Token (xoxb-)"},"app_token":{"type":"string","title":"App Token (xapp-) for Socket Mode"}},"required":["bot_token"]}`)
-}
-
-// ---------------------------------------------------------------------------
-// Host function
-// ---------------------------------------------------------------------------
-
-//go:wasmimport openlobster host_emit_message
-func hostEmitMessage(ptr uint32, size uint32)
-
-func emitMessage(msg map[string]interface{}) {
-	b, _ := json.Marshal(msg)
-	if len(b) == 0 {
-		return
-	}
-	hostEmitMessage(uint32(uintptr(unsafe.Pointer(&b[0]))), uint32(len(b)))
+//go:wasmexport get_schema
+func getSchema() int32 {
+pdk.OutputString(`{"type":"object","properties":{"bot_token":{"type":"string","title":"Bot Token (xoxb-)"},"channel":{"type":"string","title":"Default Channel (optional)"}},"required":["bot_token"]}`)
+return 0
 }
 
 // ---------------------------------------------------------------------------
-// Slack types
+// Host emit_message
 // ---------------------------------------------------------------------------
 
-const slackAPI = "https://slack.com/api"
+//go:wasmimport openlobster emit_message
+func hostEmitMessage(offset uint64)
 
-func slackGet(token, method string, params map[string]string) (map[string]interface{}, error) {
-	apiURL := fmt.Sprintf("%s/%s", slackAPI, method)
-	req, _ := http.NewRequest("GET", apiURL, nil)
-	q := req.URL.Query()
-	for k, v := range params {
-		q.Set(k, v)
-	}
-	req.URL.RawQuery = q.Encode()
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]interface{}
-	json.Unmarshal(body, &result)
-	return result, nil
+type pluginMessage struct {
+ChannelID   string                 `json:"channel_id"`
+SenderID    string                 `json:"sender_id,omitempty"`
+SenderName  string                 `json:"sender_name,omitempty"`
+Content     string                 `json:"content"`
+IsGroup     bool                   `json:"is_group,omitempty"`
+IsMentioned bool                   `json:"is_mentioned,omitempty"`
+GroupName   string                 `json:"group_name,omitempty"`
+Timestamp   time.Time              `json:"timestamp"`
+Metadata    map[string]interface{} `json:"metadata"`
+}
+
+func emitMessage(msg *pluginMessage) {
+b, _ := json.Marshal(msg)
+mem := pdk.AllocateBytes(b)
+hostEmitMessage(mem.Offset())
 }
 
 // ---------------------------------------------------------------------------
-// openlobster_start — polls conversations.history for new messages
+// capabilities
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_start
-func start() int32 {
-	var input struct {
-		Config struct {
-			BotToken string `json:"bot_token"`
-			Channel  string `json:"channel,omitempty"`
-		} `json:"config"`
-	}
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input"}`)
-		return 1
-	}
-	token := input.Config.BotToken
-	if token == "" {
-		resultBuf = []byte(`{"error":"slack bot_token required"}`)
-		return 1
-	}
-
-	// Get list of channels if none specified
-	channels := []string{}
-	if input.Config.Channel != "" {
-		channels = append(channels, input.Config.Channel)
-	} else {
-		result, err := slackGet(token, "conversations.list", map[string]string{"limit": "200"})
-		if err == nil {
-			if chans, ok := result["channels"].([]interface{}); ok {
-				for _, ch := range chans {
-					if chMap, ok := ch.(map[string]interface{}); ok {
-						if id, ok := chMap["id"].(string); ok {
-							channels = append(channels, id)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	lastTS := make(map[string]string)
-
-	for {
-		for _, channelID := range channels {
-			params := map[string]string{"channel": channelID, "limit": "10"}
-			if ts, ok := lastTS[channelID]; ok {
-				params["oldest"] = ts
-			}
-			result, err := slackGet(token, "conversations.history", params)
-			if err != nil {
-				continue
-			}
-			msgs, _ := result["messages"].([]interface{})
-			for i := len(msgs) - 1; i >= 0; i-- {
-				msgMap, ok := msgs[i].(map[string]interface{})
-				if !ok {
-					continue
-				}
-				ts, _ := msgMap["ts"].(string)
-				if ts == "" {
-					continue
-				}
-				if lastTS[channelID] == ts {
-					continue
-				}
-				lastTS[channelID] = ts
-				text, _ := msgMap["text"].(string)
-				userID, _ := msgMap["user"].(string)
-				emitMessage(map[string]interface{}{
-					"channel_id":   channelID,
-					"sender_id":    userID,
-					"sender_name":  userID,
-					"content":      text,
-					"is_group":     true,
-					"is_mentioned": false,
-					"metadata":     map[string]string{"channel_type": "slack", "ts": ts},
-				})
-			}
-		}
-		time.Sleep(3 * time.Second)
-	}
+//go:wasmexport capabilities
+func capabilities() int32 {
+_ = pdk.OutputJSON(map[string]bool{
+"HasVoiceMessage": false,
+"HasCallStream":   false,
+"HasTextStream":   true,
+"HasMediaSupport": true,
+})
+return 0
 }
 
 // ---------------------------------------------------------------------------
-// openlobster_send
+// send
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_send
+type sendInput struct {
+Config  map[string]interface{} `json:"config"`
+Message struct {
+ChannelID string `json:"channel_id"`
+Content   string `json:"content"`
+} `json:"message"`
+}
+
+//go:wasmexport send
 func send() int32 {
-	var input struct {
-		ChannelID string `json:"channel_id"`
-		Content   string `json:"content"`
-		Config    struct {
-			BotToken string `json:"bot_token"`
-		} `json:"config"`
-	}
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input"}`)
-		return 1
-	}
-
-	body, _ := json.Marshal(map[string]string{
-		"channel": input.ChannelID,
-		"text":    input.Content,
-	})
-	req, err := http.NewRequest("POST", slackAPI+"/chat.postMessage", bytes.NewReader(body))
-	if err != nil {
-		writeResult(map[string]string{"error": err.Error()})
-		return 1
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+input.Config.BotToken)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		writeResult(map[string]string{"error": err.Error()})
-		return 1
-	}
-	defer resp.Body.Close()
-	return writeResult(map[string]bool{"ok": true})
+var input sendInput
+if err := pdk.InputJSON(&input); err != nil {
+pdk.SetError(err)
+return 1
 }
 
-//go:wasmexport openlobster_configure
-func configure() int32 {
-	return writeResult(map[string]bool{"ok": true})
+token, _ := input.Config["bot_token"].(string)
+if token == "" {
+pdk.SetError(fmt.Errorf("slack bot_token required"))
+return 1
+}
+
+client := slackgo.New(token)
+_, _, err := client.PostMessage(input.Message.ChannelID, slackgo.MsgOptionText(input.Message.Content, false))
+if err != nil {
+pdk.SetError(err)
+return 1
+}
+return 0
+}
+
+// ---------------------------------------------------------------------------
+// start — polls conversations.history for new messages
+// ---------------------------------------------------------------------------
+
+//go:wasmexport start
+func start() int32 {
+var cfg map[string]interface{}
+if err := pdk.InputJSON(&cfg); err != nil {
+pdk.SetError(err)
+return 1
+}
+
+token, _ := cfg["bot_token"].(string)
+if token == "" {
+pdk.SetError(fmt.Errorf("slack bot_token required"))
+return 1
+}
+defaultChannel, _ := cfg["channel"].(string)
+
+client := slackgo.New(token)
+ctx := context.Background()
+
+// Gather channels to poll
+var channelIDs []string
+if defaultChannel != "" {
+channelIDs = append(channelIDs, defaultChannel)
+} else {
+resp, cursor := (*slackgo.GetConversationsParameters)(nil), ""
+_ = resp
+params := &slackgo.GetConversationsParameters{Limit: 200}
+for {
+chans, nextCursor, err := client.GetConversationsContext(ctx, params)
+if err != nil {
+break
+}
+for _, ch := range chans {
+channelIDs = append(channelIDs, ch.ID)
+}
+if nextCursor == "" {
+break
+}
+cursor = nextCursor
+params.Cursor = cursor
+}
+}
+
+lastTS := make(map[string]string)
+
+for {
+for _, channelID := range channelIDs {
+histParams := &slackgo.GetConversationHistoryParameters{
+ChannelID: channelID,
+Limit:     10,
+}
+if ts, ok := lastTS[channelID]; ok {
+histParams.Oldest = ts
+}
+hist, err := client.GetConversationHistoryContext(ctx, histParams)
+if err != nil {
+continue
+}
+// messages are newest-first; process in reverse
+for i := len(hist.Messages) - 1; i >= 0; i-- {
+m := hist.Messages[i]
+if ts, ok := lastTS[channelID]; ok && m.Timestamp == ts {
+continue
+}
+lastTS[channelID] = m.Timestamp
+emitMessage(&pluginMessage{
+ChannelID:  channelID,
+SenderID:   m.User,
+SenderName: m.User,
+Content:    m.Text,
+IsGroup:    true,
+Timestamp:  time.Now(),
+Metadata:   map[string]interface{}{"channel_type": "slack", "ts": m.Timestamp},
+})
+}
+}
+time.Sleep(3 * time.Second)
+}
 }
 
 func main() {}

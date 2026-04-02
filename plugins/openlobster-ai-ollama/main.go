@@ -1,253 +1,196 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"unsafe"
+"context"
+"encoding/json"
+"fmt"
+"net/http"
+"net/url"
 
-	_ "github.com/stealthrocket/net/wasip1"
+pdk "github.com/extism/go-pdk"
+ollamaAPI "github.com/ollama/ollama/api"
 )
-
-var (
-	inputBuf  []byte
-	resultBuf []byte
-)
-
-// ---------------------------------------------------------------------------
-// ABI buffer helpers
-// ---------------------------------------------------------------------------
-
-//go:wasmexport openlobster_alloc_input
-func allocInput(size uint32) uint32 {
-	inputBuf = make([]byte, size)
-	return uint32(uintptr(unsafe.Pointer(&inputBuf[0])))
-}
-
-//go:wasmexport openlobster_result_ptr
-func resultPtr() uint32 {
-	if len(resultBuf) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-}
-
-//go:wasmexport openlobster_result_len
-func resultLen() uint32 {
-	return uint32(len(resultBuf))
-}
-
-func writeResult(v interface{}) int32 {
-	b, err := json.Marshal(v)
-	if err != nil {
-		resultBuf = []byte(`{"error":"marshal failed"}`)
-		return 1
-	}
-	resultBuf = b
-	return 0
-}
-
-func writeStringResult(s string) int64 {
-	resultBuf = []byte(s)
-	ptr := uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-	return int64(ptr)<<32 | int64(len(resultBuf))
-}
 
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_get_name
-func getName() int64 { return writeStringResult("openlobster-ai-ollama") }
+//go:wasmexport get_name
+func getName() int32 { pdk.OutputString("openlobster-ai-ollama"); return 0 }
 
-//go:wasmexport openlobster_get_version
-func getVersion() int64 { return writeStringResult("0.1.0") }
+//go:wasmexport get_version
+func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport openlobster_get_description
-func getDescription() int64 {
-	return writeStringResult("Ollama local AI plugin for OpenLobster")
+//go:wasmexport get_description
+func getDescription() int32 {
+pdk.OutputString("Ollama local AI provider plugin for OpenLobster")
+return 0
 }
 
-//go:wasmexport openlobster_get_type
-func getType() int64 { return writeStringResult("ai") }
+//go:wasmexport get_type
+func getType() int32 { pdk.OutputString("ai"); return 0 }
 
-//go:wasmexport openlobster_get_schema
-func getSchema() int64 {
-	return writeStringResult(`{"type":"object","properties":{"base_url":{"type":"string","title":"Base URL","default":"http://localhost:11434"},"default_model":{"type":"string","title":"Default Model","default":"llama3.2"}}}`)
-}
-
-// ---------------------------------------------------------------------------
-// Ollama uses OpenAI-compatible /api/chat endpoint
-// ---------------------------------------------------------------------------
-
-type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type Tool struct {
-	Type     string `json:"type"`
-	Function struct {
-		Name        string `json:"name"`
-		Description string `json:"description,omitempty"`
-		Parameters  any    `json:"parameters,omitempty"`
-	} `json:"function"`
-}
-
-type InputPayload struct {
-	Model     string        `json:"model"`
-	Messages  []ChatMessage `json:"messages"`
-	Tools     []Tool        `json:"tools,omitempty"`
-	MaxTokens int           `json:"max_tokens,omitempty"`
-	Config    struct {
-		BaseURL      string `json:"base_url"`
-		DefaultModel string `json:"default_model"`
-	} `json:"config"`
-}
-
-type OllamaRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
-	Tools    []Tool        `json:"tools,omitempty"`
-	Stream   bool          `json:"stream"`
-	Options  struct {
-		NumPredict int `json:"num_predict,omitempty"`
-	} `json:"options,omitempty"`
-}
-
-type OllamaToolCall struct {
-	Function struct {
-		Name      string `json:"name"`
-		Arguments any    `json:"arguments"`
-	} `json:"function"`
-}
-
-type OllamaResponse struct {
-	Message struct {
-		Role      string           `json:"role"`
-		Content   string           `json:"content"`
-		ToolCalls []OllamaToolCall `json:"tool_calls,omitempty"`
-	} `json:"message"`
-	DoneReason         string `json:"done_reason"`
-	PromptEvalCount    int    `json:"prompt_eval_count"`
-	EvalCount          int    `json:"eval_count"`
-	Error              string `json:"error,omitempty"`
-}
-
-type OutputToolCall struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Input string `json:"input"`
-}
-
-type OutputUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-}
-
-type OutputPayload struct {
-	Content    string           `json:"content"`
-	ToolCalls  []OutputToolCall `json:"tool_calls,omitempty"`
-	StopReason string           `json:"stop_reason"`
-	Usage      OutputUsage      `json:"usage"`
-}
-
-type ErrorPayload struct {
-	Error string `json:"error"`
+//go:wasmexport get_schema
+func getSchema() int32 {
+pdk.OutputString(`{"type":"object","properties":{"base_url":{"type":"string","title":"Base URL","default":"http://localhost:11434"},"default_model":{"type":"string","title":"Default Model","default":"llama3.2"}},"required":[]}`)
+return 0
 }
 
 // ---------------------------------------------------------------------------
-// openlobster_chat
+// Types
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_chat
+type toolCall struct {
+ID   string `json:"id"`
+Type string `json:"type"`
+Function struct {
+Name      string `json:"name"`
+Arguments string `json:"arguments"`
+} `json:"function"`
+}
+
+type chatMessage struct {
+Role      string     `json:"role"`
+Content   string     `json:"content"`
+ToolCalls []toolCall `json:"tool_calls,omitempty"`
+}
+
+type toolDef struct {
+Type     string `json:"type"`
+Function struct {
+Name        string `json:"name"`
+Description string `json:"description,omitempty"`
+Parameters  any    `json:"parameters,omitempty"`
+} `json:"function"`
+}
+
+type inputPayload struct {
+Model     string        `json:"model"`
+Messages  []chatMessage `json:"messages"`
+Tools     []toolDef     `json:"tools,omitempty"`
+MaxTokens int           `json:"max_tokens,omitempty"`
+Config    struct {
+BaseURL      string `json:"base_url"`
+DefaultModel string `json:"default_model"`
+} `json:"config"`
+}
+
+type outputPayload struct {
+Content    string     `json:"content"`
+ToolCalls  []toolCall `json:"tool_calls,omitempty"`
+StopReason string     `json:"stop_reason"`
+Usage      struct {
+PromptTokens     int `json:"prompt_tokens"`
+CompletionTokens int `json:"completion_tokens"`
+} `json:"usage"`
+Error string `json:"error,omitempty"`
+}
+
+// ---------------------------------------------------------------------------
+// chat
+// ---------------------------------------------------------------------------
+
+//go:wasmexport chat
 func chat() int32 {
-	var input InputPayload
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input JSON"}`)
-		return 1
-	}
+var input inputPayload
+if err := pdk.InputJSON(&input); err != nil {
+pdk.SetError(err)
+return 1
+}
 
-	baseURL := input.Config.BaseURL
-	if baseURL == "" {
-		baseURL = "http://localhost:11434"
-	}
-	model := input.Model
-	if model == "" {
-		model = input.Config.DefaultModel
-	}
-	if model == "" {
-		model = "llama3.2"
-	}
+baseURL := input.Config.BaseURL
+if baseURL == "" {
+baseURL = "http://localhost:11434"
+}
 
-	reqBody := OllamaRequest{
-		Model:    model,
-		Messages: input.Messages,
-		Tools:    input.Tools,
-		Stream:   false,
-	}
-	if input.MaxTokens > 0 {
-		reqBody.Options.NumPredict = input.MaxTokens
-	}
+model := input.Model
+if model == "" {
+model = input.Config.DefaultModel
+}
+if model == "" {
+model = "llama3.2"
+}
 
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		resultBuf = []byte(`{"error":"failed to marshal request"}`)
-		return 1
-	}
+u, err := url.Parse(baseURL)
+if err != nil {
+pdk.SetError(fmt.Errorf("invalid base_url: %w", err))
+return 1
+}
 
-	req, err := http.NewRequest("POST", baseURL+"/api/chat", bytes.NewReader(bodyBytes))
-	if err != nil {
-		resultBuf = []byte(`{"error":"failed to create request"}`)
-		return 1
-	}
-	req.Header.Set("Content-Type", "application/json")
+client := ollamaAPI.NewClient(u, http.DefaultClient)
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		writeResult(ErrorPayload{Error: "http request failed: " + err.Error()})
-		return 1
-	}
-	defer resp.Body.Close()
+// Build ollama messages
+var messages []ollamaAPI.Message
+for _, m := range input.Messages {
+messages = append(messages, ollamaAPI.Message{
+Role:    m.Role,
+Content: m.Content,
+})
+}
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		resultBuf = []byte(`{"error":"failed to read response"}`)
-		return 1
-	}
+// Build ollama tools — use json round-trip to convert to the exact SDK type
+var ollamaTools ollamaAPI.Tools
+for _, t := range input.Tools {
+toolJSON, _ := json.Marshal(map[string]interface{}{
+"type": "function",
+"function": map[string]interface{}{
+"name":        t.Function.Name,
+"description": t.Function.Description,
+"parameters":  t.Function.Parameters,
+},
+})
+var ot ollamaAPI.Tool
+if err := json.Unmarshal(toolJSON, &ot); err == nil {
+ollamaTools = append(ollamaTools, ot)
+}
+}
 
-	var ollamaResp OllamaResponse
-	if err := json.Unmarshal(respBytes, &ollamaResp); err != nil {
-		resultBuf = []byte(`{"error":"failed to parse Ollama response"}`)
-		return 1
-	}
+stream := false
+req := &ollamaAPI.ChatRequest{
+Model:    model,
+Messages: messages,
+Stream:   &stream,
+Tools:    ollamaTools,
+}
+if input.MaxTokens > 0 {
+req.Options = map[string]any{"num_predict": input.MaxTokens}
+}
 
-	if ollamaResp.Error != "" {
-		writeResult(ErrorPayload{Error: ollamaResp.Error})
-		return 1
-	}
+var resp ollamaAPI.ChatResponse
+err = client.Chat(context.Background(), req, func(r ollamaAPI.ChatResponse) error {
+resp = r
+return nil
+})
+if err != nil {
+out := outputPayload{Error: err.Error()}
+_ = pdk.OutputJSON(out)
+return 1
+}
 
-	out := OutputPayload{
-		Content:    ollamaResp.Message.Content,
-		StopReason: ollamaResp.DoneReason,
-		Usage: OutputUsage{
-			PromptTokens:     ollamaResp.PromptEvalCount,
-			CompletionTokens: ollamaResp.EvalCount,
-		},
-	}
+out := outputPayload{
+Content:    resp.Message.Content,
+StopReason: resp.DoneReason,
+}
+out.Usage.PromptTokens = resp.PromptEvalCount
+out.Usage.CompletionTokens = resp.EvalCount
 
-	for i, tc := range ollamaResp.Message.ToolCalls {
-		argJSON, _ := json.Marshal(tc.Function.Arguments)
-		out.ToolCalls = append(out.ToolCalls, OutputToolCall{
-			ID:    fmt.Sprintf("call_%d", i),
-			Name:  tc.Function.Name,
-			Input: string(argJSON),
-		})
-	}
+for i, tc := range resp.Message.ToolCalls {
+argsJSON, _ := json.Marshal(tc.Function.Arguments)
+out.ToolCalls = append(out.ToolCalls, toolCall{
+ID:   fmt.Sprintf("call_%d", i),
+Type: "function",
+Function: struct {
+Name      string `json:"name"`
+Arguments string `json:"arguments"`
+}{Name: tc.Function.Name, Arguments: string(argsJSON)},
+})
+}
 
-	return writeResult(out)
+if err := pdk.OutputJSON(out); err != nil {
+pdk.SetError(err)
+return 1
+}
+return 0
 }
 
 func main() {}

@@ -537,8 +537,12 @@ func setDefaults() {
 	viper.SetDefault("plugins.builtins", []string{
 		"openlobster-messages-telegram",
 		"openlobster-messages-discord",
+		"openlobster-messages-slack",
+		"openlobster-messages-twilio",
+		"openlobster-messages-whatsapp",
 		"openlobster-ai-anthropic",
 		"openlobster-ai-openai",
+		"openlobster-ai-ollama",
 		"openlobster-audio-elevenlabs",
 		"openlobster-memory-gml",
 		"openlobster-memory-neo4j",

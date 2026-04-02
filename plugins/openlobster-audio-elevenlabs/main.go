@@ -1,223 +1,175 @@
 package main
 
 import (
-	"context"
-	"encoding/base64"
-	"encoding/json"
-	"io"
-	"unsafe"
+"context"
+"encoding/base64"
+"fmt"
+"io"
 
-	elevenlabs "github.com/plexusone/elevenlabs-go"
-	_ "github.com/stealthrocket/net/wasip1"
+elevenlabs "github.com/plexusone/elevenlabs-go"
+pdk "github.com/extism/go-pdk"
 )
-
-var (
-	inputBuf  []byte
-	resultBuf []byte
-)
-
-//go:wasmexport openlobster_alloc_input
-func allocInput(size uint32) uint32 {
-	inputBuf = make([]byte, size)
-	return uint32(uintptr(unsafe.Pointer(&inputBuf[0])))
-}
-
-//go:wasmexport openlobster_result_ptr
-func resultPtr() uint32 {
-	if len(resultBuf) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-}
-
-//go:wasmexport openlobster_result_len
-func resultLen() uint32 {
-	return uint32(len(resultBuf))
-}
-
-func writeResult(v interface{}) int32 {
-	b, err := json.Marshal(v)
-	if err != nil {
-		resultBuf = []byte(`{"error":"marshal failed"}`)
-		return 1
-	}
-	resultBuf = b
-	return 0
-}
-
-func writeStringResult(s string) int64 {
-	resultBuf = []byte(s)
-	ptr := uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-	return int64(ptr)<<32 | int64(len(resultBuf))
-}
 
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_get_name
-func getName() int64 { return writeStringResult("openlobster-audio-elevenlabs") }
+//go:wasmexport get_name
+func getName() int32 { pdk.OutputString("openlobster-audio-elevenlabs"); return 0 }
 
-//go:wasmexport openlobster_get_version
-func getVersion() int64 { return writeStringResult("0.1.0") }
+//go:wasmexport get_version
+func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport openlobster_get_description
-func getDescription() int64 {
-	return writeStringResult("ElevenLabs TTS/STT audio plugin for OpenLobster")
+//go:wasmexport get_description
+func getDescription() int32 {
+pdk.OutputString("ElevenLabs TTS/STT audio plugin for OpenLobster")
+return 0
 }
 
-//go:wasmexport openlobster_get_type
-func getType() int64 { return writeStringResult("audio") }
+//go:wasmexport get_type
+func getType() int32 { pdk.OutputString("audio"); return 0 }
 
-//go:wasmexport openlobster_get_schema
-func getSchema() int64 {
-	return writeStringResult(`{
-  "type": "object",
-  "properties": {
-    "api_key":       {"type":"string","title":"API Key"},
-    "voice_id":      {"type":"string","title":"Voice ID","default":"21m00Tcm4TlvDq8ikWAM"},
-    "model_id":      {"type":"string","title":"TTS Model","default":"eleven_multilingual_v2"},
-    "stt_model_id":  {"type":"string","title":"STT Model","default":"scribe_v1"},
-    "output_format": {"type":"string","title":"Audio Output Format","default":"mp3_44100_128"}
-  },
-  "required": ["api_key"]
-}`)
+//go:wasmexport get_schema
+func getSchema() int32 {
+pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key"},"voice_id":{"type":"string","title":"Voice ID","default":"21m00Tcm4TlvDq8ikWAM"},"model_id":{"type":"string","title":"TTS Model","default":"eleven_multilingual_v2"},"stt_model_id":{"type":"string","title":"STT Model","default":"scribe_v1"},"output_format":{"type":"string","title":"Audio Output Format","default":"mp3_44100_128"}},"required":["api_key"]}`)
+return 0
 }
 
 // ---------------------------------------------------------------------------
-// TTS
+// tts
 // ---------------------------------------------------------------------------
 
 type ttsInput struct {
-	Text    string `json:"text"`
-	VoiceID string `json:"voice_id,omitempty"`
-	Config  struct {
-		APIKey       string `json:"api_key"`
-		VoiceID      string `json:"voice_id,omitempty"`
-		ModelID      string `json:"model_id,omitempty"`
-		OutputFormat string `json:"output_format,omitempty"`
-	} `json:"config"`
+Text    string `json:"text"`
+VoiceID string `json:"voice_id,omitempty"`
+Config  struct {
+APIKey       string `json:"api_key"`
+VoiceID      string `json:"voice_id,omitempty"`
+ModelID      string `json:"model_id,omitempty"`
+OutputFormat string `json:"output_format,omitempty"`
+} `json:"config"`
 }
 
-//go:wasmexport openlobster_tts
+//go:wasmexport tts
 func tts() int32 {
-	var input ttsInput
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input"}`)
-		return 1
-	}
+var input ttsInput
+if err := pdk.InputJSON(&input); err != nil {
+pdk.SetError(err)
+return 1
+}
 
-	apiKey := input.Config.APIKey
-	if apiKey == "" {
-		resultBuf = []byte(`{"error":"api_key required"}`)
-		return 1
-	}
+apiKey := input.Config.APIKey
+if apiKey == "" {
+pdk.SetError(fmt.Errorf("api_key required"))
+return 1
+}
 
-	voiceID := input.Config.VoiceID
-	if voiceID == "" {
-		voiceID = input.VoiceID
-	}
-	if voiceID == "" {
-		voiceID = "21m00Tcm4TlvDq8ikWAM"
-	}
+voiceID := input.Config.VoiceID
+if voiceID == "" {
+voiceID = input.VoiceID
+}
+if voiceID == "" {
+voiceID = "21m00Tcm4TlvDq8ikWAM"
+}
+modelID := input.Config.ModelID
+if modelID == "" {
+modelID = "eleven_multilingual_v2"
+}
+outputFormat := input.Config.OutputFormat
+if outputFormat == "" {
+outputFormat = "mp3_44100_128"
+}
 
-	modelID := input.Config.ModelID
-	if modelID == "" {
-		modelID = "eleven_multilingual_v2"
-	}
+client, err := elevenlabs.NewClient(elevenlabs.WithAPIKey(apiKey))
+if err != nil {
+pdk.SetError(fmt.Errorf("client init: %w", err))
+return 1
+}
 
-	outputFormat := input.Config.OutputFormat
-	if outputFormat == "" {
-		outputFormat = "mp3_44100_128"
-	}
+resp, err := client.TextToSpeech().Generate(context.Background(), &elevenlabs.TTSRequest{
+VoiceID:      voiceID,
+Text:         input.Text,
+ModelID:      modelID,
+OutputFormat: outputFormat,
+})
+if err != nil {
+pdk.SetError(fmt.Errorf("TTS: %w", err))
+return 1
+}
 
-	client, err := elevenlabs.NewClient(elevenlabs.WithAPIKey(apiKey))
-	if err != nil {
-		writeResult(map[string]string{"error": "client init: " + err.Error()})
-		return 1
-	}
+audioBytes, err := io.ReadAll(resp.Audio)
+if err != nil {
+pdk.SetError(fmt.Errorf("read audio: %w", err))
+return 1
+}
 
-	resp, err := client.TextToSpeech().Generate(context.Background(), &elevenlabs.TTSRequest{
-		VoiceID:      voiceID,
-		Text:         input.Text,
-		ModelID:      modelID,
-		OutputFormat: outputFormat,
-	})
-	if err != nil {
-		writeResult(map[string]string{"error": "TTS: " + err.Error()})
-		return 1
-	}
-
-	audioBytes, err := io.ReadAll(resp.Audio)
-	if err != nil {
-		writeResult(map[string]string{"error": "read audio: " + err.Error()})
-		return 1
-	}
-
-	return writeResult(map[string]interface{}{
-		"audio":  base64.StdEncoding.EncodeToString(audioBytes),
-		"format": "mp3",
-	})
+if err := pdk.OutputJSON(map[string]interface{}{
+"audio":  base64.StdEncoding.EncodeToString(audioBytes),
+"format": "mp3",
+}); err != nil {
+pdk.SetError(err)
+return 1
+}
+return 0
 }
 
 // ---------------------------------------------------------------------------
-// STT
+// stt
 // ---------------------------------------------------------------------------
 
 type sttInput struct {
-	Audio    string `json:"audio"` // base64-encoded
-	Format   string `json:"format"`
-	Language string `json:"language,omitempty"`
-	Config   struct {
-		APIKey     string `json:"api_key"`
-		STTModelID string `json:"stt_model_id,omitempty"`
-	} `json:"config"`
+Audio    string `json:"audio"` // base64-encoded
+Format   string `json:"format"`
+Language string `json:"language,omitempty"`
+Config   struct {
+APIKey     string `json:"api_key"`
+STTModelID string `json:"stt_model_id,omitempty"`
+} `json:"config"`
 }
 
-//go:wasmexport openlobster_stt
+//go:wasmexport stt
 func stt() int32 {
-	var input sttInput
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input"}`)
-		return 1
-	}
-
-	apiKey := input.Config.APIKey
-	if apiKey == "" {
-		resultBuf = []byte(`{"error":"api_key required"}`)
-		return 1
-	}
-
-	modelID := input.Config.STTModelID
-	if modelID == "" {
-		modelID = "scribe_v1"
-	}
-
-	client, err := elevenlabs.NewClient(elevenlabs.WithAPIKey(apiKey))
-	if err != nil {
-		writeResult(map[string]string{"error": "client init: " + err.Error()})
-		return 1
-	}
-
-	result, err := client.SpeechToText().Transcribe(context.Background(), &elevenlabs.TranscriptionRequest{
-		FileContent:  input.Audio, // already base64-encoded — SDK accepts this directly
-		ModelID:      modelID,
-		LanguageCode: input.Language,
-	})
-	if err != nil {
-		writeResult(map[string]string{"error": "STT: " + err.Error()})
-		return 1
-	}
-
-	return writeResult(map[string]string{
-		"text":     result.Text,
-		"language": result.LanguageCode,
-	})
+var input sttInput
+if err := pdk.InputJSON(&input); err != nil {
+pdk.SetError(err)
+return 1
 }
 
-//go:wasmexport openlobster_configure
-func configure() int32 {
-	return writeResult(map[string]bool{"ok": true})
+apiKey := input.Config.APIKey
+if apiKey == "" {
+pdk.SetError(fmt.Errorf("api_key required"))
+return 1
+}
+
+modelID := input.Config.STTModelID
+if modelID == "" {
+modelID = "scribe_v1"
+}
+
+client, err := elevenlabs.NewClient(elevenlabs.WithAPIKey(apiKey))
+if err != nil {
+pdk.SetError(fmt.Errorf("client init: %w", err))
+return 1
+}
+
+result, err := client.SpeechToText().Transcribe(context.Background(), &elevenlabs.TranscriptionRequest{
+FileContent:  input.Audio,
+ModelID:      modelID,
+LanguageCode: input.Language,
+})
+if err != nil {
+pdk.SetError(fmt.Errorf("STT: %w", err))
+return 1
+}
+
+if err := pdk.OutputJSON(map[string]string{
+"text":     result.Text,
+"language": result.LanguageCode,
+}); err != nil {
+pdk.SetError(err)
+return 1
+}
+return 0
 }
 
 func main() {}

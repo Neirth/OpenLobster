@@ -1,10 +1,10 @@
 module github.com/neirth/openlobster/plugins/openlobster-audio-elevenlabs
 
-go 1.24
+go 1.25.0
 
 require (
+	github.com/extism/go-pdk v1.1.3
 	github.com/plexusone/elevenlabs-go v0.9.1
-	github.com/stealthrocket/net v0.2.1
 )
 
 require (

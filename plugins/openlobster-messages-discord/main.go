@@ -1,260 +1,194 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"time"
-	"unsafe"
+"context"
+"encoding/json"
+"fmt"
+"strconv"
+"time"
 
-	_ "github.com/stealthrocket/net/wasip1"
+"github.com/diamondburned/arikawa/v3/api"
+"github.com/diamondburned/arikawa/v3/discord"
+pdk "github.com/extism/go-pdk"
 )
-
-var (
-	inputBuf  []byte
-	resultBuf []byte
-)
-
-//go:wasmexport openlobster_alloc_input
-func allocInput(size uint32) uint32 {
-	inputBuf = make([]byte, size)
-	return uint32(uintptr(unsafe.Pointer(&inputBuf[0])))
-}
-
-//go:wasmexport openlobster_result_ptr
-func resultPtr() uint32 {
-	if len(resultBuf) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-}
-
-//go:wasmexport openlobster_result_len
-func resultLen() uint32 {
-	return uint32(len(resultBuf))
-}
-
-func writeResult(v interface{}) int32 {
-	b, err := json.Marshal(v)
-	if err != nil {
-		resultBuf = []byte(`{"error":"marshal failed"}`)
-		return 1
-	}
-	resultBuf = b
-	return 0
-}
-
-func writeStringResult(s string) int64 {
-	resultBuf = []byte(s)
-	ptr := uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-	return int64(ptr)<<32 | int64(len(resultBuf))
-}
 
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_get_name
-func getName() int64 { return writeStringResult("openlobster-messages-discord") }
+//go:wasmexport get_name
+func getName() int32 { pdk.OutputString("openlobster-messages-discord"); return 0 }
 
-//go:wasmexport openlobster_get_version
-func getVersion() int64 { return writeStringResult("0.1.0") }
+//go:wasmexport get_version
+func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport openlobster_get_description
-func getDescription() int64 {
-	return writeStringResult("Discord Bot messaging plugin for OpenLobster")
+//go:wasmexport get_description
+func getDescription() int32 {
+pdk.OutputString("Discord Bot messaging plugin for OpenLobster")
+return 0
 }
 
-//go:wasmexport openlobster_get_type
-func getType() int64 { return writeStringResult("messaging") }
+//go:wasmexport get_type
+func getType() int32 { pdk.OutputString("messaging"); return 0 }
 
-//go:wasmexport openlobster_get_schema
-func getSchema() int64 {
-	return writeStringResult(`{"type":"object","properties":{"token":{"type":"string","title":"Bot Token"}},"required":["token"]}`)
-}
-
-// ---------------------------------------------------------------------------
-// Host function
-// ---------------------------------------------------------------------------
-
-//go:wasmimport openlobster host_emit_message
-func hostEmitMessage(ptr uint32, size uint32)
-
-func emitMessage(msg map[string]interface{}) {
-	b, _ := json.Marshal(msg)
-	if len(b) == 0 {
-		return
-	}
-	hostEmitMessage(uint32(uintptr(unsafe.Pointer(&b[0]))), uint32(len(b)))
+//go:wasmexport get_schema
+func getSchema() int32 {
+pdk.OutputString(`{"type":"object","properties":{"token":{"type":"string","title":"Bot Token"},"guild_id":{"type":"string","title":"Guild ID (optional)"}},"required":["token"]}`)
+return 0
 }
 
 // ---------------------------------------------------------------------------
-// Discord Gateway types (minimal — receive MESSAGE_CREATE events via polling)
+// Host emit_message
 // ---------------------------------------------------------------------------
 
-const discordAPI = "https://discord.com/api/v10"
+//go:wasmimport openlobster emit_message
+func hostEmitMessage(offset uint64)
 
-type discordMessage struct {
-	ID        string `json:"id"`
-	ChannelID string `json:"channel_id"`
-	Content   string `json:"content"`
-	Author    struct {
-		ID       string `json:"id"`
-		Username string `json:"username"`
-	} `json:"author"`
+type pluginMessage struct {
+ChannelID   string                 `json:"channel_id"`
+SenderID    string                 `json:"sender_id,omitempty"`
+SenderName  string                 `json:"sender_name,omitempty"`
+Content     string                 `json:"content"`
+IsGroup     bool                   `json:"is_group,omitempty"`
+IsMentioned bool                   `json:"is_mentioned,omitempty"`
+GroupName   string                 `json:"group_name,omitempty"`
+Timestamp   time.Time              `json:"timestamp"`
+Metadata    map[string]interface{} `json:"metadata"`
 }
 
-// Discord doesn't support long-polling. We use the REST channel messages endpoint
-// to simulate polling (simplified approach without WebSocket for WASM compatibility).
-func pollChannel(token, channelID string, lastID *string) ([]discordMessage, error) {
-	apiURL := fmt.Sprintf("%s/channels/%s/messages?limit=10", discordAPI, channelID)
-	if *lastID != "" {
-		apiURL += "&after=" + *lastID
-	}
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bot "+token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	var msgs []discordMessage
-	if err := json.Unmarshal(body, &msgs); err != nil {
-		return nil, err
-	}
-	return msgs, nil
-}
-
-// getGuildChannels lists text channels in a guild.
-func getGuildChannels(token, guildID string) ([]string, error) {
-	req, _ := http.NewRequest("GET", fmt.Sprintf("%s/guilds/%s/channels", discordAPI, guildID), nil)
-	req.Header.Set("Authorization", "Bot "+token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	var channels []struct {
-		ID   string `json:"id"`
-		Type int    `json:"type"`
-	}
-	if err := json.Unmarshal(body, &channels); err != nil {
-		return nil, err
-	}
-	var ids []string
-	for _, ch := range channels {
-		if ch.Type == 0 { // GUILD_TEXT
-			ids = append(ids, ch.ID)
-		}
-	}
-	return ids, nil
+func emitMessage(msg *pluginMessage) {
+b, _ := json.Marshal(msg)
+mem := pdk.AllocateBytes(b)
+hostEmitMessage(mem.Offset())
 }
 
 // ---------------------------------------------------------------------------
-// openlobster_start — REST polling loop
+// capabilities
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_start
-func start() int32 {
-	var input struct {
-		Config struct {
-			Token   string `json:"token"`
-			GuildID string `json:"guild_id,omitempty"`
-		} `json:"config"`
-	}
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input"}`)
-		return 1
-	}
-	token := input.Config.Token
-	if token == "" {
-		resultBuf = []byte(`{"error":"discord token required"}`)
-		return 1
-	}
-
-	channelLastIDs := make(map[string]string)
-
-	// Get channels to poll
-	var channelIDs []string
-	if input.Config.GuildID != "" {
-		ids, err := getGuildChannels(token, input.Config.GuildID)
-		if err == nil {
-			channelIDs = ids
-		}
-	}
-
-	for {
-		for _, chID := range channelIDs {
-			lastID := channelLastIDs[chID]
-			msgs, err := pollChannel(token, chID, &lastID)
-			if err != nil {
-				continue
-			}
-			for _, msg := range msgs {
-				channelLastIDs[chID] = msg.ID
-				emitMessage(map[string]interface{}{
-					"channel_id":   msg.ChannelID,
-					"sender_id":    msg.Author.ID,
-					"sender_name":  msg.Author.Username,
-					"content":      msg.Content,
-					"is_group":     true,
-					"is_mentioned": false,
-					"metadata":     map[string]string{"channel_type": "discord"},
-				})
-			}
-		}
-		time.Sleep(2 * time.Second)
-	}
+//go:wasmexport capabilities
+func capabilities() int32 {
+_ = pdk.OutputJSON(map[string]bool{
+"HasVoiceMessage": true,
+"HasCallStream":   true,
+"HasTextStream":   true,
+"HasMediaSupport": true,
+})
+return 0
 }
 
 // ---------------------------------------------------------------------------
-// openlobster_send
+// send
 // ---------------------------------------------------------------------------
 
-//go:wasmexport openlobster_send
+type sendInput struct {
+Config  map[string]interface{} `json:"config"`
+Message struct {
+ChannelID string `json:"channel_id"`
+Content   string `json:"content"`
+} `json:"message"`
+}
+
+//go:wasmexport send
 func send() int32 {
-	var input struct {
-		ChannelID string `json:"channel_id"`
-		Content   string `json:"content"`
-		Config    struct {
-			Token string `json:"token"`
-		} `json:"config"`
-	}
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input"}`)
-		return 1
-	}
-
-	body, _ := json.Marshal(map[string]string{"content": input.Content})
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/channels/%s/messages", discordAPI, input.ChannelID), bytes.NewReader(body))
-	if err != nil {
-		writeResult(map[string]string{"error": err.Error()})
-		return 1
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bot "+input.Config.Token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		writeResult(map[string]string{"error": err.Error()})
-		return 1
-	}
-	defer resp.Body.Close()
-	return writeResult(map[string]bool{"ok": true})
+var input sendInput
+if err := pdk.InputJSON(&input); err != nil {
+pdk.SetError(err)
+return 1
 }
 
-//go:wasmexport openlobster_configure
-func configure() int32 {
-	return writeResult(map[string]bool{"ok": true})
+token, _ := input.Config["token"].(string)
+if token == "" {
+pdk.SetError(fmt.Errorf("discord token required"))
+return 1
+}
+
+client := api.NewClient("Bot " + token)
+
+sf, err := discord.ParseSnowflake(input.Message.ChannelID)
+if err != nil {
+pdk.SetError(fmt.Errorf("invalid channel_id: %w", err))
+return 1
+}
+channelID := discord.ChannelID(sf)
+
+_, err = client.SendMessageComplex(channelID, api.SendMessageData{
+Content: input.Message.Content,
+})
+if err != nil {
+pdk.SetError(err)
+return 1
+}
+return 0
+}
+
+// ---------------------------------------------------------------------------
+// start — REST polling loop (Discord REST API, no WebSocket needed)
+// ---------------------------------------------------------------------------
+
+//go:wasmexport start
+func start() int32 {
+var cfg map[string]interface{}
+if err := pdk.InputJSON(&cfg); err != nil {
+pdk.SetError(err)
+return 1
+}
+
+token, _ := cfg["token"].(string)
+if token == "" {
+pdk.SetError(fmt.Errorf("discord token required"))
+return 1
+}
+
+guildIDStr, _ := cfg["guild_id"].(string)
+
+client := api.NewClient("Bot " + token)
+
+// Discover text channels to poll
+var channelIDs []discord.ChannelID
+if guildIDStr != "" {
+sf, err := discord.ParseSnowflake(guildIDStr)
+if err == nil {
+channels, err := client.Channels(discord.GuildID(sf))
+if err == nil {
+for _, ch := range channels {
+if ch.Type == discord.GuildText {
+channelIDs = append(channelIDs, ch.ID)
+}
+}
+}
+}
+}
+
+lastIDs := make(map[discord.ChannelID]discord.MessageID)
+_ = context.Background()
+
+for {
+for _, chID := range channelIDs {
+msgs, err := client.Messages(chID, 10)
+if err != nil {
+continue
+}
+// arikawa returns messages newest-first
+for i := len(msgs) - 1; i >= 0; i-- {
+m := msgs[i]
+if last, ok := lastIDs[chID]; ok && m.ID <= last {
+continue
+}
+lastIDs[chID] = m.ID
+emitMessage(&pluginMessage{
+ChannelID:  strconv.FormatUint(uint64(m.ChannelID), 10),
+SenderID:   strconv.FormatUint(uint64(m.Author.ID), 10),
+SenderName: m.Author.Username,
+Content:    m.Content,
+IsGroup:    true,
+Timestamp:  m.Timestamp.Time(),
+Metadata:   map[string]interface{}{"channel_type": "discord"},
+})
+}
+}
+time.Sleep(2 * time.Second)
+}
 }
 
 func main() {}
