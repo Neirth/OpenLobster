@@ -1,6 +1,6 @@
 module github.com/neirth/openlobster/plugins/openlobster-audio-elevenlabs
 
-go 1.25.0
+go 1.24
 
 require (
 	github.com/plexusone/elevenlabs-go v0.9.1
