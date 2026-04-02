@@ -22,6 +22,9 @@ interface Plugin {
   pluginType: string;
   schemaJson: string;
   enabled: boolean;
+  available: boolean;
+  lastError?: string | null;
+  builtin: boolean;
 }
 
 function graphqlHeaders(): Record<string, string> {
@@ -230,10 +233,13 @@ const PluginsSection: Component = () => {
                     <div class="plugin-card__status">
                       <span
                         class="plugin-card__badge"
-                        classList={{ "plugin-card__badge--active": plugin.enabled }}
+                        classList={{ "plugin-card__badge--active": plugin.available }}
                       >
-                        {plugin.enabled ? t("plugins.active") : t("plugins.inactive")}
+                        {plugin.available ? t("plugins.active") : t("plugins.inactive")}
                       </span>
+                      <Show when={plugin.builtin}>
+                        <span class="plugin-card__type">builtin</span>
+                      </Show>
                       <span class="material-symbols-outlined plugin-card__chevron">
                         {isExpanded() ? "expand_less" : "expand_more"}
                       </span>
@@ -242,6 +248,9 @@ const PluginsSection: Component = () => {
 
                   <Show when={isExpanded() && fields.length > 0}>
                     <div class="plugin-card__body">
+                      <Show when={plugin.lastError}>
+                        <p class="save-error">{plugin.lastError}</p>
+                      </Show>
                       <p class="plugin-card__config-title">{t("plugins.configuration")}</p>
                       <For each={fields}>
                         {(field) => (

@@ -8,6 +8,9 @@ type Plugin {
   pluginType:  String!
   schemaJson:  String!
   enabled:     Boolean!
+  available:   Boolean!
+  lastError:   String
+  builtin:     Boolean!
 }
 
 extend type Query {

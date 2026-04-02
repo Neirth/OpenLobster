@@ -6,6 +6,7 @@ package wasm
 
 import (
 	"context"
+	"strings"
 
 	"github.com/stealthrocket/wasi-go/imports"
 	"github.com/tetratelabs/wazero"
@@ -16,7 +17,6 @@ import (
 // Each plugin gets its own WASI system context by calling Build.
 type Runtime struct {
 	wazero.Runtime
-	builder *imports.Builder
 }
 
 // NewRuntime creates a wazero runtime configured with:
@@ -53,19 +53,20 @@ func NewRuntime(ctx context.Context, onMessage func([]byte)) (*Runtime, error) {
 		return nil, err
 	}
 
-	// Build a shared WASI builder configured with WasmEdge v1 socket extensions.
-	// WithSocketsExtension("wasmedgev1", nil) is safe: the module parameter is
-	// only used for "auto" detection; for explicit names it is ignored.
-	builder := imports.NewBuilder().
-		WithSocketsExtension("wasmedgev1", nil)
-
-	return &Runtime{Runtime: r, builder: builder}, nil
+	return &Runtime{Runtime: r}, nil
 }
 
 // InstantiateWASI sets up a per-plugin WASI system (including socket support)
 // and returns the context enriched with that system. The returned context must
 // be used for all wazero calls related to the plugin that called this method.
-func (rt *Runtime) InstantiateWASI(ctx context.Context) (context.Context, error) {
-	newCtx, _, err := rt.builder.Instantiate(ctx, rt.Runtime)
+func (rt *Runtime) InstantiateWASI(ctx context.Context, allowFS bool, dataDir string) (context.Context, error) {
+	builder := imports.NewBuilder().WithSocketsExtension("wasmedgev1", nil)
+	if allowFS {
+		dataDir = strings.TrimSpace(dataDir)
+		if dataDir != "" {
+			builder = builder.WithDirs(dataDir)
+		}
+	}
+	newCtx, _, err := builder.Instantiate(ctx, rt.Runtime)
 	return newCtx, err
 }

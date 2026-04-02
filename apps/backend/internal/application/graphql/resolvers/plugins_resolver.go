@@ -11,7 +11,7 @@ import (
 	"log"
 
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
-	"github.com/neirth/openlobster/internal/domain/ports"
+	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 )
 
 // ReloadPlugins is the resolver for the reloadPlugins field.
@@ -35,6 +35,11 @@ func (r *mutationResolver) UpdatePluginConfig(ctx context.Context, pluginID stri
 	if err := json.Unmarshal([]byte(configJSON), &cfg); err != nil {
 		return false, err
 	}
+	if schema, err := p.Schema(); err == nil {
+		if err := pluginadapter.ValidateConfigSchema(schema, cfg); err != nil {
+			return false, err
+		}
+	}
 	input, err := json.Marshal(map[string]interface{}{"config": cfg})
 	if err != nil {
 		return false, err
@@ -42,6 +47,14 @@ func (r *mutationResolver) UpdatePluginConfig(ctx context.Context, pluginID stri
 	if _, err := p.Call("configure", input); err != nil {
 		log.Printf("plugins: updatePluginConfig %s: %v", pluginID, err)
 		return false, err
+	}
+	if r.Deps != nil && r.Deps.ConfigWriter != nil {
+		if _, err := r.Deps.ConfigWriter.Apply(ctx, map[string]interface{}{
+			"pluginsSettings": map[string]interface{}{pluginID: cfg},
+		}); err != nil {
+			log.Printf("plugins: persist config %s failed: %v", pluginID, err)
+			return false, err
+		}
 	}
 	return true, nil
 }
@@ -52,26 +65,4 @@ func (r *queryResolver) Plugins(ctx context.Context) ([]*generated.Plugin, error
 		return []*generated.Plugin{}, nil
 	}
 	return pluginsFromRegistry(r.Deps.PluginRegistry.All()), nil
-}
-
-// pluginsFromRegistry converts domain PluginPort slice to GraphQL Plugin slice.
-func pluginsFromRegistry(plugins []ports.PluginPort) []*generated.Plugin {
-	result := make([]*generated.Plugin, 0, len(plugins))
-	for _, p := range plugins {
-		schemaBytes, err := p.Schema()
-		schemaStr := "{}"
-		if err == nil && len(schemaBytes) > 0 {
-			schemaStr = string(schemaBytes)
-		}
-		result = append(result, &generated.Plugin{
-			ID:          p.ID(),
-			Name:        p.Name(),
-			Version:     p.Version(),
-			Description: p.Description(),
-			PluginType:  p.Type(),
-			SchemaJSON:  schemaStr,
-			Enabled:     true,
-		})
-	}
-	return result
 }

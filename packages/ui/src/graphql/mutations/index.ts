@@ -264,6 +264,9 @@ export const RELOAD_PLUGINS_MUTATION = /* GraphQL */ `
       pluginType
       schemaJson
       enabled
+      available
+      lastError
+      builtin
     }
   }
 `;

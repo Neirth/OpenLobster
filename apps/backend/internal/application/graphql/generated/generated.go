@@ -417,9 +417,12 @@ type ComplexityRoot struct {
 	}
 
 	Plugin struct {
+		Available   func(childComplexity int) int
+		Builtin     func(childComplexity int) int
 		Description func(childComplexity int) int
 		Enabled     func(childComplexity int) int
 		ID          func(childComplexity int) int
+		LastError   func(childComplexity int) int
 		Name        func(childComplexity int) int
 		PluginType  func(childComplexity int) int
 		SchemaJSON  func(childComplexity int) int
@@ -2367,6 +2370,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PendingPairing.Status(childComplexity), true
 
+	case "Plugin.available":
+		if e.ComplexityRoot.Plugin.Available == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Plugin.Available(childComplexity), true
+	case "Plugin.builtin":
+		if e.ComplexityRoot.Plugin.Builtin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Plugin.Builtin(childComplexity), true
 	case "Plugin.description":
 		if e.ComplexityRoot.Plugin.Description == nil {
 			break
@@ -2385,6 +2400,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Plugin.ID(childComplexity), true
+	case "Plugin.lastError":
+		if e.ComplexityRoot.Plugin.LastError == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Plugin.LastError(childComplexity), true
 	case "Plugin.name":
 		if e.ComplexityRoot.Plugin.Name == nil {
 			break
@@ -3942,6 +3963,9 @@ type Plugin {
   pluginType:  String!
   schemaJson:  String!
   enabled:     Boolean!
+  available:   Boolean!
+  lastError:   String
+  builtin:     Boolean!
 }
 
 extend type Query {
@@ -11996,6 +12020,12 @@ func (ec *executionContext) fieldContext_Mutation_reloadPlugins(_ context.Contex
 				return ec.fieldContext_Plugin_schemaJson(ctx, field)
 			case "enabled":
 				return ec.fieldContext_Plugin_enabled(ctx, field)
+			case "available":
+				return ec.fieldContext_Plugin_available(ctx, field)
+			case "lastError":
+				return ec.fieldContext_Plugin_lastError(ctx, field)
+			case "builtin":
+				return ec.fieldContext_Plugin_builtin(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Plugin", field.Name)
 		},
@@ -12786,6 +12816,93 @@ func (ec *executionContext) _Plugin_enabled(ctx context.Context, field graphql.C
 }
 
 func (ec *executionContext) fieldContext_Plugin_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Plugin",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Plugin_available(ctx context.Context, field graphql.CollectedField, obj *Plugin) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Plugin_available,
+		func(ctx context.Context) (any, error) {
+			return obj.Available, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Plugin_available(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Plugin",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Plugin_lastError(ctx context.Context, field graphql.CollectedField, obj *Plugin) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Plugin_lastError,
+		func(ctx context.Context) (any, error) {
+			return obj.LastError, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Plugin_lastError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Plugin",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Plugin_builtin(ctx context.Context, field graphql.CollectedField, obj *Plugin) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Plugin_builtin,
+		func(ctx context.Context) (any, error) {
+			return obj.Builtin, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Plugin_builtin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Plugin",
 		Field:      field,
@@ -13900,6 +14017,12 @@ func (ec *executionContext) fieldContext_Query_plugins(_ context.Context, field 
 				return ec.fieldContext_Plugin_schemaJson(ctx, field)
 			case "enabled":
 				return ec.fieldContext_Plugin_enabled(ctx, field)
+			case "available":
+				return ec.fieldContext_Plugin_available(ctx, field)
+			case "lastError":
+				return ec.fieldContext_Plugin_lastError(ctx, field)
+			case "builtin":
+				return ec.fieldContext_Plugin_builtin(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Plugin", field.Name)
 		},
@@ -21061,6 +21184,18 @@ func (ec *executionContext) _Plugin(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "enabled":
 			out.Values[i] = ec._Plugin_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "available":
+			out.Values[i] = ec._Plugin_available(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastError":
+			out.Values[i] = ec._Plugin_lastError(ctx, field, obj)
+		case "builtin":
+			out.Values[i] = ec._Plugin_builtin(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

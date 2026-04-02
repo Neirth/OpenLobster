@@ -52,6 +52,18 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 		if inputKey == "capabilities" || a.isProviderInputKey(inputKey) {
 			continue
 		}
+		if inputKey == "pluginsSettings" {
+			if cfgMap, ok := val.(map[string]interface{}); ok {
+				for pluginID, rawCfg := range cfgMap {
+					cfg, ok := rawCfg.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					viper.Set(fmt.Sprintf("plugins.settings.%s", pluginID), cfg)
+				}
+			}
+			continue
+		}
 		viperKey, ok := a.ViperKeys[inputKey]
 		if !ok {
 			continue

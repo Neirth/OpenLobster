@@ -19,37 +19,44 @@ import (
 // MCP ports into the GraphQL deps struct.
 func (a *App) initMCP() {
 	cfg := a.Cfg
+	usePluginSecrets := a.SecretsProvider != nil
+
+	if usePluginSecrets {
+		log.Printf("secrets: using plugin-provided secrets backend")
+	}
 
 	// Secrets backend
 	var err error
 	secretsBackend := strings.ToLower(strings.TrimSpace(cfg.Secrets.Backend))
 
-	switch secretsBackend {
-	case "openbao":
-		if cfg.Secrets.Openbao == nil || cfg.Secrets.Openbao.URL == "" {
-			log.Fatalf("secrets backend is openbao but secrets.openbao.url is not set")
+	if !usePluginSecrets {
+		switch secretsBackend {
+		case "openbao":
+			if cfg.Secrets.Openbao == nil || cfg.Secrets.Openbao.URL == "" {
+				log.Fatalf("secrets backend is openbao but secrets.openbao.url is not set")
+			}
+			if cfg.Secrets.Openbao.Token == "" {
+				log.Fatalf("secrets backend is openbao but secrets.openbao.token is not set")
+			}
+			a.SecretsProvider, err = secrets.NewOpenBAOProvider(cfg.Secrets.Openbao.URL, cfg.Secrets.Openbao.Token, "secret")
+			if err != nil {
+				log.Fatalf("failed to initialize OpenBao secrets provider: %v", err)
+			}
+			log.Printf("secrets: openbao backend at %s", cfg.Secrets.Openbao.URL)
+		default:
+			secretsPath := cfg.Secrets.File.Path
+			if secretsPath == "" {
+				secretsPath = "data/secrets.json"
+			}
+			if secretsBackend != "" && secretsBackend != "file" {
+				log.Printf("secrets: unknown backend %q, using file backend", cfg.Secrets.Backend)
+			}
+			a.SecretsProvider, err = secrets.NewFileSecretsProvider(secretsPath, config.SecretKey())
+			if err != nil {
+				log.Fatalf("failed to initialize secrets provider: %v", err)
+			}
+			log.Printf("secrets: file backend at %s", secretsPath)
 		}
-		if cfg.Secrets.Openbao.Token == "" {
-			log.Fatalf("secrets backend is openbao but secrets.openbao.token is not set")
-		}
-		a.SecretsProvider, err = secrets.NewOpenBAOProvider(cfg.Secrets.Openbao.URL, cfg.Secrets.Openbao.Token, "secret")
-		if err != nil {
-			log.Fatalf("failed to initialize OpenBao secrets provider: %v", err)
-		}
-		log.Printf("secrets: openbao backend at %s", cfg.Secrets.Openbao.URL)
-	default:
-		secretsPath := cfg.Secrets.File.Path
-		if secretsPath == "" {
-			secretsPath = "data/secrets.json"
-		}
-		if secretsBackend != "" && secretsBackend != "file" {
-			log.Printf("secrets: unknown backend %q, using file backend", cfg.Secrets.Backend)
-		}
-		a.SecretsProvider, err = secrets.NewFileSecretsProvider(secretsPath, config.SecretKey())
-		if err != nil {
-			log.Fatalf("failed to initialize secrets provider: %v", err)
-		}
-		log.Printf("secrets: file backend at %s", secretsPath)
 	}
 
 	// MCP client SDK

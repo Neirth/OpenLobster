@@ -62,6 +62,26 @@ func (r *Registry) GetByType(pluginType string) []ports.PluginPort {
 	return out
 }
 
+// Remove removes plugin from registry and closes it.
+func (r *Registry) Remove(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.plugins[id]
+	if !ok {
+		return
+	}
+	if err := p.Close(); err != nil {
+		log.Printf("plugins: close %s: %v", id, err)
+	}
+	delete(r.plugins, id)
+	for i := range r.order {
+		if r.order[i] == id {
+			r.order = append(r.order[:i], r.order[i+1:]...)
+			break
+		}
+	}
+}
+
 // Close calls Close on every registered plugin and logs errors.
 func (r *Registry) Close() {
 	r.mu.Lock()
