@@ -1,85 +1,14 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"io"
-	"net/http"
-	"unsafe"
+	"strings"
 
-	_ "github.com/stealthrocket/net/wasip1"
+	"github.com/extism/go-pdk"
+	goOpenAI "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
-
-var (
-	inputBuf  []byte
-	resultBuf []byte
-)
-
-// ---------------------------------------------------------------------------
-// ABI buffer helpers
-// ---------------------------------------------------------------------------
-
-//go:wasmexport openlobster_alloc_input
-func allocInput(size uint32) uint32 {
-	inputBuf = make([]byte, size)
-	return uint32(uintptr(unsafe.Pointer(&inputBuf[0])))
-}
-
-//go:wasmexport openlobster_result_ptr
-func resultPtr() uint32 {
-	if len(resultBuf) == 0 {
-		return 0
-	}
-	return uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-}
-
-//go:wasmexport openlobster_result_len
-func resultLen() uint32 {
-	return uint32(len(resultBuf))
-}
-
-func writeResult(v interface{}) int32 {
-	b, err := json.Marshal(v)
-	if err != nil {
-		resultBuf = []byte(`{"error":"marshal failed"}`)
-		return 1
-	}
-	resultBuf = b
-	return 0
-}
-
-func writeStringResult(s string) int64 {
-	resultBuf = []byte(s)
-	ptr := uint32(uintptr(unsafe.Pointer(&resultBuf[0])))
-	return int64(ptr)<<32 | int64(len(resultBuf))
-}
-
-// ---------------------------------------------------------------------------
-// Metadata
-// ---------------------------------------------------------------------------
-
-//go:wasmexport openlobster_get_name
-func getName() int64 { return writeStringResult("openlobster-ai-openai") }
-
-//go:wasmexport openlobster_get_version
-func getVersion() int64 { return writeStringResult("0.1.0") }
-
-//go:wasmexport openlobster_get_description
-func getDescription() int64 {
-	return writeStringResult("OpenAI API plugin for OpenLobster")
-}
-
-//go:wasmexport openlobster_get_type
-func getType() int64 { return writeStringResult("ai") }
-
-//go:wasmexport openlobster_get_schema
-func getSchema() int64 {
-	return writeStringResult(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key"},"base_url":{"type":"string","title":"Base URL (optional)","default":"https://api.openai.com/v1"},"default_model":{"type":"string","title":"Default Model","default":"gpt-4o"}},"required":["api_key"]}`)
-}
-
-// ---------------------------------------------------------------------------
-// OpenAI request / response types
-// ---------------------------------------------------------------------------
 
 type ChatMessage struct {
 	Role       string      `json:"role"`
@@ -110,47 +39,10 @@ type InputPayload struct {
 	} `json:"config"`
 }
 
-type OpenAIRequest struct {
-	Model     string        `json:"model"`
-	Messages  []ChatMessage `json:"messages"`
-	Tools     []Tool        `json:"tools,omitempty"`
-	MaxTokens int           `json:"max_tokens,omitempty"`
-}
-
-type OpenAIToolCall struct {
-	ID       string `json:"id"`
-	Type     string `json:"type"`
-	Function struct {
-		Name      string `json:"name"`
-		Arguments string `json:"arguments"`
-	} `json:"function"`
-}
-
-type OpenAIChoice struct {
-	Message struct {
-		Content   *string          `json:"content"`
-		ToolCalls []OpenAIToolCall `json:"tool_calls,omitempty"`
-	} `json:"message"`
-	FinishReason string `json:"finish_reason"`
-}
-
-type OpenAIUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-}
-
-type OpenAIResponse struct {
-	Choices []OpenAIChoice `json:"choices"`
-	Usage   OpenAIUsage    `json:"usage"`
-	Error   *struct {
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
-}
-
 type OutputToolCall struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Input    string `json:"input"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Input string `json:"input"`
 }
 
 type OutputUsage struct {
@@ -165,106 +57,156 @@ type OutputPayload struct {
 	Usage      OutputUsage      `json:"usage"`
 }
 
-type ErrorPayload struct {
-	Error string `json:"error"`
+//go:wasmexport get_name
+func getName() int32 {
+	pdk.OutputString("openlobster-ai-openai")
+	return 0
 }
 
-// ---------------------------------------------------------------------------
-// openlobster_chat
-// ---------------------------------------------------------------------------
+//go:wasmexport get_version
+func getVersion() int32 {
+	pdk.OutputString("0.1.0")
+	return 0
+}
 
-//go:wasmexport openlobster_chat
+//go:wasmexport get_description
+func getDescription() int32 {
+	pdk.OutputString("OpenAI API plugin for OpenLobster")
+	return 0
+}
+
+//go:wasmexport get_type
+func getType() int32 {
+	pdk.OutputString("ai")
+	return 0
+}
+
+//go:wasmexport get_schema
+func getSchema() int32 {
+	pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key"},"base_url":{"type":"string","title":"Base URL (optional)","default":"https://api.openai.com/v1"},"default_model":{"type":"string","title":"Default Model","default":"gpt-4o"}},"required":["api_key"]}`)
+	return 0
+}
+
+func convertMessages(in []ChatMessage) []goOpenAI.ChatCompletionMessageParamUnion {
+	out := make([]goOpenAI.ChatCompletionMessageParamUnion, 0, len(in))
+	for _, m := range in {
+		role := strings.ToLower(strings.TrimSpace(m.Role))
+		content := ""
+		switch v := m.Content.(type) {
+		case string:
+			content = v
+		default:
+			b, _ := json.Marshal(v)
+			content = string(b)
+		}
+		switch role {
+		case "system":
+			out = append(out, goOpenAI.SystemMessage(content))
+		case "assistant":
+			out = append(out, goOpenAI.AssistantMessage(content))
+		case "tool":
+			if m.ToolCallID != "" {
+				out = append(out, goOpenAI.ToolMessage(content, m.ToolCallID))
+			}
+		default:
+			out = append(out, goOpenAI.UserMessage(content))
+		}
+	}
+	return out
+}
+
+func convertTools(in []Tool) []goOpenAI.ChatCompletionToolParam {
+	out := make([]goOpenAI.ChatCompletionToolParam, 0, len(in))
+	for _, t := range in {
+		if strings.ToLower(strings.TrimSpace(t.Type)) != "function" || t.Function.Name == "" {
+			continue
+		}
+		fn := goOpenAI.FunctionDefinitionParam{
+			Name:        strings.ReplaceAll(t.Function.Name, ":", "__"),
+			Description: goOpenAI.String(t.Function.Description),
+		}
+		if t.Function.Parameters != nil {
+			if raw, err := json.Marshal(t.Function.Parameters); err == nil {
+				fn.Parameters = raw
+			}
+		}
+		out = append(out, goOpenAI.ChatCompletionToolParam{
+			Type:     "function",
+			Function: fn,
+		})
+	}
+	return out
+}
+
+//go:wasmexport chat
 func chat() int32 {
 	var input InputPayload
-	if err := json.Unmarshal(inputBuf, &input); err != nil {
-		resultBuf = []byte(`{"error":"invalid input JSON"}`)
+	if err := pdk.InputJSON(&input); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	if strings.TrimSpace(input.Config.APIKey) == "" {
+		pdk.SetErrorString("api_key required")
 		return 1
 	}
 
-	baseURL := input.Config.BaseURL
-	if baseURL == "" {
-		baseURL = "https://api.openai.com/v1"
-	}
-	model := input.Model
+	model := strings.TrimSpace(input.Model)
 	if model == "" {
 		model = "gpt-4o"
 	}
 
-	reqBody := OpenAIRequest{
-		Model:     model,
-		Messages:  input.Messages,
-		Tools:     input.Tools,
-		MaxTokens: input.MaxTokens,
+	opts := []option.RequestOption{option.WithAPIKey(input.Config.APIKey)}
+	if base := strings.TrimSpace(input.Config.BaseURL); base != "" {
+		opts = append(opts, option.WithBaseURL(base))
 	}
-	if reqBody.MaxTokens == 0 {
-		reqBody.MaxTokens = 4096
+	client := goOpenAI.NewClient(opts...)
+
+	params := goOpenAI.ChatCompletionNewParams{
+		Model:    goOpenAI.ChatModel(model),
+		Messages: convertMessages(input.Messages),
+	}
+	if input.MaxTokens > 0 {
+		params.MaxCompletionTokens = goOpenAI.Int(int64(input.MaxTokens))
+	}
+	if tools := convertTools(input.Tools); len(tools) > 0 {
+		params.Tools = tools
 	}
 
-	bodyBytes, err := json.Marshal(reqBody)
+	resp, err := client.Chat.Completions.New(context.Background(), params)
 	if err != nil {
-		resultBuf = []byte(`{"error":"failed to marshal request"}`)
+		pdk.SetError(err)
+		return 1
+	}
+	if len(resp.Choices) == 0 {
+		pdk.SetErrorString("no choices in response")
 		return 1
 	}
 
-	req, err := http.NewRequest("POST", baseURL+"/chat/completions", bytes.NewReader(bodyBytes))
-	if err != nil {
-		resultBuf = []byte(`{"error":"failed to create request"}`)
-		return 1
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+input.Config.APIKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		writeResult(ErrorPayload{Error: "http request failed: " + err.Error()})
-		return 1
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		resultBuf = []byte(`{"error":"failed to read response"}`)
-		return 1
-	}
-
-	var oaiResp OpenAIResponse
-	if err := json.Unmarshal(respBytes, &oaiResp); err != nil {
-		resultBuf = []byte(`{"error":"failed to parse OpenAI response"}`)
-		return 1
-	}
-
-	if oaiResp.Error != nil {
-		writeResult(ErrorPayload{Error: oaiResp.Error.Message})
-		return 1
-	}
-
-	if len(oaiResp.Choices) == 0 {
-		resultBuf = []byte(`{"error":"no choices in response"}`)
-		return 1
-	}
-
-	choice := oaiResp.Choices[0]
+	choice := resp.Choices[0]
 	out := OutputPayload{
+		Content:    choice.Message.Content,
 		StopReason: choice.FinishReason,
-		Usage: OutputUsage{
-			PromptTokens:     oaiResp.Usage.PromptTokens,
-			CompletionTokens: oaiResp.Usage.CompletionTokens,
-		},
 	}
-
-	if choice.Message.Content != nil {
-		out.Content = *choice.Message.Content
+	if out.StopReason == "tool_calls" {
+		out.StopReason = "tool_use"
 	}
-
+	out.Usage = OutputUsage{
+		PromptTokens:     int(resp.Usage.PromptTokens),
+		CompletionTokens: int(resp.Usage.CompletionTokens),
+	}
 	for _, tc := range choice.Message.ToolCalls {
 		out.ToolCalls = append(out.ToolCalls, OutputToolCall{
 			ID:    tc.ID,
-			Name:  tc.Function.Name,
+			Name:  strings.ReplaceAll(tc.Function.Name, "__", ":"),
 			Input: tc.Function.Arguments,
 		})
 	}
 
-	return writeResult(out)
+	if err := pdk.OutputJSON(out); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	return 0
 }
 
 func main() {}
