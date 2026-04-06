@@ -42,7 +42,7 @@
     "@vitest/coverage-v8": "^4.1.1",
     "eslint": "^10.1.0",
     "typescript": "^6.0.2",
-    "vite": "^8.0.2",
+    "vite": "^8.0.5",
     "vitest": "^4.1.1"
   }
 }
