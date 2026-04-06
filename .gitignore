@@ -260,9 +260,6 @@ ehthumbs_vista.db
 # Recycle Bin used on file shares
 $RECYCLE.BIN/
 
-# Embedded backend WASM bundle (generated during backend build)
-apps/backend/cmd/openlobster/embedded_plugins/*.wasm
-
 # Windows Installer files
 *.cab
 *.msi

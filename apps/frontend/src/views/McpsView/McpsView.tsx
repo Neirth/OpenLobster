@@ -116,6 +116,7 @@ const McpsView: Component = () => {
   const [addError, setAddError] = createSignal('');
   const [showAdvancedOptions, setShowAdvancedOptions] = createSignal(false);
   const [addClientId, setAddClientId] = createSignal('');
+  const [addClientSecret, setAddClientSecret] = createSignal('');
 
   // ── Manage / OAuth modal state ───────────────────────────────────────────
   const [manageServerId, setManageServerId] = createSignal<string | null>(null);
@@ -124,7 +125,7 @@ const McpsView: Component = () => {
 
   // ── Mutations ────────────────────────────────────────────────────────────
   const connectMcp = createMutation(() => ({
-    mutationFn: (vars: { name: string; transport: string; url: string; clientId?: string }) =>
+    mutationFn: (vars: { name: string; transport: string; url: string; clientId?: string; clientSecret?: string }) =>
       client.request<{ connectMcp: { name?: string; error?: string; requiresAuth?: boolean; url?: string } }>(
         CONNECT_MCP_MUTATION,
         vars,
@@ -142,6 +143,7 @@ const McpsView: Component = () => {
       setAddError('');
       setShowAdvancedOptions(false);
       setAddClientId('');
+      setAddClientSecret('');
       queryClient.invalidateQueries({ queryKey: ['mcpServers'] });
       // Auto-launch the OAuth flow if the server requires authorization
       if (res?.requiresAuth) {
@@ -362,7 +364,8 @@ const McpsView: Component = () => {
     if (!addName() || !addUrl()) return;
     setAddError('');
     const clientId = addClientId().trim() || undefined;
-    connectMcp.mutate({ name: addName(), transport: 'http', url: addUrl(), ...(clientId && { clientId }) });
+    const clientSecret = addClientSecret().trim() || undefined;
+    connectMcp.mutate({ name: addName(), transport: 'http', url: addUrl(), ...(clientId && { clientId }), ...(clientSecret && { clientSecret }) });
   };
 
   const openManage = (name: string) => {
@@ -759,7 +762,7 @@ const McpsView: Component = () => {
         {/* Add Server Modal */}
         <Modal
           isOpen={showAddServerModal()}
-          onClose={() => { setShowAddServerModal(false); setAddError(''); setShowAdvancedOptions(false); setAddClientId(''); }}
+          onClose={() => { setShowAddServerModal(false); setAddError(''); setShowAdvancedOptions(false); setAddClientId(''); setAddClientSecret(''); }}
           title={t('mcps.addServer')}
         >
           <div class="modal-form">
@@ -798,6 +801,16 @@ const McpsView: Component = () => {
                   placeholder={t('mcps.clientIdPlaceholder')}
                   value={addClientId()}
                   onInput={(e) => setAddClientId(e.currentTarget.value)}
+                />
+              </div>
+              <div class="form-group">
+                <label>{t('mcps.clientSecret')}</label>
+                <input
+                  type="password"
+                  placeholder={t('mcps.clientSecretPlaceholder')}
+                  value={addClientSecret()}
+                  onInput={(e) => setAddClientSecret(e.currentTarget.value)}
+                  autocomplete="new-password"
                 />
               </div>
             </Show>

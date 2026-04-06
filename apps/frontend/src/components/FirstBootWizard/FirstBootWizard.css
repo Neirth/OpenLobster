@@ -218,6 +218,26 @@
   border-radius: var(--radius-md);
 }
 
+.wizard-channel-row--inline {
+  margin-bottom: 16px;
+}
+
+.wizard-toggle-description {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.wizard-plugin-defaults {
+  margin-bottom: 16px;
+}
+
+.wizard-plugin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
 .wizard-checkbox {
   display: flex;
   align-items: center;

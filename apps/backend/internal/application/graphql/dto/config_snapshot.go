@@ -105,6 +105,8 @@ func BuildConfigSnapshot(cfg *config.Config, providerNameFn func(*config.Config)
 			Secrets: cfg.Plugins.Defaults["secrets"],
 			Audio:   cfg.Plugins.Defaults["audio"],
 		},
+		WebEnabled:      cfg.Web.Enabled,
+		A2aEnabled:      cfg.A2A.Enabled,
 		WizardCompleted: cfg.Wizard.Completed,
 	}
 }

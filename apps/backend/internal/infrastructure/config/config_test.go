@@ -201,10 +201,10 @@ func TestLoadFromEnv_Neo4j(t *testing.T) {
 // written to the environment; GetValue reads the corresponding field from Config;
 // Expected is the value that must be present after LoadFromEnv.
 type envMappingCase struct {
-	EnvVar    string
-	SetValue  string
-	GetValue  func(*Config) interface{}
-	Expected  interface{}
+	EnvVar   string
+	SetValue string
+	GetValue func(*Config) interface{}
+	Expected interface{}
 }
 
 func TestLoadFromEnv_AllKeysMapped(t *testing.T) {
@@ -259,6 +259,7 @@ func TestLoadFromEnv_AllKeysMapped(t *testing.T) {
 		{"OPENLOBSTER_GRAPHQL_BASE_URL", "https://graphql-env.local", func(c *Config) interface{} { return c.GraphQL.BaseURL }, "https://graphql-env.local"},
 		{"OPENLOBSTER_GRAPHQL_AUTH_ENABLED", "true", func(c *Config) interface{} { return c.GraphQL.AuthEnabled }, true},
 		{"OPENLOBSTER_GRAPHQL_AUTH_TOKEN", "auth-env-token", func(c *Config) interface{} { return c.GraphQL.AuthToken }, "auth-env-token"},
+		{"OPENLOBSTER_WEB_ENABLED", "false", func(c *Config) interface{} { return c.Web.Enabled }, false},
 		{"OPENLOBSTER_LOGGING_LEVEL", "debug", func(c *Config) interface{} { return c.Logging.Level }, "debug"},
 		{"OPENLOBSTER_LOGGING_PATH", "/var/log/env", func(c *Config) interface{} { return c.Logging.Path }, "/var/log/env"},
 		{"OPENLOBSTER_PERMISSIONS_DEFAULT_MODE", "always", func(c *Config) interface{} { return c.Permissions.DefaultMode }, "always"},
@@ -445,6 +446,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, "openlobster", cfg.Agent.Name)
 	assert.Equal(t, "sqlite3", cfg.Database.Driver)
 	assert.Equal(t, 8080, cfg.GraphQL.Port)
+	assert.True(t, cfg.Web.Enabled)
 	assert.Equal(t, models.MemoryFile, cfg.Memory.Backend)
 	assert.Equal(t, "YOUR_API_KEY_HERE", cfg.Providers.OpenAI.APIKey)
 }

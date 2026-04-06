@@ -27,6 +27,8 @@ func (a *App) rebuildActiveChannels() []dto.ChannelStatus {
 	return list
 }
 
-// reloadChannel is a no-op in the plugin architecture.
-// Hot-reload happens via reloadPlugins() in the GraphQL resolver.
-func (a *App) reloadChannel(_ string) {}
+// reloadChannel reconciles the runtime messaging wiring after channel-related
+// config changes.
+func (a *App) reloadChannel(_ string) {
+	a.rebuildMessagingRuntime()
+}

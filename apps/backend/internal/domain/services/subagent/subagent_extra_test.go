@@ -33,7 +33,7 @@ func (m *mockInternalTool) Execute(_ context.Context, _ map[string]interface{}) 
 // ─── AI provider with tool_use ────────────────────────────────────────────────
 
 type toolAIProvider struct {
-	calls    int
+	calls     int
 	firstResp ports.ChatResponse
 	synthResp ports.ChatResponse
 	err       error
@@ -307,7 +307,7 @@ func TestDispatchToolCall_ToolError(t *testing.T) {
 	svc.SetToolRegistry(tr)
 
 	tc := ports.ToolCall{
-		ID: "call-err",
+		ID:       "call-err",
 		Function: ports.FunctionCall{Name: "bad_tool", Arguments: `{}`},
 	}
 
@@ -442,6 +442,39 @@ func TestRunAgenticLoop_NoToolUseImmediateReply(t *testing.T) {
 	result, err := svc.runAgenticLoop(context.Background(), "model", messages, []ports.Tool{})
 	require.NoError(t, err)
 	assert.Equal(t, "Direct answer.", result)
+}
+
+func TestRunAgenticLoop_ToolCallsWithoutToolUseStopReason(t *testing.T) {
+	pm := permissions.NewManager()
+	pm.SetPermission("default", "echo_tool", permissions.PermissionAlways)
+	tr := mcp.NewToolRegistry(false, pm)
+	tr.RegisterInternal("echo_tool", &mockInternalTool{
+		def:    mcp.ToolDefinition{Name: "echo_tool"},
+		result: json.RawMessage(`{"output":"done"}`),
+	})
+
+	ai := &toolAIProvider{
+		firstResp: ports.ChatResponse{
+			StopReason: "stop",
+			ToolCalls: []ports.ToolCall{{
+				ID: "tc1",
+				Function: ports.FunctionCall{
+					Name:      "echo_tool",
+					Arguments: `{}`,
+				},
+			}},
+			Content: "",
+		},
+		synthResp: ports.ChatResponse{Content: "Final answer.", StopReason: "stop"},
+	}
+
+	svc := NewService(ai, 5, time.Minute)
+	svc.SetToolRegistry(tr)
+
+	messages := []ports.ChatMessage{{Role: "user", Content: "do something"}}
+	result, err := svc.runAgenticLoop(context.Background(), "model", messages, []ports.Tool{})
+	require.NoError(t, err)
+	assert.Equal(t, "Final answer.", result)
 }
 
 func TestRunAgenticLoop_AIError(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/neirth/openlobster/internal/application/graphql"
@@ -23,18 +24,17 @@ import (
 	"github.com/neirth/openlobster/internal/domain/services/permissions"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
 	msgrouter "github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/router"
-	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 	"github.com/neirth/openlobster/internal/infrastructure/persistence"
+	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/plugin"
 )
 
 // App holds every component wired during startup. All init* methods populate
 // its fields; lifecycle methods (startAndWait) use them.
 type App struct {
 	// Meta
-	Version          string
-	PublicFS         fs.FS
-	BuiltinPluginsFS fs.FS
+	Version  string
+	PublicFS fs.FS
 
 	// CLI flag overrides (set by Command before calling Run)
 	FlagHost    string
@@ -112,11 +112,14 @@ type App struct {
 	Ctx             context.Context
 	Cancel          context.CancelFunc
 	ChannelStartCtx context.Context
+
+	reloadMu               sync.Mutex
+	messagingRuntimeCancel context.CancelFunc
 }
 
 // New returns an uninitialised App. Call Run() to start the daemon.
-func New(version string, publicFS fs.FS, builtinPluginsFS fs.FS) *App {
-	return &App{Version: version, PublicFS: publicFS, BuiltinPluginsFS: builtinPluginsFS}
+func New(version string, publicFS fs.FS) *App {
+	return &App{Version: version, PublicFS: publicFS}
 }
 
 // Run initialises all subsystems in order and blocks until a shutdown signal

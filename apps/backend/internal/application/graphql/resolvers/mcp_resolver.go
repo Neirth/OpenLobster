@@ -14,7 +14,7 @@ import (
 )
 
 // ConnectMcp is the resolver for the connectMcp field.
-func (r *mutationResolver) ConnectMcp(ctx context.Context, name string, transport string, url string, clientID *string) (*generated.MCPConnectResult, error) {
+func (r *mutationResolver) ConnectMcp(ctx context.Context, name string, transport string, url string, clientID *string, clientSecret *string) (*generated.MCPConnectResult, error) {
 	if r.Deps == nil {
 		return &generated.MCPConnectResult{}, nil
 	}
@@ -22,6 +22,12 @@ func (r *mutationResolver) ConnectMcp(ctx context.Context, name string, transpor
 	if clientID != nil && *clientID != "" && r.Deps.McpOAuthPort != nil {
 		if err := r.Deps.McpOAuthPort.SetClientID(ctx, name, *clientID); err != nil {
 			log.Printf("resolvers: SetClientID for server %q: %v", name, err)
+		}
+	}
+	// Persist custom client_secret from "advanced options" so token exchange can use confidential clients
+	if clientSecret != nil && *clientSecret != "" && r.Deps.McpOAuthPort != nil {
+		if err := r.Deps.McpOAuthPort.SetClientSecret(ctx, name, *clientSecret); err != nil {
+			log.Printf("resolvers: SetClientSecret for server %q: %v", name, err)
 		}
 	}
 	reqAuth, err := r.Deps.ConnectMCP(ctx, name, transport, url)

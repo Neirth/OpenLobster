@@ -4,7 +4,7 @@ import "context"
 
 // AudioProviderPort is the domain interface for text-to-speech and
 // speech-to-text services.  Implementations (e.g. ElevenLabs) are loaded as
-// WASM plugins of type "audio".
+// native plugins of type "audio".
 type AudioProviderPort interface {
 	TextToSpeech(ctx context.Context, req TTSRequest) (TTSResponse, error)
 	SpeechToText(ctx context.Context, req STTRequest) (STTResponse, error)

@@ -48,11 +48,21 @@ interface PluginDefaults {
   audio: string;
 }
 
+interface MessagingChannelsEnabled {
+  telegram?: boolean;
+  discord?: boolean;
+  slack?: boolean;
+  whatsapp?: boolean;
+  twilio?: boolean;
+}
+
 interface PluginsSectionProps {
   defaultAiPluginId?: string;
   defaultMemoryPluginId?: string;
   defaultSecretsPluginId?: string;
   defaultAudioPluginId?: string;
+  messagingChannelsEnabled?: MessagingChannelsEnabled;
+  onMessagingChannelChange?: (channelType: keyof MessagingChannelsEnabled, enabled: boolean) => void;
   onDefaultsChange?: (defaults: PluginDefaults) => void;
 }
 
@@ -76,6 +86,7 @@ const OPENAI_PLUGIN_ID = "openlobster-ai-openai";
 const OPENAI_ENDPOINT_FIELD = "endpoint";
 const OPENAI_BASE_URL_FIELD = "base_url";
 const OPENAI_CUSTOM_ENDPOINT = "custom";
+const MESSAGING_PLUGIN_PREFIX = "openlobster-messages-";
 
 const PLUGIN_DEFAULT_FIELD_BY_TYPE: Record<string, keyof PluginDefaults> = {
   ai: "ai",
@@ -89,6 +100,11 @@ type UpdateConfigInput = {
   pluginDefaultMemory?: string;
   pluginDefaultSecrets?: string;
   pluginDefaultAudio?: string;
+  channelTelegramEnabled?: boolean;
+  channelDiscordEnabled?: boolean;
+  channelSlackEnabled?: boolean;
+  channelWhatsAppEnabled?: boolean;
+  channelTwilioEnabled?: boolean;
 };
 
 function pluginDefaultFieldForType(pluginType: string): keyof PluginDefaults | null {
@@ -107,6 +123,44 @@ function updateConfigInputForPluginDefault(field: keyof PluginDefaults, pluginID
       return { pluginDefaultAudio: pluginID };
     default:
       return {};
+  }
+}
+
+function updateConfigInputForChannelEnabled(
+  channelType: keyof MessagingChannelsEnabled,
+  enabled: boolean,
+): UpdateConfigInput {
+  switch (channelType) {
+    case "telegram":
+      return { channelTelegramEnabled: enabled };
+    case "discord":
+      return { channelDiscordEnabled: enabled };
+    case "slack":
+      return { channelSlackEnabled: enabled };
+    case "whatsapp":
+      return { channelWhatsAppEnabled: enabled };
+    case "twilio":
+      return { channelTwilioEnabled: enabled };
+    default:
+      return {};
+  }
+}
+
+function messagingChannelTypeFromPluginID(pluginID: string): keyof MessagingChannelsEnabled | null {
+  const normalizedID = pluginID.trim().toLowerCase();
+  if (!normalizedID.startsWith(MESSAGING_PLUGIN_PREFIX)) {
+    return null;
+  }
+  const rawType = normalizedID.slice(MESSAGING_PLUGIN_PREFIX.length);
+  switch (rawType) {
+    case "telegram":
+    case "discord":
+    case "slack":
+    case "whatsapp":
+    case "twilio":
+      return rawType;
+    default:
+      return null;
   }
 }
 
@@ -404,12 +458,42 @@ const PluginsSection: Component<PluginsSectionProps> = (props) => {
     }
   };
 
-  const handleSetEnabled = async (pluginId: string, enabled: boolean) => {
+  const persistMessagingChannelEnabled = async (
+    channelType: keyof MessagingChannelsEnabled,
+    enabled: boolean,
+  ): Promise<void> => {
+    const input = updateConfigInputForChannelEnabled(channelType, enabled);
+    const res = await fetch(GRAPHQL_ENDPOINT, {
+      method: "POST",
+      headers: graphqlHeaders(),
+      body: JSON.stringify({
+        query: UPDATE_CONFIG_MUTATION,
+        variables: { input },
+      }),
+    });
+    const data = await res.json();
+    if (data.errors) {
+      throw new Error(data.errors[0]?.message ?? "Save failed");
+    }
+    if (!data.data?.updateConfig) {
+      throw new Error("Save failed");
+    }
+  };
+
+  const handleSetEnabled = async (plugin: Plugin, enabled: boolean) => {
+    const pluginId = plugin.id;
     setTogglingPlugin(pluginId);
     try {
-      await persistPluginEnabled(pluginId, enabled);
-      setPlugins(prev => prev.map((p) => (p.id === pluginId ? { ...p, enabled } : p)));
-      showMessage("success", t("plugins.stateSaved"));
+      const channelType = messagingChannelTypeFromPluginID(pluginId);
+      if (plugin.pluginType === "messaging" && channelType !== null) {
+        await persistMessagingChannelEnabled(channelType, enabled);
+        props.onMessagingChannelChange?.(channelType, enabled);
+        showMessage("success", t("plugins.channelStateSaved"));
+      } else {
+        await persistPluginEnabled(pluginId, enabled);
+        setPlugins(prev => prev.map((p) => (p.id === pluginId ? { ...p, enabled } : p)));
+        showMessage("success", t("plugins.stateSaved"));
+      }
     } catch (e) {
       showMessage("error", e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -596,12 +680,29 @@ const PluginsSection: Component<PluginsSectionProps> = (props) => {
               const isSaving = () => savingPlugin() === plugin.id;
               const isToggling = () => togglingPlugin() === plugin.id;
               const isDefaulting = () => defaultingPlugin() === plugin.id;
-              const isActive = () => plugin.enabled && plugin.available;
+              const messagingChannelType = () => messagingChannelTypeFromPluginID(plugin.id);
+              const isMessagingPlugin = () => plugin.pluginType === "messaging" && messagingChannelType() !== null;
+              const isChannelEnabled = () => {
+                const channelType = messagingChannelType();
+                if (!channelType) {
+                  return true;
+                }
+                return Boolean(props.messagingChannelsEnabled?.[channelType]);
+              };
+              const isActive = () => plugin.enabled && plugin.available && isChannelEnabled();
               const defaultField = pluginDefaultFieldForType(plugin.pluginType);
               const isDefault = () => defaultField !== null && pluginDefaults()[defaultField] === plugin.id;
               const showsDefaultBadge = () => defaultField !== null && isDefault();
-              const showsRuntimeBadge = () => defaultField === null;
+              const showsRuntimeBadge = () => defaultField === null && !isMessagingPlugin();
               const showsEnabledToggle = () => defaultField === null;
+              const enabledLabel = () => isMessagingPlugin() ? t("plugins.messagingPluginEnabledLabel") : t("plugins.enabledLabel");
+              const enabledDesc = () => isMessagingPlugin() ? t("plugins.messagingPluginEnabledDesc") : t("plugins.enabledDesc");
+              const enabledValue = () => {
+                if (isMessagingPlugin()) {
+                  return isChannelEnabled() ? t("plugins.messagingPluginStateEnabled") : t("plugins.messagingPluginStateDisabled");
+                }
+                return plugin.enabled ? t("common.enabled") : t("common.disabled");
+              };
 
               return (
                 <div class="plugin-card" classList={{ "plugin-card--expanded": isExpanded() }}>
@@ -635,6 +736,14 @@ const PluginsSection: Component<PluginsSectionProps> = (props) => {
                           {isActive() ? t("plugins.active") : t("plugins.inactive")}
                         </span>
                       </Show>
+                      <Show when={isMessagingPlugin()}>
+                        <span
+                          class="plugin-card__badge"
+                          classList={{ "plugin-card__badge--active": isChannelEnabled() }}
+                        >
+                          {isChannelEnabled() ? t("plugins.channelEnabled") : t("plugins.channelDisabled")}
+                        </span>
+                      </Show>
                       <Show when={plugin.builtin}>
                         <span class="plugin-card__badge plugin-card__badge--builtin">{t("plugins.builtin")}</span>
                       </Show>
@@ -649,20 +758,20 @@ const PluginsSection: Component<PluginsSectionProps> = (props) => {
                       <Show when={showsEnabledToggle()}>
                         <div class="setting-item plugin-card__enabled-row">
                           <div class="setting-info">
-                            <span class="setting-label">{t("plugins.enabledLabel")}</span>
-                            <p class="setting-description">{t("plugins.enabledDesc")}</p>
+                            <span class="setting-label">{enabledLabel()}</span>
+                            <p class="setting-description">{enabledDesc()}</p>
                           </div>
-                          <label class="toggle-switch" aria-label={t("plugins.enabledLabel")}>
+                          <label class="toggle-switch" aria-label={enabledLabel()}>
                             <input
                               type="checkbox"
-                              checked={plugin.enabled}
+                              checked={isMessagingPlugin() ? isChannelEnabled() : plugin.enabled}
                               disabled={isToggling()}
-                              onChange={(e) => handleSetEnabled(plugin.id, e.currentTarget.checked)}
+                              onChange={(e) => handleSetEnabled(plugin, e.currentTarget.checked)}
                             />
                             <span class="toggle-slider" />
                           </label>
                           <span class="plugin-card__enabled-value">
-                            {plugin.enabled ? t("common.enabled") : t("common.disabled")}
+                            {enabledValue()}
                           </span>
                         </div>
                       </Show>
@@ -716,20 +825,20 @@ const PluginsSection: Component<PluginsSectionProps> = (props) => {
                       <Show when={showsEnabledToggle()}>
                         <div class="setting-item plugin-card__enabled-row">
                           <div class="setting-info">
-                            <span class="setting-label">{t("plugins.enabledLabel")}</span>
-                            <p class="setting-description">{t("plugins.enabledDesc")}</p>
+                            <span class="setting-label">{enabledLabel()}</span>
+                            <p class="setting-description">{enabledDesc()}</p>
                           </div>
-                          <label class="toggle-switch" aria-label={t("plugins.enabledLabel")}>
+                          <label class="toggle-switch" aria-label={enabledLabel()}>
                             <input
                               type="checkbox"
-                              checked={plugin.enabled}
+                              checked={isMessagingPlugin() ? isChannelEnabled() : plugin.enabled}
                               disabled={isToggling()}
-                              onChange={(e) => handleSetEnabled(plugin.id, e.currentTarget.checked)}
+                              onChange={(e) => handleSetEnabled(plugin, e.currentTarget.checked)}
                             />
                             <span class="toggle-slider" />
                           </label>
                           <span class="plugin-card__enabled-value">
-                            {plugin.enabled ? t("common.enabled") : t("common.disabled")}
+                            {enabledValue()}
                           </span>
                         </div>
                       </Show>

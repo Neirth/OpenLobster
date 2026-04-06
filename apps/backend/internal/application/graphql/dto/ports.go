@@ -74,6 +74,8 @@ type McpOAuthPort interface {
 	Status(serverName string) (status, errMsg string)
 	// SetClientID persists a custom client_id for the server (used when adding server with "advanced options").
 	SetClientID(ctx context.Context, serverName, clientID string) error
+	// SetClientSecret persists a custom client_secret for the server (used when adding server with "advanced options").
+	SetClientSecret(ctx context.Context, serverName, clientSecret string) error
 }
 
 // SubAgentPort exposes sub-agents.

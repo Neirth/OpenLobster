@@ -3,7 +3,6 @@ module github.com/neirth/openlobster/plugins/openlobster-audio-elevenlabs
 go 1.25.0
 
 require (
-	github.com/extism/go-pdk v1.1.3
 	github.com/plexusone/elevenlabs-go v0.9.1
 	github.com/stealthrocket/net v0.2.1
 )
@@ -22,6 +21,7 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/neirth/openlobster/plugins/openlobster-sdk-base v0.0.0-00010101000000-000000000000
 	github.com/ogen-go/ogen v1.20.1 // indirect
 	github.com/plexusone/ogen-tools v0.2.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
@@ -37,5 +37,10 @@ require (
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
+	google.golang.org/grpc v1.73.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+replace github.com/neirth/openlobster/plugins/openlobster-sdk-base => ../openlobster-sdk-base

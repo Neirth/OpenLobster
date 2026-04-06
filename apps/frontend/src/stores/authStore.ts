@@ -22,6 +22,12 @@ export function getStoredToken(): string | null {
   }
 }
 
+export function syncNeedsAuthFromSessionStorage(): void {
+  if (getStoredToken()) {
+    setNeedsAuth(false);
+  }
+}
+
 export function saveToken(token: string): void {
   try {
     sessionStorage.setItem(TOKEN_KEY, token);

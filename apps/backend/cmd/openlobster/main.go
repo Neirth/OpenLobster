@@ -24,7 +24,6 @@ import (
 	cmdconfig "github.com/neirth/openlobster/cmd/openlobster/config"
 	cmddaemon "github.com/neirth/openlobster/cmd/openlobster/daemon"
 	cmdmigrate "github.com/neirth/openlobster/cmd/openlobster/migrate"
-	cmdpluginhost "github.com/neirth/openlobster/cmd/openlobster/pluginhost"
 	cmdserve "github.com/neirth/openlobster/cmd/openlobster/serve"
 	cmdversion "github.com/neirth/openlobster/cmd/openlobster/version"
 )
@@ -36,12 +35,6 @@ var version = "dev"
 //
 //go:embed all:public
 var public embed.FS
-
-// builtinPlugins embeds builtin WASM plugins packaged into the binary at
-// build-time from cmd/openlobster/embedded_plugins.
-//
-//go:embed all:embedded_plugins
-var builtinPlugins embed.FS
 
 func main() {
 	// Disable Ollama SDK key-based auth; we use Bearer token via our own transport.
@@ -56,7 +49,7 @@ func main() {
 		SilenceErrors: true,
 		// Running "openlobster" with no subcommand starts the server.
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdserve.New(version, public, builtinPlugins).Run()
+			cmdserve.New(version, public).Run()
 		},
 	}
 
@@ -64,8 +57,7 @@ func main() {
 		cmdconfig.Command(),
 		cmddaemon.Command(),
 		cmdmigrate.Command(),
-		cmdpluginhost.Command(builtinPlugins),
-		cmdserve.Command(version, public, builtinPlugins),
+		cmdserve.Command(version, public),
 		cmdversion.Command(version),
 	)
 

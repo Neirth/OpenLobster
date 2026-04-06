@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
+	_ "github.com/stealthrocket/net/http"
 )
 
 type pluginConfig struct {
@@ -63,37 +64,48 @@ type provider struct {
 	client  *http.Client
 }
 
-//go:wasmexport get_name
 func getName() int32 {
 	pdk.OutputString("openlobster-secrets-openbao")
 	return 0
 }
 
-//go:wasmexport get_version
 func getVersion() int32 {
 	pdk.OutputString("0.1.0")
 	return 0
 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("OpenBao/Vault secrets provider for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 {
 	pdk.OutputString("secrets")
 	return 0
 }
 
-//go:wasmexport get_schema
 func getSchema() int32 {
 	pdk.OutputString(`{"type":"object","properties":{"url":{"type":"string","title":"OpenBao URL","default":"http://localhost:8200","description":"Base URL of the OpenBao/Vault server"},"token":{"type":"string","title":"OpenBao Token","description":"Access token with read/write permissions on the selected mount"},"mount":{"type":"string","title":"Secrets Mount","default":"secret","description":"KV mount name where secrets are stored"},"timeout_ms":{"type":"integer","title":"HTTP Timeout (ms)","default":5000,"description":"HTTP request timeout in milliseconds"}},"required":["url","token"],"additionalProperties":false}`)
 	return 0
 }
 
-//go:wasmexport get
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-secrets-openbao",
+		"name":        "openlobster-secrets-openbao",
+		"version":     "0.1.0",
+		"description": "OpenBao/Vault secrets provider for OpenLobster",
+		"type":        "secrets",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"url":{"type":"string","title":"OpenBao URL","default":"http://localhost:8200","description":"Base URL of the OpenBao/Vault server"},"token":{"type":"string","title":"OpenBao Token","description":"Access token with read/write permissions on the selected mount"},"mount":{"type":"string","title":"Secrets Mount","default":"secret","description":"KV mount name where secrets are stored"},"timeout_ms":{"type":"integer","title":"HTTP Timeout (ms)","default":5000,"description":"HTTP request timeout in milliseconds"}},"required":["url","token"],"additionalProperties":false}`),
+		"properties":  json.RawMessage(`{}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	return 0
+}
+
 func getSecret() int32 {
 	var in getInput
 	if err := pdk.InputJSON(&in); err != nil {
@@ -117,7 +129,6 @@ func getSecret() int32 {
 	return writeJSON(getOutput{Value: value, Found: &f})
 }
 
-//go:wasmexport set
 func setSecret() int32 {
 	var in setInput
 	if err := pdk.InputJSON(&in); err != nil {
@@ -134,7 +145,6 @@ func setSecret() int32 {
 	return writeJSON(okOutput{OK: true})
 }
 
-//go:wasmexport delete
 func deleteSecret() int32 {
 	var in deleteInput
 	if err := pdk.InputJSON(&in); err != nil {
@@ -151,7 +161,6 @@ func deleteSecret() int32 {
 	return writeJSON(okOutput{OK: true})
 }
 
-//go:wasmexport list
 func listSecrets() int32 {
 	var in listInput
 	if err := pdk.InputJSON(&in); err != nil {
@@ -413,4 +422,16 @@ func writeJSON(v any) int32 {
 	return 0
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-secrets-openbao",
+		Exports: map[string]pdk.Function{
+			"get_metadata": getMetadata,
+			"configure":    configureHot,
+			"get":          getSecret,
+			"set":          setSecret,
+			"delete":       deleteSecret,
+			"list":         listSecrets,
+		},
+	})
+}

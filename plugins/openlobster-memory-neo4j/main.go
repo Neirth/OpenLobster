@@ -1,10 +1,13 @@
+//go:build !tinygo
+
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 	neo4j "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -12,24 +15,36 @@ import (
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport get_name
 func getName() int32 { pdk.OutputString("openlobster-memory-neo4j"); return 0 }
 
-//go:wasmexport get_version
 func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("Neo4j graph memory storage for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 { pdk.OutputString("memory"); return 0 }
 
-//go:wasmexport get_schema
 func getSchema() int32 {
 	pdk.OutputString(`{"type":"object","properties":{"uri":{"type":"string","title":"Bolt URI","default":"bolt://localhost:7687","description":"Neo4j connection URI"},"username":{"type":"string","title":"Username","default":"neo4j","description":"Neo4j username"},"password":{"type":"string","title":"Password","description":"Neo4j password"},"database":{"type":"string","title":"Database","default":"neo4j","description":"Neo4j database name"}},"required":["uri"]}`)
+	return 0
+}
+
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-memory-neo4j",
+		"name":        "openlobster-memory-neo4j",
+		"version":     "0.1.0",
+		"description": "Neo4j graph memory storage for OpenLobster",
+		"type":        "memory",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"uri":{"type":"string","title":"Bolt URI","default":"bolt://localhost:7687","description":"Neo4j connection URI"},"username":{"type":"string","title":"Username","default":"neo4j","description":"Neo4j username"},"password":{"type":"string","title":"Password","description":"Neo4j password"},"database":{"type":"string","title":"Database","default":"neo4j","description":"Neo4j database name"}},"required":["uri"]}`),
+		"properties":  json.RawMessage(`{}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
 	return 0
 }
 
@@ -108,7 +123,6 @@ type storeInput struct {
 	Config      neo4jConfig `json:"config"`
 }
 
-//go:wasmexport store
 func storeEntry() int32 {
 	var input storeInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -199,7 +213,6 @@ type knowledgeEntry struct {
 	Content string `json:"content"`
 }
 
-//go:wasmexport retrieve
 func retrieve() int32 {
 	var input retrieveInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -276,7 +289,6 @@ type graph struct {
 	Edges []graphEdge `json:"edges"`
 }
 
-//go:wasmexport query
 func queryMem() int32 {
 	var input queryInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -360,4 +372,15 @@ func queryMem() int32 {
 	return 0
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-memory-neo4j",
+		Exports: map[string]pdk.Function{
+			"get_metadata": getMetadata,
+			"configure":    configureHot,
+			"store":        storeEntry,
+			"retrieve":     retrieve,
+			"query":        queryMem,
+		},
+	})
+}

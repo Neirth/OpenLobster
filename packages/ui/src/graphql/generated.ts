@@ -64,6 +64,7 @@ export type AgentConfig = {
 
 export type AppConfig = {
   __typename?: 'AppConfig';
+  a2aEnabled?: Maybe<Scalars['Boolean']['output']>;
   activeSessions: Array<ActiveSession>;
   agent?: Maybe<AgentConfig>;
   capabilities?: Maybe<CapabilitiesConfig>;
@@ -77,6 +78,7 @@ export type AppConfig = {
   scheduler?: Maybe<SchedulerConfig>;
   secrets?: Maybe<SecretsConfig>;
   subagents?: Maybe<SubagentsConfig>;
+  webEnabled?: Maybe<Scalars['Boolean']['output']>;
   wizardCompleted?: Maybe<Scalars['Boolean']['output']>;
 };
 
@@ -453,6 +455,7 @@ export type MutationCompleteTaskArgs = {
 
 export type MutationConnectMcpArgs = {
   clientId?: InputMaybe<Scalars['String']['input']>;
+  clientSecret?: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
   transport: Scalars['String']['input'];
   url: Scalars['String']['input'];
@@ -864,6 +867,7 @@ export type ToolPermission = {
 };
 
 export type UpdateConfigInput = {
+  a2aEnabled?: InputMaybe<Scalars['Boolean']['input']>;
   agentName?: InputMaybe<Scalars['String']['input']>;
   anthropicApiKey?: InputMaybe<Scalars['String']['input']>;
   apiKey?: InputMaybe<Scalars['String']['input']>;
@@ -919,6 +923,7 @@ export type UpdateConfigInput = {
   subagentsDefaultTimeout?: InputMaybe<Scalars['String']['input']>;
   subagentsMaxConcurrent?: InputMaybe<Scalars['Int']['input']>;
   systemPrompt?: InputMaybe<Scalars['String']['input']>;
+  webEnabled?: InputMaybe<Scalars['Boolean']['input']>;
   wizardCompleted?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
@@ -997,6 +1002,7 @@ export type ConnectMcpMutationVariables = Exact<{
   transport: Scalars['String']['input'];
   url: Scalars['String']['input'];
   clientId?: InputMaybe<Scalars['String']['input']>;
+  clientSecret?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 
@@ -1224,7 +1230,7 @@ export type GetSkillsQuery = { __typename?: 'Query', skills: Array<{ __typename?
 export type GetConfigQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetConfigQuery = { __typename?: 'Query', config?: { __typename?: 'AppConfig', wizardCompleted?: boolean | null | undefined, agent?: { __typename?: 'AgentConfig', name?: string | null | undefined, systemPrompt?: string | null | undefined, provider?: string | null | undefined, model?: string | null | undefined, apiKey?: string | null | undefined, baseURL?: string | null | undefined, ollamaHost?: string | null | undefined, ollamaApiKey?: string | null | undefined, anthropicApiKey?: string | null | undefined, dockerModelRunnerEndpoint?: string | null | undefined, dockerModelRunnerModel?: string | null | undefined, reasoningLevel?: string | null | undefined } | null | undefined, capabilities?: { __typename?: 'CapabilitiesConfig', browser?: boolean | null | undefined, terminal?: boolean | null | undefined, subagents?: boolean | null | undefined, memory?: boolean | null | undefined, mcp?: boolean | null | undefined, filesystem?: boolean | null | undefined, sessions?: boolean | null | undefined } | null | undefined, database?: { __typename?: 'DatabaseConfig', driver?: string | null | undefined, dsn?: string | null | undefined, maxOpenConns?: number | null | undefined, maxIdleConns?: number | null | undefined } | null | undefined, memory?: { __typename?: 'MemoryConfig', backend?: string | null | undefined, filePath?: string | null | undefined, neo4j?: { __typename?: 'Neo4jConfig', uri?: string | null | undefined, user?: string | null | undefined, password?: string | null | undefined } | null | undefined } | null | undefined, subagents?: { __typename?: 'SubagentsConfig', maxConcurrent?: number | null | undefined, defaultTimeout?: string | null | undefined } | null | undefined, graphql?: { __typename?: 'GraphQLConfig', enabled?: boolean | null | undefined, port?: number | null | undefined, host?: string | null | undefined, baseUrl?: string | null | undefined } | null | undefined, logging?: { __typename?: 'LoggingConfig', level?: string | null | undefined, path?: string | null | undefined } | null | undefined, secrets?: { __typename?: 'SecretsConfig', backend?: string | null | undefined, file?: { __typename?: 'FileSecretsConfig', path?: string | null | undefined } | null | undefined, openbao?: { __typename?: 'OpenbaoSecretsConfig', url?: string | null | undefined, token?: string | null | undefined } | null | undefined } | null | undefined, scheduler?: { __typename?: 'SchedulerConfig', enabled?: boolean | null | undefined, memoryEnabled?: boolean | null | undefined, memoryInterval?: string | null | undefined } | null | undefined, activeSessions: Array<{ __typename?: 'ActiveSession', id: string, address?: string | null | undefined, status?: string | null | undefined, channel?: string | null | undefined, user?: string | null | undefined }>, channels: Array<{ __typename?: 'ChannelConfig', channelId: string, channelName?: string | null | undefined, enabled: boolean }>, channelSecrets?: { __typename?: 'ChannelSecretsConfig', telegramEnabled?: boolean | null | undefined, telegramToken?: string | null | undefined, discordEnabled?: boolean | null | undefined, discordToken?: string | null | undefined, whatsAppEnabled?: boolean | null | undefined, whatsAppPhoneId?: string | null | undefined, whatsAppApiToken?: string | null | undefined, twilioEnabled?: boolean | null | undefined, twilioAccountSid?: string | null | undefined, twilioAuthToken?: string | null | undefined, twilioFromNumber?: string | null | undefined, slackEnabled?: boolean | null | undefined, slackBotToken?: string | null | undefined, slackAppToken?: string | null | undefined } | null | undefined, pluginDefaults?: { __typename?: 'PluginDefaultsConfig', ai?: string | null | undefined, memory?: string | null | undefined, secrets?: string | null | undefined, audio?: string | null | undefined } | null | undefined } | null | undefined };
+export type GetConfigQuery = { __typename?: 'Query', config?: { __typename?: 'AppConfig', a2aEnabled?: boolean | null | undefined, webEnabled?: boolean | null | undefined, wizardCompleted?: boolean | null | undefined, agent?: { __typename?: 'AgentConfig', name?: string | null | undefined, systemPrompt?: string | null | undefined, provider?: string | null | undefined, model?: string | null | undefined, apiKey?: string | null | undefined, baseURL?: string | null | undefined, ollamaHost?: string | null | undefined, ollamaApiKey?: string | null | undefined, anthropicApiKey?: string | null | undefined, dockerModelRunnerEndpoint?: string | null | undefined, dockerModelRunnerModel?: string | null | undefined, reasoningLevel?: string | null | undefined } | null | undefined, capabilities?: { __typename?: 'CapabilitiesConfig', browser?: boolean | null | undefined, terminal?: boolean | null | undefined, subagents?: boolean | null | undefined, memory?: boolean | null | undefined, mcp?: boolean | null | undefined, filesystem?: boolean | null | undefined, sessions?: boolean | null | undefined } | null | undefined, database?: { __typename?: 'DatabaseConfig', driver?: string | null | undefined, dsn?: string | null | undefined, maxOpenConns?: number | null | undefined, maxIdleConns?: number | null | undefined } | null | undefined, memory?: { __typename?: 'MemoryConfig', backend?: string | null | undefined, filePath?: string | null | undefined, neo4j?: { __typename?: 'Neo4jConfig', uri?: string | null | undefined, user?: string | null | undefined, password?: string | null | undefined } | null | undefined } | null | undefined, subagents?: { __typename?: 'SubagentsConfig', maxConcurrent?: number | null | undefined, defaultTimeout?: string | null | undefined } | null | undefined, graphql?: { __typename?: 'GraphQLConfig', enabled?: boolean | null | undefined, port?: number | null | undefined, host?: string | null | undefined, baseUrl?: string | null | undefined } | null | undefined, logging?: { __typename?: 'LoggingConfig', level?: string | null | undefined, path?: string | null | undefined } | null | undefined, secrets?: { __typename?: 'SecretsConfig', backend?: string | null | undefined, file?: { __typename?: 'FileSecretsConfig', path?: string | null | undefined } | null | undefined, openbao?: { __typename?: 'OpenbaoSecretsConfig', url?: string | null | undefined, token?: string | null | undefined } | null | undefined } | null | undefined, scheduler?: { __typename?: 'SchedulerConfig', enabled?: boolean | null | undefined, memoryEnabled?: boolean | null | undefined, memoryInterval?: string | null | undefined } | null | undefined, activeSessions: Array<{ __typename?: 'ActiveSession', id: string, address?: string | null | undefined, status?: string | null | undefined, channel?: string | null | undefined, user?: string | null | undefined }>, channels: Array<{ __typename?: 'ChannelConfig', channelId: string, channelName?: string | null | undefined, enabled: boolean }>, channelSecrets?: { __typename?: 'ChannelSecretsConfig', telegramEnabled?: boolean | null | undefined, telegramToken?: string | null | undefined, discordEnabled?: boolean | null | undefined, discordToken?: string | null | undefined, whatsAppEnabled?: boolean | null | undefined, whatsAppPhoneId?: string | null | undefined, whatsAppApiToken?: string | null | undefined, twilioEnabled?: boolean | null | undefined, twilioAccountSid?: string | null | undefined, twilioAuthToken?: string | null | undefined, twilioFromNumber?: string | null | undefined, slackEnabled?: boolean | null | undefined, slackBotToken?: string | null | undefined, slackAppToken?: string | null | undefined } | null | undefined, pluginDefaults?: { __typename?: 'PluginDefaultsConfig', ai?: string | null | undefined, memory?: string | null | undefined, secrets?: string | null | undefined, audio?: string | null | undefined } | null | undefined } | null | undefined };
 
 export type GetSystemFilesQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -1303,8 +1309,14 @@ export const UpdateTaskDocument = gql`
 }
     `;
 export const ConnectMcpDocument = gql`
-    mutation ConnectMcp($name: String!, $transport: String!, $url: String!, $clientId: String) {
-  connectMcp(name: $name, transport: $transport, url: $url, clientId: $clientId) {
+    mutation ConnectMcp($name: String!, $transport: String!, $url: String!, $clientId: String, $clientSecret: String) {
+  connectMcp(
+    name: $name
+    transport: $transport
+    url: $url
+    clientId: $clientId
+    clientSecret: $clientSecret
+  ) {
     name
     transport
     status
@@ -1740,6 +1752,8 @@ export const GetConfigDocument = gql`
       secrets
       audio
     }
+    a2aEnabled
+    webEnabled
     wizardCompleted
   }
 }

@@ -826,6 +826,13 @@ func TestAppConfigSnapshotToGenerated_WithChannelSecrets(t *testing.T) {
 
 // ─── AppConfigSnapshotToUpdateConfigResult ───────────────────────────────────
 
+func TestAppConfigSnapshotToGenerated_WebEnabled(t *testing.T) {
+	snap := &dto.AppConfigSnapshot{WebEnabled: false}
+	result := AppConfigSnapshotToGenerated(snap)
+	require.NotNil(t, result.WebEnabled)
+	assert.False(t, *result.WebEnabled)
+}
+
 func TestAppConfigSnapshotToUpdateConfigResult_Nil(t *testing.T) {
 	result := AppConfigSnapshotToUpdateConfigResult(nil)
 	require.NotNil(t, result)
@@ -1015,6 +1022,14 @@ func TestUpdateConfigInputToMap_GraphQLFields(t *testing.T) {
 	assert.Equal(t, 9090, result["graphqlPort"])
 	assert.Equal(t, "0.0.0.0", result["graphqlHost"])
 	assert.Equal(t, "https://myapp.example.com", result["graphqlBaseUrl"])
+}
+
+func TestUpdateConfigInputToMap_WebEnabled(t *testing.T) {
+	webEnabled := false
+	result := UpdateConfigInputToMap(generated.UpdateConfigInput{
+		WebEnabled: &webEnabled,
+	})
+	assert.False(t, result["webEnabled"].(bool))
 }
 
 func TestUpdateConfigInputToMap_LoggingFields(t *testing.T) {

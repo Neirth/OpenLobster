@@ -26,6 +26,11 @@
   --color-text-muted:     #606060; /* Placeholders, disabled */
   --color-text-inverse:   #0D0D0D; /* Text on light backgrounds */
 
+  /* ─── Disabled ─── */
+  --color-disabled-bg:     #1A1A1A;
+  --color-disabled-border: #242424;
+  --color-disabled-text:   #6B6B6B;
+
   /* ─── Semantic ─── */
   --color-accent:  #4F8EF7; /* Blue — primary actions, links */
   --color-success: #4CAF50; /* Green — OK, completed */
@@ -85,6 +90,11 @@
   --color-text-secondary: #404040;
   --color-text-muted:     #909090;
   --color-text-inverse:   #E0E0E0;
+
+  /* ─── Disabled ─── */
+  --color-disabled-bg:     #ECECEC;
+  --color-disabled-border: #D9D9D9;
+  --color-disabled-text:   #9A9A9A;
 
   /* ─── Semantic ─── */
   --color-accent:  #2563EB; /* Darker blue for contrast on light */

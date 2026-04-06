@@ -10,7 +10,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// ConfigUpdateAdapter persists UpdateConfigInput into viper and reloads channels.
+// ConfigUpdateAdapter persists UpdateConfigInput into viper and reconciles
+// runtime state through callbacks.
 // When provider/agent keys change, OnApplied receives providerTouched=true and
 // must refresh ConfigSnapshot and perform a soft reboot (recreate AI provider).
 type ConfigUpdateAdapter struct {
@@ -115,11 +116,16 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 		if err := config.WriteEncryptedConfig(a.ConfigPath); err != nil {
 			return nil, fmt.Errorf("persisting config to %s: %w", a.ConfigPath, err)
 		}
-		for _, ch := range changedChannels {
-			a.ReloadChannel(ch)
-		}
+
+		// Keep a single runtime reconciliation path when OnApplied is available.
+		// ReloadChannel is retained as a compatibility fallback for legacy setups
+		// that do not wire OnApplied.
 		if a.OnApplied != nil {
 			a.OnApplied(providerTouched)
+		} else if a.ReloadChannel != nil {
+			for _, ch := range changedChannels {
+				a.ReloadChannel(ch)
+			}
 		}
 	}
 	return changedChannels, nil
@@ -232,6 +238,7 @@ func InputToViperKeyMap() map[string]string {
 		"graphqlPort":             "graphql.port",
 		"graphqlHost":             "graphql.host",
 		"graphqlBaseUrl":          "graphql.base_url",
+		"webEnabled":              "web.enabled",
 		"loggingLevel":            "logging.level",
 		"loggingPath":             "logging.path",
 		"secretsBackend":          "secrets.backend",
@@ -242,6 +249,7 @@ func InputToViperKeyMap() map[string]string {
 		"pluginDefaultSecrets":    "plugins.defaults.secrets",
 		"pluginDefaultAudio":      "plugins.defaults.audio",
 		"pluginDefaultAi":         "plugins.defaults.ai",
+		"a2aEnabled":              "a2a.enabled",
 		"schedulerEnabled":        "scheduler.enabled",
 		"schedulerMemoryEnabled":  "scheduler.memory_enabled",
 		"schedulerMemoryInterval": "scheduler.memory_interval",

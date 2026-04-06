@@ -76,6 +76,7 @@ type ComplexityRoot struct {
 	}
 
 	AppConfig struct {
+		A2aEnabled      func(childComplexity int) int
 		ActiveSessions  func(childComplexity int) int
 		Agent           func(childComplexity int) int
 		Capabilities    func(childComplexity int) int
@@ -89,6 +90,7 @@ type ComplexityRoot struct {
 		Scheduler       func(childComplexity int) int
 		Secrets         func(childComplexity int) int
 		Subagents       func(childComplexity int) int
+		WebEnabled      func(childComplexity int) int
 		WizardCompleted func(childComplexity int) int
 	}
 
@@ -351,7 +353,7 @@ type ComplexityRoot struct {
 		AddTask               func(childComplexity int, prompt string, schedule *string) int
 		ApprovePairing        func(childComplexity int, code string, userID *string, displayName *string) int
 		CompleteTask          func(childComplexity int, taskID string) int
-		ConnectMcp            func(childComplexity int, name string, transport string, url string, clientID *string) int
+		ConnectMcp            func(childComplexity int, name string, transport string, url string, clientID *string, clientSecret *string) int
 		DeleteGroup           func(childComplexity int, conversationID string) int
 		DeleteMemoryNode      func(childComplexity int, id string) int
 		DeleteRelation        func(childComplexity int, from string, to string) int
@@ -615,7 +617,7 @@ type MutationResolver interface {
 	DeleteRelation(ctx context.Context, from string, to string) (bool, error)
 	AddRelation(ctx context.Context, from string, to string, relationType string) (*AddRelationResult, error)
 	ExecuteCypher(ctx context.Context, cypher string) (*CypherResult, error)
-	ConnectMcp(ctx context.Context, name string, transport string, url string, clientID *string) (*MCPConnectResult, error)
+	ConnectMcp(ctx context.Context, name string, transport string, url string, clientID *string, clientSecret *string) (*MCPConnectResult, error)
 	DisconnectMcp(ctx context.Context, name string) (bool, error)
 	InitiateOAuth(ctx context.Context, name string, url string) (*OAuthInitiateResult, error)
 	AddTask(ctx context.Context, prompt string, schedule *string) (*Task, error)
@@ -872,6 +874,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.AgentConfig.SystemPrompt(childComplexity), true
 
+	case "AppConfig.a2aEnabled":
+		if e.ComplexityRoot.AppConfig.A2aEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AppConfig.A2aEnabled(childComplexity), true
 	case "AppConfig.activeSessions":
 		if e.ComplexityRoot.AppConfig.ActiveSessions == nil {
 			break
@@ -950,6 +958,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AppConfig.Subagents(childComplexity), true
+	case "AppConfig.webEnabled":
+		if e.ComplexityRoot.AppConfig.WebEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AppConfig.WebEnabled(childComplexity), true
 	case "AppConfig.wizardCompleted":
 		if e.ComplexityRoot.AppConfig.WizardCompleted == nil {
 			break
@@ -1984,7 +1998,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ConnectMcp(childComplexity, args["name"].(string), args["transport"].(string), args["url"].(string), args["clientId"].(*string)), true
+		return e.ComplexityRoot.Mutation.ConnectMcp(childComplexity, args["name"].(string), args["transport"].(string), args["url"].(string), args["clientId"].(*string), args["clientSecret"].(*string)), true
 	case "Mutation.deleteGroup":
 		if e.ComplexityRoot.Mutation.DeleteGroup == nil {
 			break
@@ -3540,6 +3554,8 @@ type AppConfig {
   channels:       [ChannelConfig!]!
   channelSecrets: ChannelSecretsConfig
   pluginDefaults: PluginDefaultsConfig
+  a2aEnabled: Boolean
+  webEnabled:      Boolean
   wizardCompleted: Boolean  # True when first-boot wizard has been completed (server-side)
 }
 
@@ -3583,6 +3599,7 @@ input UpdateConfigInput {
   graphqlPort:     Int
   graphqlHost:     String
   graphqlBaseUrl:  String
+  webEnabled:      Boolean
 
   loggingLevel: String
   loggingPath:  String
@@ -3596,6 +3613,8 @@ input UpdateConfigInput {
   pluginDefaultSecrets: String
   pluginDefaultAudio:   String
   pluginDefaultAi:      String
+
+  a2aEnabled:           Boolean
 
   schedulerEnabled:        Boolean
   schedulerMemoryEnabled:  Boolean
@@ -3838,6 +3857,7 @@ extend type Mutation {
     transport: String!
     url:       String!
     clientId:  String   # optional; custom OAuth client_id from "advanced options"
+    clientSecret: String # optional; custom OAuth client_secret from "advanced options"
   ): MCPConnectResult!
   disconnectMcp(name: String!): Boolean!
   initiateOAuth(name: String!, url: String!): OAuthInitiateResult!
@@ -4182,6 +4202,11 @@ func (ec *executionContext) field_Mutation_connectMcp_args(ctx context.Context, 
 		return nil, err
 	}
 	args["clientId"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "clientSecret", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["clientSecret"] = arg4
 	return args, nil
 }
 
@@ -6075,6 +6100,64 @@ func (ec *executionContext) fieldContext_AppConfig_pluginDefaults(_ context.Cont
 				return ec.fieldContext_PluginDefaultsConfig_audio(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PluginDefaultsConfig", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppConfig_a2aEnabled(ctx context.Context, field graphql.CollectedField, obj *AppConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppConfig_a2aEnabled,
+		func(ctx context.Context) (any, error) {
+			return obj.A2aEnabled, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppConfig_a2aEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AppConfig_webEnabled(ctx context.Context, field graphql.CollectedField, obj *AppConfig) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AppConfig_webEnabled,
+		func(ctx context.Context) (any, error) {
+			return obj.WebEnabled, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AppConfig_webEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppConfig",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -11253,7 +11336,7 @@ func (ec *executionContext) _Mutation_connectMcp(ctx context.Context, field grap
 		ec.fieldContext_Mutation_connectMcp,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ConnectMcp(ctx, fc.Args["name"].(string), fc.Args["transport"].(string), fc.Args["url"].(string), fc.Args["clientId"].(*string))
+			return ec.Resolvers.Mutation().ConnectMcp(ctx, fc.Args["name"].(string), fc.Args["transport"].(string), fc.Args["url"].(string), fc.Args["clientId"].(*string), fc.Args["clientSecret"].(*string))
 		},
 		nil,
 		ec.marshalNMCPConnectResult2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐMCPConnectResult,
@@ -13587,6 +13670,10 @@ func (ec *executionContext) fieldContext_Query_config(_ context.Context, field g
 				return ec.fieldContext_AppConfig_channelSecrets(ctx, field)
 			case "pluginDefaults":
 				return ec.fieldContext_AppConfig_pluginDefaults(ctx, field)
+			case "a2aEnabled":
+				return ec.fieldContext_AppConfig_a2aEnabled(ctx, field)
+			case "webEnabled":
+				return ec.fieldContext_AppConfig_webEnabled(ctx, field)
 			case "wizardCompleted":
 				return ec.fieldContext_AppConfig_wizardCompleted(ctx, field)
 			}
@@ -18656,7 +18743,7 @@ func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context,
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"agentName", "systemPrompt", "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey", "anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel", "reasoningLevel", "capabilities", "databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns", "memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword", "subagentsMaxConcurrent", "subagentsDefaultTimeout", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "loggingLevel", "loggingPath", "secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken", "pluginDefaultMemory", "pluginDefaultSecrets", "pluginDefaultAudio", "pluginDefaultAi", "schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "channelTelegramEnabled", "channelTelegramToken", "channelDiscordEnabled", "channelDiscordToken", "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken", "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber", "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken", "wizardCompleted"}
+	fieldsInOrder := [...]string{"agentName", "systemPrompt", "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey", "anthropicApiKey", "dockerModelRunnerEndpoint", "dockerModelRunnerModel", "reasoningLevel", "capabilities", "databaseDriver", "databaseDSN", "databaseMaxOpenConns", "databaseMaxIdleConns", "memoryBackend", "memoryFilePath", "memoryNeo4jURI", "memoryNeo4jUser", "memoryNeo4jPassword", "subagentsMaxConcurrent", "subagentsDefaultTimeout", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "webEnabled", "loggingLevel", "loggingPath", "secretsBackend", "secretsFilePath", "secretsOpenbaoURL", "secretsOpenbaoToken", "pluginDefaultMemory", "pluginDefaultSecrets", "pluginDefaultAudio", "pluginDefaultAi", "a2aEnabled", "schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "channelTelegramEnabled", "channelTelegramToken", "channelDiscordEnabled", "channelDiscordToken", "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken", "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber", "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken", "wizardCompleted"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -18859,6 +18946,13 @@ func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context,
 				return it, err
 			}
 			it.GraphqlBaseURL = data
+		case "webEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("webEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WebEnabled = data
 		case "loggingLevel":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("loggingLevel"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -18929,6 +19023,13 @@ func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context,
 				return it, err
 			}
 			it.PluginDefaultAi = data
+		case "a2aEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("a2aEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.A2aEnabled = data
 		case "schedulerEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("schedulerEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -19327,6 +19428,10 @@ func (ec *executionContext) _AppConfig(ctx context.Context, sel ast.SelectionSet
 			out.Values[i] = ec._AppConfig_channelSecrets(ctx, field, obj)
 		case "pluginDefaults":
 			out.Values[i] = ec._AppConfig_pluginDefaults(ctx, field, obj)
+		case "a2aEnabled":
+			out.Values[i] = ec._AppConfig_a2aEnabled(ctx, field, obj)
+		case "webEnabled":
+			out.Values[i] = ec._AppConfig_webEnabled(ctx, field, obj)
 		case "wizardCompleted":
 			out.Values[i] = ec._AppConfig_wizardCompleted(ctx, field, obj)
 		default:

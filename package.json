@@ -9,7 +9,10 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "codegen": "graphql-codegen --config codegen.ts",
     "codegen:watch": "graphql-codegen --config codegen.ts --watch",
-    "docker:image": "docker build -f .docker/Dockerfile.static -t ghcr.io/neirth/openlobster:latest-distroless --platform linux/arm64 ."
+    "docker:image": "docker build -f .docker/Dockerfile.static -t ghcr.io/neirth/openlobster:latest-distroless --platform linux/arm64 .",
+    "build:plugins:tinygo": "pnpm -r --filter './plugins/**' --if-present run build:tinygo",
+    "validate:plugins": "cd utils/validation_layer && go run . -plugins-dir ../../plugins",
+    "validate:plugins:smoke": "cd utils/validation_layer && go run . -plugins-dir ../../plugins -smoke"
   },
   "devDependencies": {
     "@graphql-codegen/cli": "^6.2.1",

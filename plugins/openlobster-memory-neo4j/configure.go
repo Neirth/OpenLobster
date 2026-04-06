@@ -3,7 +3,7 @@ package main
 import (
 	"sync"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 )
 
 var (
@@ -15,7 +15,6 @@ type hotConfigInput struct {
 	Config map[string]interface{} `json:"config"`
 }
 
-//go:wasmexport configure
 func configureHot() int32 {
 	var in hotConfigInput
 	if err := pdk.InputJSON(&in); err != nil {

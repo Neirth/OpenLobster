@@ -3,6 +3,7 @@ package resolvers
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
 	"github.com/neirth/openlobster/internal/domain/ports"
@@ -61,6 +62,9 @@ func pluginBuiltin(p ports.PluginPort) bool {
 }
 
 func pluginEnabled(pluginID string) bool {
+	if strings.HasPrefix(strings.TrimSpace(pluginID), "openlobster-messages-") {
+		return true
+	}
 	key := fmt.Sprintf("plugins.enabled.%s", pluginID)
 	if !viper.IsSet(key) {
 		return true

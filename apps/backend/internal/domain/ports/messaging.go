@@ -20,6 +20,13 @@ type ChannelCapabilities struct {
 	HasMediaSupport bool
 }
 
+const (
+	InboundModePolling  = "polling"
+	InboundModeGateway  = "gateway"
+	InboundModeWebhook  = "webhook"
+	InboundModeDisabled = "disabled"
+)
+
 type MessagingPort interface {
 	SendMessage(ctx context.Context, msg *models.Message) error
 	SendMedia(ctx context.Context, media *Media) error
@@ -35,10 +42,18 @@ type MessagingPort interface {
 	GetCapabilities() ChannelCapabilities
 	ConvertAudioForPlatform(ctx context.Context, audioData []byte, format string) ([]byte, string, error)
 	// Start connects to the messaging platform and calls onMessage for every
-	// incoming message. Adapters that use incoming webhooks (WhatsApp, Twilio)
-	// implement this as a no-op. Blocking adapters must run their loop in a
-	// goroutine and return immediately.
+	// incoming message. Adapters with webhook inbound may skip background
+	// runtime startup by exposing MessagingInboundModePort.
+	// Blocking adapters must run their loop in a goroutine and return
+	// immediately.
 	Start(ctx context.Context, onMessage func(context.Context, *models.Message)) error
+}
+
+// MessagingInboundModePort is an optional extension used by runtime wiring to
+// decide whether a channel needs a background start loop.
+type MessagingInboundModePort interface {
+	InboundMode() string
+	RequiresBackgroundLoop() bool
 }
 
 func GetCapabilitiesForType(channelType string) ChannelCapabilities {

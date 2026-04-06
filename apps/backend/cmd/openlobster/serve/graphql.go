@@ -1,15 +1,16 @@
 package serve
 
 import (
+	"context"
 	"log"
 
-	appmcp "github.com/neirth/openlobster/internal/application/mcp"
 	"github.com/neirth/openlobster/internal/application/graphql"
 	"github.com/neirth/openlobster/internal/application/graphql/dto"
 	"github.com/neirth/openlobster/internal/application/graphql/resolvers"
+	appmcp "github.com/neirth/openlobster/internal/application/mcp"
 	"github.com/neirth/openlobster/internal/application/registry"
-	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/repositories"
+	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 )
@@ -83,6 +84,13 @@ func (a *App) initGraphQL() {
 		AIProvider:        a.AIProvider,
 		ConfigSnapshot:    configSnapshot,
 		ConfigPath:        a.CfgPath,
+		ReloadPlugins: func(_ context.Context) error {
+			a.rebuildMessagingRuntime()
+			if a.AgentRegistry != nil {
+				a.AgentRegistry.UpdateAgentChannels(a.rebuildActiveChannels())
+			}
+			return nil
+		},
 	}
 
 	a.MsgHandler.SetCapabilitiesChecker(func(cap string) bool {
@@ -144,8 +152,14 @@ func (a *App) initGraphQL() {
 				log.Printf("config: failed to reload after save: %v", err)
 				return
 			}
+			a.Cfg = reloaded
 			providerName := a.activeProviderName()
 			a.Deps.ConfigSnapshot = dto.BuildConfigSnapshot(reloaded, func(_ *config.Config) string { return providerName })
+			if a.Deps.ReloadPlugins != nil {
+				if err := a.Deps.ReloadPlugins(context.Background()); err != nil {
+					log.Printf("config: runtime plugin/channel reconciliation failed: %v", err)
+				}
+			}
 			if cur := a.AgentRegistry.GetAgent(); cur != nil {
 				name := reloaded.Agent.Name
 				if name == "" {

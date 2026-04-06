@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -169,6 +170,36 @@ type intermediateMessageFunc func(msg ports.ChatMessage)
 
 const maxToolRounds = 5
 
+const (
+	agenticLoopTimeout            = 75 * time.Second
+	assistantTimeoutFallbackReply = "Temporary error: response generation timed out. Please try again in a moment."
+	messagingOperationTimeout     = 15 * time.Second
+)
+
+func runWithTimeout(parent context.Context, timeout time.Duration, fn func(context.Context) error) error {
+	if fn == nil {
+		return nil
+	}
+	if timeout <= 0 {
+		return fn(parent)
+	}
+
+	opCtx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- fn(opCtx)
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-opCtx.Done():
+		return opCtx.Err()
+	}
+}
+
 func (r *agenticRunner) runAgenticLoop(ctx context.Context, messages []ports.ChatMessage, tools []ports.Tool, saveIntermediate intermediateMessageFunc) (string, error) {
 	if r.aiProvider == nil {
 		return "", fmt.Errorf("no AI provider configured")
@@ -181,7 +212,8 @@ func (r *agenticRunner) runAgenticLoop(ctx context.Context, messages []ports.Cha
 		if err != nil {
 			return "", err
 		}
-		if resp.StopReason != "tool_use" || len(resp.ToolCalls) == 0 {
+		hasToolCalls := len(resp.ToolCalls) > 0
+		if !hasToolCalls {
 			if strings.TrimSpace(resp.Content) != "" {
 				return resp.Content, nil
 			}
@@ -525,6 +557,92 @@ func (h *MessageHandler) getUserLock(pairKey string) *sync.Mutex {
 		return actual.(*sync.Mutex)
 	}
 	return mu
+}
+
+func (h *MessageHandler) preferredTTSFormatForChannel(channelType string) string {
+	switch strings.TrimSpace(strings.ToLower(channelType)) {
+	case "telegram":
+		return "ogg"
+	case "discord":
+		return "opus"
+	case "whatsapp", "twilio":
+		return "mp3"
+	default:
+		return "mp3"
+	}
+}
+
+func (h *MessageHandler) adaptAudioForPlatform(ctx context.Context, channelType string, audioData []byte, format string) ([]byte, string) {
+	if len(audioData) == 0 {
+		return nil, ""
+	}
+	platformFormat := format
+	if platformFormat == "" {
+		platformFormat = h.preferredTTSFormatForChannel(channelType)
+	}
+	if h.messaging == nil {
+		return audioData, platformFormat
+	}
+	ctxWithType := context.WithValue(ctx, ports.ContextKeyChannelType, channelType)
+	converted, convertedFormat, err := h.messaging.ConvertAudioForPlatform(ctxWithType, audioData, platformFormat)
+	if err != nil {
+		log.Printf("handlers: platform audio conversion failed (channel=%s): %v", channelType, err)
+		return audioData, platformFormat
+	}
+	if len(converted) == 0 {
+		return audioData, platformFormat
+	}
+	if strings.TrimSpace(convertedFormat) == "" {
+		convertedFormat = platformFormat
+	}
+	return converted, convertedFormat
+}
+
+func (h *MessageHandler) buildAudioAssistantReply(ctx context.Context, input HandleMessageInput, response string) *models.AudioContent {
+	hasVoiceInput := input.Audio != nil && len(input.Audio.Data) > 0
+	if !hasVoiceInput {
+		return nil
+	}
+	if h.runner.aiProvider == nil {
+		return nil
+	}
+
+	if h.runner.aiProvider.SupportsAudioOutput() {
+		nativeReq := ports.ChatRequest{
+			Messages: []ports.ChatMessage{{Role: "user", Content: input.Content}},
+		}
+		nativeResp, err := h.runner.aiProvider.ChatToAudio(ctx, nativeReq)
+		if err == nil && len(nativeResp.AudioData) > 0 {
+			adaptedData, adaptedFormat := h.adaptAudioForPlatform(ctx, input.ChannelType, nativeResp.AudioData, "")
+			if len(adaptedData) > 0 {
+				return &models.AudioContent{Data: adaptedData, Format: adaptedFormat, PlatformFormat: adaptedFormat}
+			}
+		}
+		if err != nil {
+			log.Printf("handlers: native audio output failed, using TTS fallback: %v", err)
+		}
+	}
+
+	if h.audioProvider == nil {
+		return nil
+	}
+
+	preferredFormat := h.preferredTTSFormatForChannel(input.ChannelType)
+	ttsResp, err := h.audioProvider.TextToSpeech(ctx, ports.TTSRequest{
+		Text:   response,
+		Config: map[string]interface{}{"output_format": preferredFormat},
+	})
+	if err != nil {
+		log.Printf("handlers: TTS fallback failed: %v", err)
+		return nil
+	}
+
+	adaptedData, adaptedFormat := h.adaptAudioForPlatform(ctx, input.ChannelType, ttsResp.Audio, ttsResp.Format)
+	if len(adaptedData) == 0 {
+		return nil
+	}
+
+	return &models.AudioContent{Data: adaptedData, Format: adaptedFormat, PlatformFormat: adaptedFormat}
 }
 
 // Handle enqueues the incoming message for the fixed worker pool, which
@@ -1015,9 +1133,37 @@ func (h *MessageHandler) handle(ctx context.Context, input HandleMessageInput) e
 		ctxWithUser = context.WithValue(ctxWithUser, mcp.ContextKeyChannelType, input.ChannelType)
 	}
 
-	response, err := h.runner.runAgenticLoop(ctxWithUser, messages, tools, saveFn)
-	if err != nil {
-		return err
+	type agenticLoopResult struct {
+		response string
+		err      error
+	}
+
+	agenticCtx, cancelAgentic := context.WithTimeout(ctxWithUser, agenticLoopTimeout)
+	defer cancelAgentic()
+
+	resultCh := make(chan agenticLoopResult, 1)
+	log.Printf("handlers: runAgenticLoop start (channel_type=%q channel_id=%q sender_id=%q)", input.ChannelType, input.ChannelID, input.SenderID)
+	go func() {
+		resp, runErr := h.runner.runAgenticLoop(agenticCtx, messages, tools, saveFn)
+		resultCh <- agenticLoopResult{response: resp, err: runErr}
+	}()
+
+	var response string
+	select {
+	case result := <-resultCh:
+		log.Printf("handlers: runAgenticLoop done (channel_type=%q channel_id=%q sender_id=%q err=%v)", input.ChannelType, input.ChannelID, input.SenderID, result.err)
+		if result.err != nil {
+			return result.err
+		}
+		response = result.response
+	case <-agenticCtx.Done():
+		if errors.Is(agenticCtx.Err(), context.DeadlineExceeded) {
+			log.Printf("handlers: runAgenticLoop timeout after %s (channel_type=%q channel_id=%q sender_id=%q)",
+				agenticLoopTimeout, input.ChannelType, input.ChannelID, input.SenderID)
+			response = assistantTimeoutFallbackReply
+		} else {
+			return agenticCtx.Err()
+		}
 	}
 
 	if mcp.ContainsNO_REPLY(response) {
@@ -1043,23 +1189,7 @@ func (h *MessageHandler) handle(ctx context.Context, input HandleMessageInput) e
 		Metadata:       map[string]interface{}{"channel_type": input.ChannelType},
 		ConversationID: conversationID,
 	}
-
-	// TTS fallback: if the original message arrived as a voice note and the AI
-	// provider cannot produce audio output natively, convert the text response
-	// to speech via the audio provider so users receive a voice reply.
-	if input.Audio != nil && len(input.Audio.Data) > 0 &&
-		h.audioProvider != nil &&
-		(h.runner.aiProvider == nil || !h.runner.aiProvider.SupportsAudioOutput()) {
-		ttsResp, err := h.audioProvider.TextToSpeech(ctx, ports.TTSRequest{Text: response})
-		if err != nil {
-			log.Printf("handlers: TTS fallback failed: %v", err)
-		} else {
-			assistantMsg.Audio = &models.AudioContent{
-				Data:   ttsResp.Audio,
-				Format: ttsResp.Format,
-			}
-		}
-	}
+	assistantMsg.Audio = h.buildAudioAssistantReply(ctx, input, response)
 	if h.messageRepo != nil && !isEphemeral {
 		_ = h.messageRepo.Save(ctx, assistantMsg)
 		if h.eventBus != nil {
@@ -1088,13 +1218,19 @@ func (h *MessageHandler) handle(ctx context.Context, input HandleMessageInput) e
 		}
 		// Show typing indicator for ~2s before sending, on platforms that support it.
 		ctxWithType := context.WithValue(ctx, ports.ContextKeyChannelType, input.ChannelType)
-		_ = h.messaging.SendTyping(ctxWithType, input.ChannelID)
+		if err := runWithTimeout(ctxWithType, messagingOperationTimeout, func(opCtx context.Context) error {
+			return h.messaging.SendTyping(opCtx, input.ChannelID)
+		}); err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			log.Printf("handlers: SendTyping failed (channel_type=%q channel_id=%q): %v", input.ChannelType, input.ChannelID, err)
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(2 * time.Second):
 		}
-		if err := h.messaging.SendMessage(ctx, assistantMsg); err != nil {
+		if err := runWithTimeout(ctx, messagingOperationTimeout, func(opCtx context.Context) error {
+			return h.messaging.SendMessage(opCtx, assistantMsg)
+		}); err != nil {
 			log.Printf("handlers: SendMessage failed (is_group=%v, channel_type=%q, channel_id=%q): %v",
 				input.IsGroup, input.ChannelType, input.ChannelID, err)
 			return err

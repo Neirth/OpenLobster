@@ -49,6 +49,7 @@ type Deps struct {
 	ConfigSnapshot    *dto.AppConfigSnapshot
 	ConfigPath        string
 	ConfigWriter      dto.ConfigUpdatePort
+	ReloadPlugins     func(ctx context.Context) error
 }
 
 // Agent implements agent.Provider.

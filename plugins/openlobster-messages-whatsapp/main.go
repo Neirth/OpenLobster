@@ -1,3 +1,5 @@
+//go:build !tinygo
+
 package main
 
 import (
@@ -7,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 	_ "github.com/stealthrocket/net/http"
 	wapiClient "github.com/wapikit/wapi.go/pkg/client"
 	wapiComponents "github.com/wapikit/wapi.go/pkg/components"
@@ -17,24 +19,38 @@ import (
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport get_name
 func getName() int32 { pdk.OutputString("openlobster-messages-whatsapp"); return 0 }
 
-//go:wasmexport get_version
 func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("WhatsApp Cloud API messaging plugin for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 { pdk.OutputString("messaging"); return 0 }
 
-//go:wasmexport get_schema
+func inboundMode() int32 { pdk.OutputString("webhook"); return 0 }
+
 func getSchema() int32 {
 	pdk.OutputString(`{"type":"object","properties":{"api_access_token":{"type":"string","title":"API Access Token","description":"WhatsApp Cloud API access token"},"business_account_id":{"type":"string","title":"Business Account ID","description":"Meta Business Account ID (optional but recommended)"},"phone_number_id":{"type":"string","title":"Phone Number ID","description":"WhatsApp phone number ID used for sends"},"default_to_number":{"type":"string","title":"Default Recipient Number (optional)","description":"Fallback recipient number used when message.channel_id is the logical channel slug"},"webhook_secret":{"type":"string","title":"Webhook Secret","description":"Secret used to validate incoming webhook signatures"}},"required":["api_access_token","phone_number_id"]}`)
+	return 0
+}
+
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-messages-whatsapp",
+		"name":        "openlobster-messages-whatsapp",
+		"version":     "0.1.0",
+		"description": "WhatsApp Cloud API messaging plugin for OpenLobster",
+		"type":        "messaging",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"api_access_token":{"type":"string","title":"API Access Token","description":"WhatsApp Cloud API access token"},"business_account_id":{"type":"string","title":"Business Account ID","description":"Meta Business Account ID (optional but recommended)"},"phone_number_id":{"type":"string","title":"Phone Number ID","description":"WhatsApp phone number ID used for sends"},"default_to_number":{"type":"string","title":"Default Recipient Number (optional)","description":"Fallback recipient number used when message.channel_id is the logical channel slug"},"webhook_secret":{"type":"string","title":"Webhook Secret","description":"Secret used to validate incoming webhook signatures"}},"required":["api_access_token","phone_number_id"]}`),
+		"properties":  json.RawMessage(`{}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
 	return 0
 }
 
@@ -42,8 +58,9 @@ func getSchema() int32 {
 // Host emit_message
 // ---------------------------------------------------------------------------
 
-//go:wasmimport openlobster emit_message
-func hostEmitMessage(offset uint64)
+func hostEmitMessage(offset uint64) {
+	pdk.EmitAllocated(offset)
+}
 
 type pluginMessage struct {
 	ChannelID   string                 `json:"channel_id"`
@@ -66,7 +83,6 @@ func emitMessage(msg *pluginMessage) {
 // capabilities
 // ---------------------------------------------------------------------------
 
-//go:wasmexport capabilities
 func capabilities() int32 {
 	_ = pdk.OutputJSON(map[string]bool{
 		"HasVoiceMessage": true,
@@ -159,7 +175,6 @@ func resolveWhatsAppChannelID(input resolveChannelIDInput) (string, error) {
 	return "", fmt.Errorf("whatsapp resolve_channel_id: missing recipient number (set message.metadata.whatsapp_to or config.default_to_number)")
 }
 
-//go:wasmexport resolve_channel_id
 func resolveChannelID() int32 {
 	var input resolveChannelIDInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -177,7 +192,6 @@ func resolveChannelID() int32 {
 	return 0
 }
 
-//go:wasmexport send
 func send() int32 {
 	var input sendInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -241,7 +255,6 @@ func parseWhatsAppTimestamp(raw string) time.Time {
 	return time.Unix(ts, 0).UTC()
 }
 
-//go:wasmexport handle_webhook
 func handleWebhook() int32 {
 	var input webhookInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -303,13 +316,17 @@ func handleWebhook() int32 {
 	return 0
 }
 
-// ---------------------------------------------------------------------------
-// start — no-op (webhooks are handled by the host route /webhook/{channel_id})
-// ---------------------------------------------------------------------------
-
-//go:wasmexport start
-func start() int32 {
-	return 0
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-messages-whatsapp",
+		Exports: map[string]pdk.Function{
+			"get_metadata":       getMetadata,
+			"inbound_mode":       inboundMode,
+			"capabilities":       capabilities,
+			"resolve_channel_id": resolveChannelID,
+			"configure":          configureHot,
+			"send":               send,
+			"handle_webhook":     handleWebhook,
+		},
+	})
 }
-
-func main() {}

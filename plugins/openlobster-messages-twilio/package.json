@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o ../../dist/plugins/openlobster-messages-twilio.wasm .",
-    "test": "GOOS=wasip1 GOARCH=wasm go test ./..."
+    "build": "mkdir -p ../../dist/plugins && CGO_ENABLED=0 go build -o ../../dist/plugins/openlobster-messages-twilio .",
+    "test": "go test ./...",
+    "build:tinygo": "mkdir -p ../../dist/plugins && tinygo build -tags=tinygo -o ../../dist/plugins/openlobster-messages-twilio.tinygo ."
   }
 }

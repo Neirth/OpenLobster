@@ -442,6 +442,8 @@ func AppConfigSnapshotToGenerated(cfg *dto.AppConfigSnapshot) *generated.AppConf
 			Audio:   strOrNil(cfg.PluginDefaults.Audio),
 		}
 	}
+	out.WebEnabled = BoolPtr(cfg.WebEnabled)
+	out.A2aEnabled = BoolPtr(cfg.A2aEnabled)
 	out.WizardCompleted = BoolPtr(cfg.WizardCompleted)
 	return out
 }
@@ -597,6 +599,9 @@ func UpdateConfigInputToMap(input generated.UpdateConfigInput) map[string]interf
 	if input.GraphqlBaseURL != nil {
 		m["graphqlBaseUrl"] = *input.GraphqlBaseURL
 	}
+	if input.WebEnabled != nil {
+		m["webEnabled"] = *input.WebEnabled
+	}
 	if input.LoggingLevel != nil {
 		m["loggingLevel"] = *input.LoggingLevel
 	}
@@ -626,6 +631,9 @@ func UpdateConfigInputToMap(input generated.UpdateConfigInput) map[string]interf
 	}
 	if input.PluginDefaultAi != nil {
 		m["pluginDefaultAi"] = *input.PluginDefaultAi
+	}
+	if input.A2aEnabled != nil {
+		m["a2aEnabled"] = *input.A2aEnabled
 	}
 	if input.SchedulerEnabled != nil {
 		m["schedulerEnabled"] = *input.SchedulerEnabled

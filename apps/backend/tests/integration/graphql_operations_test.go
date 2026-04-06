@@ -220,6 +220,10 @@ func (s *stubMcpOAuthPort) SetClientID(ctx context.Context, serverName, clientID
 	return nil
 }
 
+func (s *stubMcpOAuthPort) SetClientSecret(ctx context.Context, serverName, clientSecret string) error {
+	return nil
+}
+
 type stubSubAgentSvc struct {
 	agents []dto.SubAgentSnapshot
 }

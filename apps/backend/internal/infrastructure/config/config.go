@@ -173,9 +173,9 @@ func (c *Config) ResolvePaths() {
 	c.Plugins.DataDir = makeAbs(c.Plugins.DataDir)
 }
 
-// PluginsConfig holds WASM plugin loading configuration.
+// PluginsConfig holds native plugin loading configuration.
 type PluginsConfig struct {
-	// Dir is the directory scanned for *.wasm plugin files at startup.
+	// Dir is the directory scanned for native plugin binaries at startup.
 	// Defaults to $HOME/.openlobster/plugins.
 	Dir string `mapstructure:"dir"`
 	// Defaults maps plugin categories to preferred plugin IDs.
@@ -209,12 +209,19 @@ type Config struct {
 	MCP         MCPConfig         `mapstructure:"mcp"`
 	SubAgents   SubAgentsConfig   `mapstructure:"subagents"`
 	GraphQL     GraphQLConfig     `mapstructure:"graphql"`
+	Web         WebConfig         `mapstructure:"web"`
+	A2A         A2AConfig         `mapstructure:"a2a"`
 	Logging     LoggingConfig     `mapstructure:"logging"`
 	Permissions PermissionsConfig `mapstructure:"permissions"`
 	Secrets     SecretsConfig     `mapstructure:"secrets"`
 	Workspace   WorkspaceConfig   `mapstructure:"workspace"`
 	Wizard      WizardConfig      `mapstructure:"wizard"`
 	Plugins     PluginsConfig     `mapstructure:"plugins"`
+}
+
+// A2AConfig controls the built-in A2A endpoints exposure.
+type A2AConfig struct {
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // WizardConfig holds first-boot wizard state (server-side).
@@ -417,6 +424,12 @@ type GraphQLConfig struct {
 	AuthToken string `mapstructure:"auth_token"`
 }
 
+// WebConfig controls serving the built-in web frontend (static assets + index fallback).
+// When disabled, HTTP server remains up and non-web routes continue working.
+type WebConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+}
+
 type LoggingConfig struct {
 	Level string `mapstructure:"level"`
 	Path  string `mapstructure:"path"`
@@ -480,6 +493,8 @@ func setDefaults() {
 	viper.SetDefault("graphql.base_url", "")
 	viper.SetDefault("graphql.auth_enabled", true)
 	viper.SetDefault("graphql.auth_token", "")
+	viper.SetDefault("web.enabled", true)
+	viper.SetDefault("a2a.enabled", true)
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.path", "./logs")
 	viper.SetDefault("subagents.max_concurrent", 3)
@@ -598,6 +613,8 @@ func bootstrapEncryptedConfig(path string) error {
 	v.SetDefault("graphql.port", 8080)
 	v.SetDefault("graphql.host", "0.0.0.0")
 	v.SetDefault("graphql.base_url", "")
+	v.SetDefault("web.enabled", true)
+	v.SetDefault("a2a.enabled", true)
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.path", "./logs")
 	v.SetDefault("subagents.max_concurrent", 3)
@@ -705,6 +722,12 @@ func DefaultConfig() *Config {
 			Enabled: true,
 			Port:    8080,
 			Host:    "127.0.0.1",
+		},
+		Web: WebConfig{
+			Enabled: true,
+		},
+		A2A: A2AConfig{
+			Enabled: true,
 		},
 		Memory: MemoryConfig{
 			Backend: "file",

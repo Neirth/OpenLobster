@@ -609,7 +609,7 @@ func TestMutationResolver_ConnectMcp_DisconnectMcp(t *testing.T) {
 	r := NewResolver(deps)
 
 	tport, u := "stdio", "cmd://echo"
-	res, err := r.Mutation().ConnectMcp(context.Background(), "mcp1", tport, u, nil)
+	res, err := r.Mutation().ConnectMcp(context.Background(), "mcp1", tport, u, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Success)
@@ -1405,6 +1405,10 @@ func (m *mockMcpOAuthPort) Status(serverName string) (string, string) {
 	return "unknown", ""
 }
 func (m *mockMcpOAuthPort) SetClientID(ctx context.Context, serverName, clientID string) error {
+	return nil
+}
+
+func (m *mockMcpOAuthPort) SetClientSecret(ctx context.Context, serverName, clientSecret string) error {
 	return nil
 }
 

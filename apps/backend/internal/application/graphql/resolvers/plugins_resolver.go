@@ -12,14 +12,19 @@ import (
 	"strings"
 
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
-	"github.com/neirth/openlobster/internal/domain/ports"
-	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
+	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/plugin"
 )
 
 // ReloadPlugins is the resolver for the reloadPlugins field.
 func (r *mutationResolver) ReloadPlugins(ctx context.Context) ([]*generated.Plugin, error) {
 	if r.Deps == nil || r.Deps.PluginRegistry == nil {
 		return []*generated.Plugin{}, nil
+	}
+	if r.Deps.ReloadPlugins != nil {
+		if err := r.Deps.ReloadPlugins(ctx); err != nil {
+			log.Printf("plugins: reload failed: %v", err)
+			return nil, err
+		}
 	}
 	return pluginsFromRegistry(r.Deps.PluginRegistry.All()), nil
 }
@@ -36,8 +41,9 @@ func (r *mutationResolver) SetPluginEnabled(ctx context.Context, pluginID string
 	if r.Deps.ConfigWriter == nil {
 		return false, nil
 	}
-	payload := map[string]interface{}{
-		"pluginsEnabled": map[string]interface{}{pluginID: enabled},
+	payload := map[string]interface{}{}
+	if p.Type() != "messaging" {
+		payload["pluginsEnabled"] = map[string]interface{}{pluginID: enabled}
 	}
 	if p.Type() == "messaging" {
 		if key := messagingChannelInputKeyForPluginID(pluginID); key != "" {
@@ -48,6 +54,12 @@ func (r *mutationResolver) SetPluginEnabled(ctx context.Context, pluginID string
 	if _, err := r.Deps.ConfigWriter.Apply(ctx, payload); err != nil {
 		log.Printf("plugins: persist enabled %s failed: %v", pluginID, err)
 		return false, err
+	}
+	if r.Deps.ReloadPlugins != nil {
+		if err := r.Deps.ReloadPlugins(ctx); err != nil {
+			log.Printf("plugins: runtime reconcile after setPluginEnabled %s failed: %v", pluginID, err)
+			return false, err
+		}
 	}
 	return true, nil
 }
@@ -74,29 +86,7 @@ func (r *mutationResolver) UpdatePluginConfig(ctx context.Context, pluginID stri
 	if err != nil {
 		return false, err
 	}
-	if p.Type() == "messaging" {
-		// Messaging plugins run a blocking start loop. Restart the loop to apply
-		// live config immediately without blocking this mutation.
-		if err := p.Close(); err != nil {
-			log.Printf("plugins: restart %s close failed: %v", pluginID, err)
-		}
-		if _, err := p.Call("configure", input); err != nil {
-			if !strings.Contains(err.Error(), "function \"configure\" not exported") {
-				log.Printf("plugins: updatePluginConfig %s: %v", pluginID, err)
-				return false, err
-			}
-		}
-
-		startInput, err := json.Marshal(cfg)
-		if err != nil {
-			return false, err
-		}
-		go func(pid string, plugin ports.PluginPort, payload []byte) {
-			if _, err := plugin.Call("start", payload); err != nil {
-				log.Printf("plugins: restart loop %s failed: %v", pid, err)
-			}
-		}(pluginID, p, startInput)
-	} else {
+	if p.Type() != "messaging" {
 		if _, err := p.Call("configure", input); err != nil {
 			// Persisting config should still succeed for plugins that do not yet
 			// export a live configure entrypoint.
@@ -111,6 +101,12 @@ func (r *mutationResolver) UpdatePluginConfig(ctx context.Context, pluginID stri
 			"pluginsSettings": map[string]interface{}{pluginID: cfg},
 		}); err != nil {
 			log.Printf("plugins: persist config %s failed: %v", pluginID, err)
+			return false, err
+		}
+	}
+	if r.Deps.ReloadPlugins != nil {
+		if err := r.Deps.ReloadPlugins(ctx); err != nil {
+			log.Printf("plugins: runtime reconcile after updatePluginConfig %s failed: %v", pluginID, err)
 			return false, err
 		}
 	}
