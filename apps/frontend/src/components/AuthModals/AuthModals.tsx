@@ -9,7 +9,7 @@ import {
 } from "@openlobster/ui/hooks";
 import { client, GRAPHQL_ENDPOINT } from "../../graphql/client";
 import { useWsConnection } from "../../stores/wsStore";
-import { needsAuth, getStoredToken } from "../../stores/authStore";
+import { needsAuth, getStoredToken, syncNeedsAuthFromSessionStorage } from "../../stores/authStore";
 import { pendingPairingsQueue, setPendingPairingsQueue, setOpenPairingRequestHandler } from "../../stores/pairingStore";
 import AccessTokenModal from "../AccessTokenModal/AccessTokenModal";
 import PairingModal from "../PairingModal/PairingModal";
@@ -83,6 +83,8 @@ const AuthModals: Component<AuthModalsProps> = (props) => {
   };
 
   onMount(() => {
+    syncNeedsAuthFromSessionStorage();
+
     // Register the handler so Header can open the modal for a specific request.
     setOpenPairingRequestHandler((req) => setPairingRequest(req));
 

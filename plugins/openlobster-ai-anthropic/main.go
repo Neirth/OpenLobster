@@ -1,3 +1,5 @@
+//go:build !tinygo
+
 package main
 
 import (
@@ -8,7 +10,7 @@ import (
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 	_ "github.com/stealthrocket/net/http"
 )
 
@@ -16,24 +18,40 @@ import (
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport get_name
 func getName() int32 { pdk.OutputString("openlobster-ai-anthropic"); return 0 }
 
-//go:wasmexport get_version
 func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("Anthropic Claude AI provider plugin for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 { pdk.OutputString("ai"); return 0 }
 
-//go:wasmexport get_schema
+func supportsAudioInput() int32 { pdk.OutputString("false"); return 0 }
+
+func supportsAudioOutput() int32 { pdk.OutputString("false"); return 0 }
+
 func getSchema() int32 {
 	pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key","description":"Anthropic API key from console.anthropic.com"},"model":{"type":"string","title":"Model","default":"claude-sonnet-4-5","description":"Default Claude model used when the request omits model"}},"required":["api_key"]}`)
+	return 0
+}
+
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-ai-anthropic",
+		"name":        "openlobster-ai-anthropic",
+		"version":     "0.1.0",
+		"description": "Anthropic Claude AI provider plugin for OpenLobster",
+		"type":        "ai",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key","description":"Anthropic API key from console.anthropic.com"},"model":{"type":"string","title":"Model","default":"claude-sonnet-4-5","description":"Default Claude model used when the request omits model"}},"required":["api_key"]}`),
+		"properties":  json.RawMessage(`{"supports_audio_input":false,"supports_audio_output":false}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
 	return 0
 }
 
@@ -137,7 +155,6 @@ func sanitizeMessages(messages []chatMessage) []chatMessage {
 // chat
 // ---------------------------------------------------------------------------
 
-//go:wasmexport chat
 func chat() int32 {
 	var input inputPayload
 	if err := pdk.InputJSON(&input); err != nil {
@@ -292,4 +309,13 @@ func chat() int32 {
 	return 0
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-ai-anthropic",
+		Exports: map[string]pdk.Function{
+			"get_metadata": getMetadata,
+			"configure":    configureHot,
+			"chat":         chat,
+		},
+	})
+}

@@ -7,7 +7,10 @@ import (
 	"log"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/neirth/openlobster/internal/application/graphql/subscriptions"
 	appcontext "github.com/neirth/openlobster/internal/domain/context"
@@ -22,12 +25,211 @@ import (
 	browser "github.com/neirth/openlobster/internal/infrastructure/adapters/browser/chromedp"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
 	inframc "github.com/neirth/openlobster/internal/infrastructure/adapters/mcp"
-	discordadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/messaging/discord"
-	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/adapters/plugin"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/terminal"
+	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/plugin"
 )
 
-// initPlugins loads all WASM plugins from cfg.Plugins.Dir, registers them in
+type namedMessagingAdapter struct {
+	channelType string
+	adapter     ports.MessagingPort
+}
+
+func normalizeChannelType(channelType string) string {
+	return strings.ToLower(strings.TrimSpace(channelType))
+}
+
+func pluginMessagingChannelType(pluginID string) string {
+	ct := strings.TrimSpace(pluginID)
+	const pfx = "openlobster-messages-"
+	ct = strings.TrimPrefix(ct, pfx)
+	return normalizeChannelType(ct)
+}
+
+type messagingAdapterCloser interface {
+	Close() error
+}
+
+type messagingAdapterChannelType interface {
+	ChannelType() string
+}
+
+func (a *App) stopMessagingRuntime() {
+	const adapterCloseTimeout = 2 * time.Second
+
+	if a.messagingRuntimeCancel != nil {
+		a.messagingRuntimeCancel()
+		a.messagingRuntimeCancel = nil
+	}
+	for _, adapter := range a.MessagingAdapters {
+		if adapter == nil {
+			continue
+		}
+
+		channelType := "unknown"
+		if typed, ok := adapter.(messagingAdapterChannelType); ok {
+			if normalized := normalizeChannelType(typed.ChannelType()); normalized != "" {
+				channelType = normalized
+			}
+		}
+
+		closer, ok := adapter.(messagingAdapterCloser)
+		if !ok {
+			continue
+		}
+
+		done := make(chan error, 1)
+		go func(c messagingAdapterCloser) {
+			done <- c.Close()
+		}(closer)
+
+		select {
+		case err := <-done:
+			if err != nil {
+				log.Printf("channel %s: failed to close adapter: %v", channelType, err)
+			}
+		case <-time.After(adapterCloseTimeout):
+			log.Printf("channel %s: close timed out after %s", channelType, adapterCloseTimeout)
+		}
+	}
+	a.MessagingAdapters = nil
+	if a.ChanReg == nil {
+		a.initChannels()
+	} else {
+		a.ChanReg.Clear()
+	}
+}
+
+func (a *App) startMessagingAdapters(ctx context.Context, adapters []namedMessagingAdapter) {
+	started := make([]ports.MessagingPort, 0, len(adapters))
+	var startedMu sync.Mutex
+	var wg sync.WaitGroup
+
+	appendStarted := func(adapter ports.MessagingPort) {
+		startedMu.Lock()
+		started = append(started, adapter)
+		startedMu.Unlock()
+	}
+
+	for _, item := range adapters {
+		if item.adapter == nil {
+			continue
+		}
+		channelType := normalizeChannelType(item.channelType)
+		if channelType == "" {
+			continue
+		}
+		if modePort, ok := item.adapter.(ports.MessagingInboundModePort); ok && !modePort.RequiresBackgroundLoop() {
+			appendStarted(item.adapter)
+			log.Printf("channel: %s - adapter ready (inbound_mode=%s, no background start)", channelType, modePort.InboundMode())
+			continue
+		}
+
+		adapter := item.adapter
+		wg.Add(1)
+		go func(channelType string, adapter ports.MessagingPort) {
+			defer wg.Done()
+
+			if err := adapter.Start(ctx, func(_ context.Context, msg *models.Message) {
+				a.handleInboundMessage(msg, channelType)
+			}); err != nil {
+				log.Printf("channel %s: failed to start adapter: %v", channelType, err)
+				return
+			}
+
+			appendStarted(adapter)
+			log.Printf("channel: %s - adapter started", channelType)
+		}(channelType, adapter)
+	}
+
+	wg.Wait()
+	a.MessagingAdapters = started
+}
+
+func (a *App) rebuildMessagingRuntime() {
+	a.reloadMu.Lock()
+	defer a.reloadMu.Unlock()
+
+	a.stopMessagingRuntime()
+
+	if a.PluginRegistry == nil {
+		if a.AgentRegistry != nil {
+			a.AgentRegistry.UpdateAgentChannels(a.rebuildActiveChannels())
+		}
+		return
+	}
+
+	runtimeCtx := a.ChannelStartCtx
+	if runtimeCtx == nil {
+		runtimeCtx = context.Background()
+	}
+
+	ctx, cancel := context.WithCancel(runtimeCtx)
+	a.messagingRuntimeCancel = cancel
+
+	started := make([]namedMessagingAdapter, 0)
+	wired := make(map[string]string)
+
+	plugins := a.PluginRegistry.GetByType("messaging")
+	sort.SliceStable(plugins, func(i, j int) bool { return plugins[i].ID() < plugins[j].ID() })
+
+	for _, p := range plugins {
+		if p == nil {
+			continue
+		}
+		pluginID := strings.TrimSpace(p.ID())
+		channelType := pluginMessagingChannelType(pluginID)
+		if channelType == "" {
+			log.Printf("plugins: messaging plugin %q skipped (empty channel_type)", pluginID)
+			continue
+		}
+		if !isMessagingChannelEnabled(a, channelType) {
+			log.Printf("plugins: messaging channel %s disabled (plugin=%s)", channelType, pluginID)
+			continue
+		}
+
+		cfg := liveConfigForPluginFromApp(a, p)
+		if err := validatePluginConfig(p, cfg); err != nil {
+			log.Printf("plugins: messaging channel %s not wired: %v", channelType, err)
+			continue
+		}
+
+		wrapper := pluginadapter.NewMessagingWrapper(p, channelType, cfg)
+		a.ChanReg.Set(channelType, wrapper)
+		wired[channelType] = pluginID
+		started = append(started, namedMessagingAdapter{channelType: channelType, adapter: wrapper})
+		log.Printf("plugins: messaging channel → %s (%s)", channelType, p.Name())
+	}
+
+	a.startMessagingAdapters(ctx, started)
+
+	if a.AgentRegistry != nil {
+		a.AgentRegistry.UpdateAgentChannels(a.rebuildActiveChannels())
+	}
+
+	active := a.ChanReg.ListTypes()
+	sort.Strings(active)
+	log.Printf("channels: active adapters=%v", active)
+}
+
+func liveConfigForPluginFromApp(a *App, p ports.PluginPort) map[string]interface{} {
+	if a == nil || p == nil {
+		return map[string]interface{}{}
+	}
+	if a.Cfg == nil || a.Cfg.Plugins.Settings == nil {
+		return map[string]interface{}{}
+	}
+	cfg := a.Cfg.Plugins.Settings[p.ID()]
+	if cfg == nil {
+		return map[string]interface{}{}
+	}
+	clone := make(map[string]interface{}, len(cfg))
+	for k, v := range cfg {
+		clone[k] = v
+	}
+	return clone
+}
+
+// initPlugins loads all native plugins from cfg.Plugins.Dir, registers them in
 // PluginRegistry, and wires AI/memory/messaging adapters derived from plugins
 // into the application.  Must be called before initServices().
 func (a *App) initPlugins() {
@@ -40,11 +242,9 @@ func (a *App) initPlugins() {
 	plugins, err := pluginadapter.LoadPlugins(
 		ctx,
 		a.Cfg.Plugins.Dir,
-		a.BuiltinPluginsFS,
 		a.onPluginMessage,
 		a.Cfg.Plugins.Builtins,
 		a.Cfg.Plugins.CallTimeout,
-		a.Cfg.Plugins.DataDir,
 	)
 	if err != nil {
 		log.Printf("plugins: failed to load: %v", err)
@@ -72,7 +272,7 @@ func (a *App) initPlugins() {
 
 	enabledPlugins := make([]ports.PluginPort, 0, len(loadedPlugins))
 	for _, p := range loadedPlugins {
-		if isPluginEnabled(a.Cfg.Plugins.Enabled, p.ID()) {
+		if p.Type() == "messaging" || isPluginEnabled(a.Cfg.Plugins.Enabled, p.ID()) {
 			enabledPlugins = append(enabledPlugins, p)
 			continue
 		}
@@ -199,37 +399,12 @@ func (a *App) initPlugins() {
 			if !isMessagingChannelEnabled(a, channelType) {
 				continue
 			}
-			var discordNative ports.MessagingPort
-			if strings.EqualFold(channelType, "discord") {
-				token := discordBotToken(a, cfg)
-				if token == "" {
-					log.Printf("channels: discord native adapter skipped: missing bot token")
-				} else {
-					nativeAdapter, err := discordadapter.NewAdapter(token)
-					if err != nil {
-						log.Printf("channels: discord native adapter init failed, using plugin only: %v", err)
-					} else {
-						discordNative = nativeAdapter
-						a.MessagingAdapters = append(a.MessagingAdapters, nativeAdapter)
-						log.Printf("channels: discord inbound -> native gateway adapter")
-					}
-				}
-			}
 			if err := validatePluginConfig(p, cfg); err != nil {
-				if discordNative != nil {
-					a.ChanReg.Set("discord", discordNative)
-					log.Printf("channels: discord outbound -> native gateway adapter (plugin config invalid: %v)", err)
-					continue
-				}
 				log.Printf("plugins: messaging channel %s not wired: %v", channelType, err)
 				continue
 			}
 			wrapper := pluginadapter.NewMessagingWrapper(p, channelType, cfg)
 			a.ChanReg.Set(channelType, wrapper)
-			if strings.EqualFold(channelType, "discord") && discordNative != nil {
-				log.Printf("channels: discord outbound -> plugin (%s), inbound -> native gateway", p.Name())
-				continue
-			}
 			a.MessagingAdapters = append(a.MessagingAdapters, wrapper)
 			log.Printf("plugins: messaging channel → %s (%s)", channelType, p.Name())
 
@@ -303,31 +478,6 @@ func isMessagingChannelEnabled(a *App, channelType string) bool {
 	}
 }
 
-func discordBotToken(a *App, pluginCfg map[string]interface{}) string {
-	if a != nil {
-		if token := strings.TrimSpace(a.Cfg.Channels.Discord.BotToken); token != "" {
-			return token
-		}
-	}
-	if pluginCfg == nil {
-		return ""
-	}
-	if v, ok := pluginCfg["token"]; ok {
-		if token, ok := v.(string); ok {
-			if token = strings.TrimSpace(token); token != "" {
-				return token
-			}
-		}
-	}
-	if v, ok := pluginCfg["bot_token"]; ok {
-		if token, ok := v.(string); ok {
-			if token = strings.TrimSpace(token); token != "" {
-				return token
-			}
-		}
-	}
-	return ""
-}
 
 func buildPluginConfig(pluginType, pluginID string, schema []byte, rawCfg map[string]interface{}, a *App) map[string]interface{} {
 	cfg := cloneMap(rawCfg)
@@ -822,6 +972,12 @@ func (a *App) handleInboundMessage(msg *models.Message, fallbackChannelType stri
 	}
 	if ct != "" {
 		msg.Metadata["channel_type"] = ct
+	}
+	if ct != "" && a.ChanReg != nil && a.ChanReg.Get(ct) == nil {
+		active := a.ChanReg.ListTypes()
+		sort.Strings(active)
+		log.Printf("plugins: inbound %s dropped: no active adapter in runtime (active_adapters=%v)", ct, active)
+		return
 	}
 
 	if msg.Content == "" && len(msg.Attachments) == 0 && msg.Audio == nil {

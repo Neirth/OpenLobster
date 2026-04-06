@@ -1,3 +1,5 @@
+//go:build !tinygo
+
 package main
 
 import (
@@ -7,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 	slackgo "github.com/slack-go/slack"
 	_ "github.com/stealthrocket/net/http"
 )
@@ -16,24 +18,38 @@ import (
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport get_name
 func getName() int32 { pdk.OutputString("openlobster-messages-slack"); return 0 }
 
-//go:wasmexport get_version
 func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("Slack Bot messaging plugin for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 { pdk.OutputString("messaging"); return 0 }
 
-//go:wasmexport get_schema
+func inboundMode() int32 { pdk.OutputString("polling"); return 0 }
+
 func getSchema() int32 {
 	pdk.OutputString(`{"type":"object","properties":{"bot_token":{"type":"string","title":"Bot Token (xoxb-)","description":"Slack Bot User OAuth token (xoxb-...)"},"channel":{"type":"string","title":"Default Channel (optional)","description":"Fallback channel when outgoing message does not specify channel_id"}},"required":["bot_token"]}`)
+	return 0
+}
+
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-messages-slack",
+		"name":        "openlobster-messages-slack",
+		"version":     "0.1.0",
+		"description": "Slack Bot messaging plugin for OpenLobster",
+		"type":        "messaging",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"bot_token":{"type":"string","title":"Bot Token (xoxb-)","description":"Slack Bot User OAuth token (xoxb-...)"},"channel":{"type":"string","title":"Default Channel (optional)","description":"Fallback channel when outgoing message does not specify channel_id"}},"required":["bot_token"]}`),
+		"properties":  json.RawMessage(`{}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
 	return 0
 }
 
@@ -41,8 +57,9 @@ func getSchema() int32 {
 // Host emit_message
 // ---------------------------------------------------------------------------
 
-//go:wasmimport openlobster emit_message
-func hostEmitMessage(offset uint64)
+func hostEmitMessage(offset uint64) {
+	pdk.EmitAllocated(offset)
+}
 
 type pluginMessage struct {
 	ChannelID   string                 `json:"channel_id"`
@@ -66,7 +83,6 @@ func emitMessage(msg *pluginMessage) {
 // capabilities
 // ---------------------------------------------------------------------------
 
-//go:wasmexport capabilities
 func capabilities() int32 {
 	_ = pdk.OutputJSON(map[string]bool{
 		"HasVoiceMessage": false,
@@ -123,7 +139,6 @@ func resolveSlackChannelID(input resolveChannelIDInput) (string, error) {
 	return "", fmt.Errorf("slack resolve_channel_id: missing platform channel id (set message.metadata.slack_channel_id or config.channel)")
 }
 
-//go:wasmexport resolve_channel_id
 func resolveChannelID() int32 {
 	var input resolveChannelIDInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -141,7 +156,6 @@ func resolveChannelID() int32 {
 	return 0
 }
 
-//go:wasmexport send
 func send() int32 {
 	var input sendInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -173,7 +187,6 @@ func send() int32 {
 	return 0
 }
 
-//go:wasmexport handle_webhook
 func handleWebhook() int32 {
 	pdk.SetError(fmt.Errorf("webhook_not_supported: slack plugin uses polling"))
 	return 1
@@ -183,7 +196,6 @@ func handleWebhook() int32 {
 // start — polls conversations.history for new messages
 // ---------------------------------------------------------------------------
 
-//go:wasmexport start
 func start() int32 {
 	var cfg map[string]interface{}
 	if err := pdk.InputJSON(&cfg); err != nil {
@@ -279,4 +291,18 @@ func start() int32 {
 	}
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-messages-slack",
+		Exports: map[string]pdk.Function{
+			"get_metadata":       getMetadata,
+			"inbound_mode":       inboundMode,
+			"capabilities":       capabilities,
+			"resolve_channel_id": resolveChannelID,
+			"configure":          configureHot,
+			"send":               send,
+			"handle_webhook":     handleWebhook,
+			"start":              start,
+		},
+	})
+}

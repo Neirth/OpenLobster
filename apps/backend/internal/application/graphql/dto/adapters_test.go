@@ -198,8 +198,8 @@ type fakeMCPServerRepo struct {
 	err  error
 }
 
-func (r *fakeMCPServerRepo) Save(ctx context.Context, name, url string) error  { return r.err }
-func (r *fakeMCPServerRepo) Delete(ctx context.Context, name string) error      { return r.err }
+func (r *fakeMCPServerRepo) Save(ctx context.Context, name, url string) error { return r.err }
+func (r *fakeMCPServerRepo) Delete(ctx context.Context, name string) error    { return r.err }
 func (r *fakeMCPServerRepo) ListAll(ctx context.Context) ([]repositories.MCPServerRecord, error) {
 	return r.rows, r.err
 }
@@ -590,8 +590,10 @@ func TestSystemFileSnapshot_Fields(t *testing.T) {
 
 func TestAppConfigSnapshot_Fields(t *testing.T) {
 	snap := AppConfigSnapshot{
+		WebEnabled:      true,
 		WizardCompleted: true,
 	}
+	assert.True(t, snap.WebEnabled)
 	assert.True(t, snap.WizardCompleted)
 }
 

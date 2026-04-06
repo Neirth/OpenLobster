@@ -34,12 +34,16 @@ func (a *App) initHTTP() {
 	gqlgenResolver.SetEventSubscription(&dto.EventSubscriptionAdapter{Eb: a.EventBus})
 	gqlgenSrv := generated.NewExecutableSchema(generated.Config{Resolvers: gqlgenResolver})
 
-	a.Mux.HandleFunc("/ws", a.SubManager.HandleWebSocket)
-	log.Println("graphql: subscriptions WebSocket at /ws")
+	if cfg.GraphQL.Enabled {
+		a.Mux.HandleFunc("/ws", a.SubManager.HandleWebSocket)
+		log.Println("graphql: subscriptions WebSocket at /ws")
 
-	gqlHandler := handler.NewDefaultServer(gqlgenSrv)
-	a.Mux.Handle("/graphql", gqlHandler)
-	log.Println("graphql: gqlgen handler registered at /graphql")
+		gqlHandler := handler.NewDefaultServer(gqlgenSrv)
+		a.Mux.Handle("/graphql", gqlHandler)
+		log.Println("graphql: gqlgen handler registered at /graphql")
+	} else {
+		log.Println("graphql: disabled by config (graphql.enabled=false)")
+	}
 
 	healthHandler := health.NewHandler()
 	metricsHandler := metrics.NewHandler(a.Deps)
@@ -62,40 +66,48 @@ func (a *App) initHTTP() {
 	})
 
 	webhooks.NewHandler(a.ChanReg, a.MsgHandler).Register(a.Mux)
-	appa2a.NewHandler(a.Cfg, a.Deps).Register(a.Mux)
+	if cfg.A2A.Enabled {
+		appa2a.NewHandler(a.Cfg, a.Deps).Register(a.Mux)
+	} else {
+		log.Println("a2a: disabled by config (a2a.enabled=false)")
+	}
 
 	a.Mux.HandleFunc("/oauth/callback", a.oauthCallbackHandler)
 	log.Println("oauth: /oauth/callback registered")
 
-	staticResourceFS, err := fs.Sub(a.PublicFS, "public/static")
-	if err != nil {
-		log.Fatalf("failed to create sub-fs for public/static: %v", err)
-	}
-	a.Mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticResourceFS))))
-	log.Println("static: resources served at /static/")
-
-	staticFS, err := fs.Sub(a.PublicFS, "public/assets")
-	if err != nil {
-		log.Fatalf("failed to create sub-fs for assets: %v", err)
-	}
-	a.Mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		if strings.Contains(r.URL.Path, ".") {
-			http.FileServer(http.FS(staticFS)).ServeHTTP(w, r)
-			return
-		}
-		index, err := fs.ReadFile(a.PublicFS, "public/assets/index.html")
+	if cfg.Web.Enabled {
+		staticResourceFS, err := fs.Sub(a.PublicFS, "public/static")
 		if err != nil {
-			log.Printf("failed to read index.html: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
+			log.Fatalf("failed to create sub-fs for public/static: %v", err)
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(index)
-	})
+		a.Mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticResourceFS))))
+		log.Println("static: resources served at /static/")
+
+		staticFS, err := fs.Sub(a.PublicFS, "public/assets")
+		if err != nil {
+			log.Fatalf("failed to create sub-fs for assets: %v", err)
+		}
+		a.Mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			if strings.Contains(r.URL.Path, ".") {
+				http.FileServer(http.FS(staticFS)).ServeHTTP(w, r)
+				return
+			}
+			index, err := fs.ReadFile(a.PublicFS, "public/assets/index.html")
+			if err != nil {
+				log.Printf("failed to read index.html: %v", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(index)
+		})
+	} else {
+		log.Println("web: disabled by config (web.enabled=false)")
+	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.GraphQL.Host, cfg.GraphQL.Port)
 	a.HTTPServer = &http.Server{

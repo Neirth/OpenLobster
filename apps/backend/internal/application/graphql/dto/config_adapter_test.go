@@ -273,6 +273,19 @@ func TestConfigAdapter_GraphQL(t *testing.T) {
 	assert.Equal(t, "https://myapp.example.com", viper.GetString("graphql.base_url"))
 }
 
+// TestConfigAdapter_Web verifies web frontend toggle persistence.
+func TestConfigAdapter_Web(t *testing.T) {
+	resetViper()
+	a, _ := newAdapter(t)
+
+	_, err := a.Apply(context.Background(), map[string]interface{}{
+		"webEnabled": false,
+	})
+	require.NoError(t, err)
+
+	assert.False(t, viper.GetBool("web.enabled"))
+}
+
 // TestConfigAdapter_Logging verifies logging configuration fields.
 func TestConfigAdapter_Logging(t *testing.T) {
 	resetViper()
@@ -323,6 +336,19 @@ func TestConfigAdapter_Scheduler(t *testing.T) {
 	assert.True(t, viper.GetBool("scheduler.enabled"))
 	assert.True(t, viper.GetBool("scheduler.memory_enabled"))
 	assert.Equal(t, "5m", viper.GetString("scheduler.memory_interval"))
+}
+
+// TestConfigAdapter_A2A verifies A2A enable/disable persistence.
+func TestConfigAdapter_A2A(t *testing.T) {
+	resetViper()
+	a, _ := newAdapter(t)
+
+	_, err := a.Apply(context.Background(), map[string]interface{}{
+		"a2aEnabled": false,
+	})
+	require.NoError(t, err)
+
+	assert.False(t, viper.GetBool("a2a.enabled"))
 }
 
 // TestConfigAdapter_ChannelTelegram verifies Telegram channel fields.
@@ -507,8 +533,10 @@ func makeFullConfig() *config.Config {
 		},
 		SubAgents: config.SubAgentsConfig{MaxConcurrent: 4},
 		GraphQL:   config.GraphQLConfig{Enabled: true, Port: 8080, Host: "0.0.0.0", BaseURL: "https://app.example.com"},
+		Web:       config.WebConfig{Enabled: true},
 		Logging:   config.LoggingConfig{Level: "debug", Path: "./app.log"},
 		Scheduler: config.SchedulerConfig{Enabled: true, MemoryEnabled: true},
+		A2A:       config.A2AConfig{Enabled: true},
 		Secrets: config.SecretsConfig{
 			Backend: "openbao",
 			File:    config.SecretsFileConfig{Path: "./secrets.json"},
@@ -638,6 +666,15 @@ func TestBuildConfigSnapshot_GraphQL(t *testing.T) {
 	assert.Equal(t, "https://app.example.com", snap.GraphQL.BaseURL)
 }
 
+// TestBuildConfigSnapshot_Web verifies web frontend toggle in snapshot.
+func TestBuildConfigSnapshot_Web(t *testing.T) {
+	cfg := makeFullConfig()
+	cfg.Web.Enabled = true
+	snap := BuildConfigSnapshot(cfg, func(c *config.Config) string { return "none" })
+
+	assert.True(t, snap.WebEnabled)
+}
+
 // TestBuildConfigSnapshot_Scheduler verifies scheduler fields in snapshot.
 func TestBuildConfigSnapshot_Scheduler(t *testing.T) {
 	cfg := makeFullConfig()
@@ -646,6 +683,14 @@ func TestBuildConfigSnapshot_Scheduler(t *testing.T) {
 	require.NotNil(t, snap.Scheduler)
 	assert.True(t, snap.Scheduler.Enabled)
 	assert.True(t, snap.Scheduler.MemoryEnabled)
+}
+
+// TestBuildConfigSnapshot_A2A verifies A2A fields in snapshot.
+func TestBuildConfigSnapshot_A2A(t *testing.T) {
+	cfg := makeFullConfig()
+	snap := BuildConfigSnapshot(cfg, func(c *config.Config) string { return "none" })
+
+	assert.True(t, snap.A2aEnabled)
 }
 
 // TestBuildConfigSnapshot_WizardCompleted verifies wizard flag in snapshot.
@@ -687,6 +732,46 @@ func TestApplyProviderKeys_EmptyStringsDoNotOverwrite(t *testing.T) {
 	assert.Equal(t, "sk-ant-new", viper.GetString("providers.anthropic.api_key"))
 	// openai key must remain untouched
 	assert.Equal(t, "sk-openai-existing", viper.GetString("providers.openai.api_key"))
+}
+
+func TestConfigAdapter_Apply_UsesSingleRuntimeReconcilePath(t *testing.T) {
+	resetViper()
+	a, _ := newAdapter(t)
+
+	var reloadCalls int32
+	var onAppliedCalls int32
+	a.ReloadChannel = func(_ string) {
+		atomic.AddInt32(&reloadCalls, 1)
+	}
+	a.OnApplied = func(_ bool) {
+		atomic.AddInt32(&onAppliedCalls, 1)
+	}
+
+	_, err := a.Apply(context.Background(), map[string]interface{}{
+		"channelTelegramEnabled": true,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(1), atomic.LoadInt32(&onAppliedCalls))
+	assert.Equal(t, int32(0), atomic.LoadInt32(&reloadCalls))
+}
+
+func TestConfigAdapter_Apply_ReloadChannelFallbackWhenOnAppliedMissing(t *testing.T) {
+	resetViper()
+	a, _ := newAdapter(t)
+
+	var reloadCalls int32
+	a.OnApplied = nil
+	a.ReloadChannel = func(_ string) {
+		atomic.AddInt32(&reloadCalls, 1)
+	}
+
+	_, err := a.Apply(context.Background(), map[string]interface{}{
+		"channelTelegramEnabled": true,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(1), atomic.LoadInt32(&reloadCalls))
 }
 
 func TestConfigAdapter_Apply_SerializesConcurrentCalls(t *testing.T) {
@@ -993,7 +1078,7 @@ var agentSnapshotBuildCases = []struct {
 //     (apps/backend/tests/integration/config_roundtrip_integration_test.go).
 //  3. Add/remove the corresponding assertion after queryConfig() in that same test.
 //  4. Update expectedViperKeyCount below to the new total.
-const expectedViperKeyCount = 46
+const expectedViperKeyCount = 48
 
 func TestInputToViperKeyMap_FieldCount(t *testing.T) {
 	keys := InputToViperKeyMap()

@@ -1,12 +1,15 @@
+//go:build !tinygo
+
 package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 	goOpenAI "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/shared"
@@ -17,24 +20,40 @@ import (
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport get_name
 func getName() int32 { pdk.OutputString("openlobster-ai-openai"); return 0 }
 
-//go:wasmexport get_version
 func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("OpenAI AI provider plugin for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 { pdk.OutputString("ai"); return 0 }
 
-//go:wasmexport get_schema
+func supportsAudioInput() int32 { pdk.OutputString("true"); return 0 }
+
+func supportsAudioOutput() int32 { pdk.OutputString("false"); return 0 }
+
 func getSchema() int32 {
 	pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key","description":"Provider API key used for authentication"},"model":{"type":"string","title":"Model","default":"gpt-4o","description":"Default model when a request does not specify one"},"endpoint":{"type":"string","title":"Endpoint","description":"Select the provider endpoint by name","default":"OpenAI","enum":["OpenAI","OpenRouter","Docker Model Runner","OpenCode Zen","Groq","Together AI","Fireworks AI","DeepSeek","Perplexity","Mistral","xAI","Custom"]},"base_url":{"type":"string","title":"Base URL (Custom)","description":"Required when endpoint is Custom"}},"required":["api_key"]}`)
+	return 0
+}
+
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-ai-openai",
+		"name":        "openlobster-ai-openai",
+		"version":     "0.1.0",
+		"description": "OpenAI AI provider plugin for OpenLobster",
+		"type":        "ai",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key","description":"Provider API key used for authentication"},"model":{"type":"string","title":"Model","default":"gpt-4o","description":"Default model when a request does not specify one"},"endpoint":{"type":"string","title":"Endpoint","description":"Select the provider endpoint by name","default":"OpenAI","enum":["OpenAI","OpenRouter","Docker Model Runner","OpenCode Zen","Groq","Together AI","Fireworks AI","DeepSeek","Perplexity","Mistral","xAI","Custom"]},"base_url":{"type":"string","title":"Base URL (Custom)","description":"Required when endpoint is Custom"}},"required":["api_key"]}`),
+		"properties":  json.RawMessage(`{"supports_audio_input":true,"supports_audio_output":false}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
 	return 0
 }
 
@@ -109,6 +128,65 @@ func decodeToolName(name string) string {
 	return strings.ReplaceAll(name, "__", ":")
 }
 
+func openAIImageURLFromBlock(block contentBlock) string {
+	if url := strings.TrimSpace(block.URL); url != "" {
+		return url
+	}
+	if len(block.Data) == 0 {
+		return ""
+	}
+	mimeType := strings.ToLower(strings.TrimSpace(block.MIMEType))
+	if mimeType == "" {
+		mimeType = "image/jpeg"
+	}
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(block.Data))
+}
+
+func openAIInputAudioFormat(mimeType string) string {
+	normalized := strings.ToLower(strings.TrimSpace(mimeType))
+	if idx := strings.Index(normalized, ";"); idx >= 0 {
+		normalized = strings.TrimSpace(normalized[:idx])
+	}
+
+	switch normalized {
+	case "wav", "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave":
+		return "wav"
+	case "mp3", "audio/mp3", "audio/mpeg", "audio/mpeg3", "audio/x-mp3", "audio/x-mpeg", "audio/x-mpeg-3":
+		return "mp3"
+	default:
+		return ""
+	}
+}
+
+func openAIMessageContentWithFallback(message goOpenAI.ChatCompletionMessage) string {
+	if strings.TrimSpace(message.Content) != "" {
+		return message.Content
+	}
+
+	raw := strings.TrimSpace(message.RawJSON())
+	if raw == "" {
+		return message.Content
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return message.Content
+	}
+
+	if reasoning, ok := payload["reasoning_content"].(string); ok {
+		if strings.TrimSpace(reasoning) != "" {
+			return reasoning
+		}
+	}
+	if thinking, ok := payload["thinking"].(string); ok {
+		if strings.TrimSpace(thinking) != "" {
+			return thinking
+		}
+	}
+
+	return message.Content
+}
+
 func sanitizeMessages(messages []chatMessage) []chatMessage {
 	validIDs := make(map[string]struct{})
 	out := make([]chatMessage, 0, len(messages))
@@ -175,7 +253,6 @@ func resolveEndpointBaseURL(endpointName string) (string, error) {
 // chat
 // ---------------------------------------------------------------------------
 
-//go:wasmexport chat
 func chat() int32 {
 	var input inputPayload
 	if err := pdk.InputJSON(&input); err != nil {
@@ -253,10 +330,21 @@ func chat() int32 {
 					case "text":
 						parts = append(parts, goOpenAI.TextContentPart(b.Text))
 					case "image":
-						if b.URL != "" {
+						if imageURL := openAIImageURLFromBlock(b); imageURL != "" {
 							parts = append(parts, goOpenAI.ImageContentPart(
-								goOpenAI.ChatCompletionContentPartImageImageURLParam{URL: b.URL},
+								goOpenAI.ChatCompletionContentPartImageImageURLParam{URL: imageURL},
 							))
+						}
+					case "audio":
+						if len(b.Data) > 0 {
+							if audioFormat := openAIInputAudioFormat(b.MIMEType); audioFormat != "" {
+								parts = append(parts, goOpenAI.InputAudioContentPart(
+									goOpenAI.ChatCompletionContentPartInputAudioInputAudioParam{
+										Data:   base64.StdEncoding.EncodeToString(b.Data),
+										Format: audioFormat,
+									},
+								))
+							}
 						}
 					}
 				}
@@ -308,7 +396,7 @@ func chat() int32 {
 
 	out := outputPayload{}
 	if len(resp.Choices) > 0 {
-		out.Content = resp.Choices[0].Message.Content
+		out.Content = openAIMessageContentWithFallback(resp.Choices[0].Message)
 		out.StopReason = string(resp.Choices[0].FinishReason)
 		if out.StopReason == "tool_calls" {
 			out.StopReason = "tool_use"
@@ -335,4 +423,13 @@ func chat() int32 {
 	return 0
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-ai-openai",
+		Exports: map[string]pdk.Function{
+			"get_metadata": getMetadata,
+			"configure":    configureHot,
+			"chat":         chat,
+		},
+	})
+}

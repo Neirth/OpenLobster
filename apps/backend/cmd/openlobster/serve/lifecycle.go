@@ -6,13 +6,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	domainhandlers "github.com/neirth/openlobster/internal/domain/handlers"
-	"github.com/neirth/openlobster/internal/domain/models"
-	"github.com/neirth/openlobster/internal/domain/ports"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/memory_consolidation"
 	"github.com/neirth/openlobster/internal/infrastructure/logging"
@@ -63,20 +60,9 @@ func (a *App) startAndWait() {
 		log.Printf("lifecycle: changed working directory to %s", a.Cfg.Workspace.Path)
 	}
 
-	// Start messaging adapters (plugins and native).
-	for _, adapter := range a.MessagingAdapters {
-		if adapter == nil {
-			continue
-		}
-		channelType := messagingChannelType(adapter)
-		if err := adapter.Start(ctx, func(_ context.Context, msg *models.Message) {
-			a.handleInboundMessage(msg, channelType)
-		}); err != nil {
-			log.Printf("channel %s: failed to start adapter: %v", channelType, err)
-		} else {
-			log.Printf("channel: %s - adapter started", channelType)
-		}
-	}
+	// Rebuild and start messaging adapters (plugins and native) in a single
+	// reconciled runtime path so hot-reloads use the same wiring rules as boot.
+	a.rebuildMessagingRuntime()
 
 	// HTTP server
 	addr := a.HTTPServer.Addr
@@ -100,6 +86,10 @@ func (a *App) startAndWait() {
 		log.Printf("http shutdown error: %v", err)
 	}
 
+	// Stop messaging runtime before closing the plugin registry so dedicated
+	// loop runners are terminated and do not remain orphaned after shutdown.
+	a.stopMessagingRuntime()
+
 	if a.PluginRegistry != nil {
 		a.PluginRegistry.Close()
 	}
@@ -120,19 +110,4 @@ func (a *App) startAndWait() {
 	if err := logging.Close(); err != nil {
 		log.Printf("logging close error: %v", err)
 	}
-}
-
-func messagingChannelType(adapter ports.MessagingPort) string {
-	if adapter == nil {
-		return "unknown"
-	}
-	typed, ok := adapter.(interface{ ChannelType() string })
-	if !ok {
-		return "unknown"
-	}
-	channelType := strings.ToLower(strings.TrimSpace(typed.ChannelType()))
-	if channelType == "" {
-		return "unknown"
-	}
-	return channelType
 }

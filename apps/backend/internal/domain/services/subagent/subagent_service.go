@@ -3,13 +3,13 @@
 package subagent
 
 import (
-	"encoding/base64"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
-	"sync"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -395,7 +395,8 @@ func (s *Service) runAgenticLoop(ctx context.Context, model string, messages []p
 		if err != nil {
 			return "", err
 		}
-		if resp.StopReason != "tool_use" || len(resp.ToolCalls) == 0 {
+		hasToolCalls := len(resp.ToolCalls) > 0
+		if !hasToolCalls {
 			if strings.TrimSpace(resp.Content) != "" {
 				return resp.Content, nil
 			}

@@ -89,10 +89,35 @@ button {
   padding: 0;
 }
 
+button:disabled {
+  cursor: not-allowed !important;
+  pointer-events: none;
+  background-color: var(--color-disabled-bg) !important;
+  border-color: var(--color-disabled-border) !important;
+  color: var(--color-disabled-text) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  filter: saturate(0.35);
+}
+
+button:disabled .material-symbols-outlined {
+  color: var(--color-disabled-text) !important;
+}
+
 input, textarea, select {
   font-family: var(--font-family-sans);
   font-size: var(--text-sm);
   border: none;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  cursor: not-allowed;
+  background-color: var(--color-disabled-bg);
+  border-color: var(--color-disabled-border);
+  color: var(--color-disabled-text);
+  opacity: 1;
 }
 
 ::placeholder {

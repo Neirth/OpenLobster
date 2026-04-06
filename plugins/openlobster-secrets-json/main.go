@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 )
 
 type pluginConfig struct {
@@ -62,37 +62,48 @@ type listOutput struct {
 
 var storeMu sync.Mutex
 
-//go:wasmexport get_name
 func getName() int32 {
 	pdk.OutputString("openlobster-secrets-json")
 	return 0
 }
 
-//go:wasmexport get_version
 func getVersion() int32 {
 	pdk.OutputString("0.1.0")
 	return 0
 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("Encrypted JSON secrets provider for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 {
 	pdk.OutputString("secrets")
 	return 0
 }
 
-//go:wasmexport get_schema
 func getSchema() int32 {
 	pdk.OutputString(`{"type":"object","properties":{"path":{"type":"string","title":"Secrets File Path","default":"~/.openlobster/secrets.json","description":"Encrypted JSON file used to store secrets"},"key":{"type":"string","title":"Encryption Key Override","description":"Optional base64/hex/passphrase. If empty, the plugin uses environment key fallback"}},"additionalProperties":false}`)
 	return 0
 }
 
-//go:wasmexport get
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-secrets-json",
+		"name":        "openlobster-secrets-json",
+		"version":     "0.1.0",
+		"description": "Encrypted JSON secrets provider for OpenLobster",
+		"type":        "secrets",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","title":"Secrets File Path","default":"~/.openlobster/secrets.json","description":"Encrypted JSON file used to store secrets"},"key":{"type":"string","title":"Encryption Key Override","description":"Optional base64/hex/passphrase. If empty, the plugin uses environment key fallback"}},"additionalProperties":false}`),
+		"properties":  json.RawMessage(`{}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	return 0
+}
+
 func getSecret() int32 {
 	var in getInput
 	if err := pdk.InputJSON(&in); err != nil {
@@ -119,7 +130,6 @@ func getSecret() int32 {
 	return writeJSON(getOutput{Value: value, Found: &found})
 }
 
-//go:wasmexport set
 func setSecret() int32 {
 	var in setInput
 	if err := pdk.InputJSON(&in); err != nil {
@@ -144,7 +154,6 @@ func setSecret() int32 {
 	return writeJSON(okOutput{OK: true})
 }
 
-//go:wasmexport delete
 func deleteSecret() int32 {
 	var in deleteInput
 	if err := pdk.InputJSON(&in); err != nil {
@@ -169,7 +178,6 @@ func deleteSecret() int32 {
 	return writeJSON(okOutput{OK: true})
 }
 
-//go:wasmexport list
 func listSecrets() int32 {
 	var in listInput
 	if err := pdk.InputJSON(&in); err != nil {
@@ -319,4 +327,16 @@ func decrypt(key []byte, data []byte) ([]byte, error) {
 	return gcm.Open(nil, nonce, ciphertext, nil)
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-secrets-json",
+		Exports: map[string]pdk.Function{
+			"get_metadata": getMetadata,
+			"configure":    configureHot,
+			"get":          getSecret,
+			"set":          setSecret,
+			"delete":       deleteSecret,
+			"list":         listSecrets,
+		},
+	})
+}

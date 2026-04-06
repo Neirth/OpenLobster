@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/neirth/openlobster/internal/application/graphql/dto"
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
 	"github.com/neirth/openlobster/internal/application/graphql/resolvers/mappers"
 	"github.com/neirth/openlobster/internal/domain/handlers"
@@ -145,90 +144,6 @@ func (r *mutationResolver) SendMessage(ctx context.Context, conversationID *stri
 		return &generated.MessageSentResult{Success: &ok}, nil
 	}
 	return mappers.SendMessageResultToGenerated(res), nil
-}
-
-func findConversationRoute(conversations []dto.ConversationSnapshot, id string) (dto.ConversationSnapshot, bool) {
-	for _, conv := range conversations {
-		if conv.ID == id || conv.ChannelID == id {
-			return conv, true
-		}
-	}
-	return dto.ConversationSnapshot{}, false
-}
-
-type lastUserChannelFinder interface {
-	GetLastChannelForUser(ctx context.Context, userID string) (channelType, platformChannelID string, err error)
-}
-
-type scopedLastUserChannelFinder interface {
-	GetLastChannelForUserByChannel(ctx context.Context, userID, channelType string) (resolvedChannelType, platformChannelID string, err error)
-}
-
-func resolveConversationRouteChannel(ctx context.Context, deps *Deps, conv dto.ConversationSnapshot, channelID, channelType string) (string, string) {
-	if deps == nil || deps.UserChannelRepo == nil || conv.IsGroup || conv.ParticipantID == "" {
-		return channelID, channelType
-	}
-	if !needsPlatformChannelResolution(channelID, channelType) {
-		return channelID, channelType
-	}
-	preferredChannelType := strings.TrimSpace(channelType)
-	if preferredChannelType == "" {
-		preferredChannelType = strings.TrimSpace(conv.ChannelType)
-	}
-	if preferredChannelType == "" {
-		preferredChannelType = strings.TrimSpace(channelID)
-	}
-	if scopedFinder, ok := deps.UserChannelRepo.(scopedLastUserChannelFinder); ok && preferredChannelType != "" {
-		resolvedType, resolvedID, err := scopedFinder.GetLastChannelForUserByChannel(ctx, conv.ParticipantID, preferredChannelType)
-		if err != nil || !isResolvedPlatformChannelID(resolvedID, resolvedType, channelType) {
-			return channelID, channelType
-		}
-		if strings.TrimSpace(channelType) == "" && strings.TrimSpace(resolvedType) != "" {
-			channelType = resolvedType
-		}
-		return resolvedID, channelType
-	}
-	finder, ok := deps.UserChannelRepo.(lastUserChannelFinder)
-	if !ok {
-		return channelID, channelType
-	}
-	resolvedType, resolvedID, err := finder.GetLastChannelForUser(ctx, conv.ParticipantID)
-	if err != nil || !isResolvedPlatformChannelID(resolvedID, resolvedType, channelType) {
-		return channelID, channelType
-	}
-	if strings.TrimSpace(channelType) == "" && strings.TrimSpace(resolvedType) != "" {
-		channelType = resolvedType
-	}
-	return resolvedID, channelType
-}
-
-func isResolvedPlatformChannelID(channelID, resolvedType, currentType string) bool {
-	id := strings.TrimSpace(channelID)
-	if id == "" {
-		return false
-	}
-	if strings.EqualFold(id, "dashboard") {
-		return false
-	}
-	if strings.TrimSpace(resolvedType) != "" && strings.EqualFold(id, resolvedType) {
-		return false
-	}
-	if strings.TrimSpace(currentType) != "" && strings.EqualFold(id, currentType) {
-		return false
-	}
-	return true
-}
-
-func needsPlatformChannelResolution(channelID, channelType string) bool {
-	id := strings.TrimSpace(channelID)
-	if id == "" {
-		return true
-	}
-	typ := strings.TrimSpace(channelType)
-	if typ == "" {
-		return false
-	}
-	return strings.EqualFold(id, typ)
 }
 
 // Conversations is the resolver for the conversations field.

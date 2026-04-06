@@ -143,6 +143,10 @@ func (a *OAuthAdapter) SetClientID(ctx context.Context, serverName, clientID str
 	return a.OAuth.SetClientID(ctx, serverName, clientID)
 }
 
+func (a *OAuthAdapter) SetClientSecret(ctx context.Context, serverName, clientSecret string) error {
+	return a.OAuth.SetClientSecret(ctx, serverName, clientSecret)
+}
+
 func (a *OAuthAdapter) Status(serverName string) (status, errMsg string) {
 	s, errStr := a.OAuth.Status(serverName)
 	return string(s), errStr

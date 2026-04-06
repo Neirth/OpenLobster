@@ -134,6 +134,8 @@ type AppConfig {
   channels:       [ChannelConfig!]!
   channelSecrets: ChannelSecretsConfig
   pluginDefaults: PluginDefaultsConfig
+  a2aEnabled: Boolean
+  webEnabled:      Boolean
   wizardCompleted: Boolean  # True when first-boot wizard has been completed (server-side)
 }
 
@@ -177,6 +179,7 @@ input UpdateConfigInput {
   graphqlPort:     Int
   graphqlHost:     String
   graphqlBaseUrl:  String
+  webEnabled:      Boolean
 
   loggingLevel: String
   loggingPath:  String
@@ -190,6 +193,8 @@ input UpdateConfigInput {
   pluginDefaultSecrets: String
   pluginDefaultAudio:   String
   pluginDefaultAi:      String
+
+  a2aEnabled:           Boolean
 
   schedulerEnabled:        Boolean
   schedulerMemoryEnabled:  Boolean

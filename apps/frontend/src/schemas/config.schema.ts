@@ -325,6 +325,12 @@ export const configSchema: ConfigSchema = {
       description: "Enable GraphQL API server",
       default: true,
     },
+    webEnabled: {
+      type: "boolean",
+      title: "Web Frontend Enabled",
+      description: "Enable built-in web frontend (static assets and index). HTTP server stays running even when disabled.",
+      default: true,
+    },
     graphqlPort: {
       type: "integer",
       title: "GraphQL Port",
@@ -435,6 +441,12 @@ export const configSchema: ConfigSchema = {
       title: "Consolidation Interval",
       description: "How often to run memory consolidation (e.g. \"4h\")",
       default: "4h",
+    },
+    a2aEnabled: {
+      type: "boolean",
+      title: "A2A Enabled",
+      description: "Enable A2A protocol endpoints (/.well-known/agent-card.json and /a2a)",
+      default: true,
     },
 
     // ========== CHANNEL CONFIGURATION ==========
@@ -608,7 +620,7 @@ export const configGroups = [
   {
     id: "graphql",
     title: "GRAPHQL CONFIGURATION",
-    fields: ["graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl"],
+    fields: ["graphqlEnabled", "webEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl"],
   },
   {
     id: "logging",
@@ -618,6 +630,6 @@ export const configGroups = [
   {
     id: "scheduler",
     title: "SCHEDULER CONFIGURATION",
-    fields: ["schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval"],
+    fields: ["schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "a2aEnabled"],
   },
 ];

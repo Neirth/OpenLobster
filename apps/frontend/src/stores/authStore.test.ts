@@ -108,6 +108,21 @@ describe('authStore', () => {
     expect(needsAuth()).toBe(false);
   });
 
+  it('syncNeedsAuthFromSessionStorage clears needsAuth when token exists', async () => {
+    sessionStorage.setItem(TOKEN_KEY, 'abc123');
+    const { needsAuth, setNeedsAuth, syncNeedsAuthFromSessionStorage } = await import('./authStore');
+    setNeedsAuth(true);
+    syncNeedsAuthFromSessionStorage();
+    expect(needsAuth()).toBe(false);
+  });
+
+  it('syncNeedsAuthFromSessionStorage keeps needsAuth when token is missing', async () => {
+    const { needsAuth, setNeedsAuth, syncNeedsAuthFromSessionStorage } = await import('./authStore');
+    setNeedsAuth(true);
+    syncNeedsAuthFromSessionStorage();
+    expect(needsAuth()).toBe(true);
+  });
+
   // ------------------------------------------------------------------ //
   // setNeedsAuth                                                         //
   // ------------------------------------------------------------------ //

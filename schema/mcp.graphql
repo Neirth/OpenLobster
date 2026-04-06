@@ -64,6 +64,7 @@ extend type Mutation {
     transport: String!
     url:       String!
     clientId:  String   # optional; custom OAuth client_id from "advanced options"
+    clientSecret: String # optional; custom OAuth client_secret from "advanced options"
   ): MCPConnectResult!
   disconnectMcp(name: String!): Boolean!
   initiateOAuth(name: String!, url: String!): OAuthInitiateResult!

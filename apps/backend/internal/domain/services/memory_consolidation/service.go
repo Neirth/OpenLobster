@@ -324,7 +324,8 @@ func (s *service) runAgenticLoop(ctx context.Context, messages []ports.ChatMessa
 		}
 		lastResp = resp
 
-		if resp.StopReason != "tool_use" || len(resp.ToolCalls) == 0 {
+		hasToolCalls := len(resp.ToolCalls) > 0
+		if !hasToolCalls {
 			// If we have content, we are done. If not, and we executed tools,
 			// we might need one more pass to synthesize.
 			if strings.TrimSpace(resp.Content) != "" || round == 0 {

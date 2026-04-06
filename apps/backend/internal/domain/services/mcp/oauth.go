@@ -238,6 +238,7 @@ type oauthPendingEntry struct {
 	CodeVerifier    string
 	TokenEndpoint   string
 	ClientID        string
+	ClientSecret    string
 	CallbackBaseURL string
 	CreatedAt       time.Time
 }
@@ -324,6 +325,15 @@ func (m *OAuthManager) SetClientID(ctx context.Context, serverName, clientID str
 	return m.secrets.Set(ctx, key, clientID)
 }
 
+// SetClientSecret persists a custom client_secret for the given server.
+func (m *OAuthManager) SetClientSecret(ctx context.Context, serverName, clientSecret string) error {
+	if clientSecret == "" {
+		return nil
+	}
+	key := fmt.Sprintf("mcp/remote/%s/client_secret", serverName)
+	return m.secrets.Set(ctx, key, clientSecret)
+}
+
 // InitiateOAuth starts the Authorization Code + PKCE flow for a remote MCP.
 // Returns the authorization URL that the user must open in a browser.
 func (m *OAuthManager) InitiateOAuth(ctx context.Context, serverName, mcpURL string) (string, error) {
@@ -338,7 +348,9 @@ func (m *OAuthManager) InitiateOAuth(ctx context.Context, serverName, mcpURL str
 	}
 
 	clientIDKey := fmt.Sprintf("mcp/remote/%s/client_id", serverName)
+	clientSecretKey := fmt.Sprintf("mcp/remote/%s/client_secret", serverName)
 	var clientID string
+	var clientSecret string
 	// Use custom client_id from secrets if set (e.g. via "advanced options" when adding the server)
 	if existing, getErr := m.secrets.Get(ctx, clientIDKey); getErr == nil && existing != "" {
 		clientID = existing
@@ -359,6 +371,10 @@ func (m *OAuthManager) InitiateOAuth(ctx context.Context, serverName, mcpURL str
 		return "", fmt.Errorf("oauth: could not persist client_id in secrets backend (ensure OpenBao/Vault is reachable from the pod): %w", err)
 	}
 
+	if existingSecret, getErr := m.secrets.Get(ctx, clientSecretKey); getErr == nil && existingSecret != "" {
+		clientSecret = existingSecret
+	}
+
 	verifier, err := generateCodeVerifier()
 	if err != nil {
 		return "", fmt.Errorf("oauth: generate code_verifier: %w", err)
@@ -375,6 +391,7 @@ func (m *OAuthManager) InitiateOAuth(ctx context.Context, serverName, mcpURL str
 		CodeVerifier:    verifier,
 		TokenEndpoint:   meta.TokenEndpoint,
 		ClientID:        clientID,
+		ClientSecret:    clientSecret,
 		CallbackBaseURL: m.callbackURLFn(),
 		CreatedAt:       time.Now(),
 	}
@@ -466,6 +483,9 @@ func exchangeCode(entry *oauthPendingEntry, code string) (string, error) {
 	body.Set("code", code)
 	body.Set("redirect_uri", entry.CallbackBaseURL)
 	body.Set("client_id", entry.ClientID)
+	if entry.ClientSecret != "" {
+		body.Set("client_secret", entry.ClientSecret)
+	}
 	body.Set("code_verifier", entry.CodeVerifier)
 
 	client := &http.Client{Timeout: oauthTokenExchangeTimeout}

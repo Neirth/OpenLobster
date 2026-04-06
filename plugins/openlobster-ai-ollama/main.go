@@ -13,8 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 	ollamaAPI "github.com/ollama/ollama/api"
 	_ "github.com/stealthrocket/net/http"
 	"golang.org/x/crypto/ssh"
@@ -24,24 +25,40 @@ import (
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport get_name
 func getName() int32 { pdk.OutputString("openlobster-ai-ollama"); return 0 }
 
-//go:wasmexport get_version
 func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("Ollama local AI provider plugin for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 { pdk.OutputString("ai"); return 0 }
 
-//go:wasmexport get_schema
+func supportsAudioInput() int32 { pdk.OutputString("false"); return 0 }
+
+func supportsAudioOutput() int32 { pdk.OutputString("false"); return 0 }
+
 func getSchema() int32 {
 	pdk.OutputString(`{"type":"object","properties":{"base_url":{"type":"string","title":"Base URL","default":"http://localhost:11434","description":"Ollama endpoint (local or remote), for example http://localhost:11434"},"default_model":{"type":"string","title":"Default Model","default":"llama3.2","description":"Model used when the request does not specify one"},"api_key":{"type":"string","title":"API Key","description":"Optional Bearer token for protected or cloud Ollama endpoints"}},"required":[]}`)
+	return 0
+}
+
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-ai-ollama",
+		"name":        "openlobster-ai-ollama",
+		"version":     "0.1.0",
+		"description": "Ollama local AI provider plugin for OpenLobster",
+		"type":        "ai",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"base_url":{"type":"string","title":"Base URL","default":"http://localhost:11434","description":"Ollama endpoint (local or remote), for example http://localhost:11434"},"default_model":{"type":"string","title":"Default Model","default":"llama3.2","description":"Model used when the request does not specify one"},"api_key":{"type":"string","title":"API Key","description":"Optional Bearer token for protected or cloud Ollama endpoints"}},"required":[]}`),
+		"properties":  json.RawMessage(`{"supports_audio_input":false,"supports_audio_output":false}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
 	return 0
 }
 
@@ -105,6 +122,11 @@ type bearerAuthTransport struct {
 }
 
 var ensureKeyMu sync.Mutex
+
+const (
+	defaultHTTPTimeout = 45 * time.Second
+	defaultChatTimeout = 60 * time.Second
+)
 
 func normalizePluginHome(preferredHome string) string {
 	home := strings.TrimSpace(preferredHome)
@@ -289,7 +311,6 @@ func sanitizeURLForError(rawURL string) string {
 // chat
 // ---------------------------------------------------------------------------
 
-//go:wasmexport chat
 func chat() int32 {
 	var input inputPayload
 	if err := pdk.InputJSON(&input); err != nil {
@@ -320,13 +341,16 @@ func chat() int32 {
 
 	apiKey := strings.TrimSpace(input.Config.APIKey)
 
-	httpClient := http.DefaultClient
+	httpClient := &http.Client{Timeout: defaultHTTPTimeout}
 	if apiKey != "" {
 		authHeader := apiKey
 		if !strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
 			authHeader = "Bearer " + apiKey
 		}
-		httpClient = &http.Client{Transport: &bearerAuthTransport{base: http.DefaultTransport, authHeader: authHeader}}
+		httpClient = &http.Client{
+			Timeout:   defaultHTTPTimeout,
+			Transport: &bearerAuthTransport{base: http.DefaultTransport, authHeader: authHeader},
+		}
 	}
 
 	client := ollamaAPI.NewClient(u, httpClient)
@@ -399,7 +423,10 @@ func chat() int32 {
 	}
 
 	var resp ollamaAPI.ChatResponse
-	err = client.Chat(context.Background(), req, func(r ollamaAPI.ChatResponse) error {
+	chatCtx, cancel := context.WithTimeout(context.Background(), defaultChatTimeout)
+	defer cancel()
+
+	err = client.Chat(chatCtx, req, func(r ollamaAPI.ChatResponse) error {
 		resp = r
 		return nil
 	})
@@ -428,6 +455,9 @@ func chat() int32 {
 			}{Name: strings.ReplaceAll(tc.Function.Name, "__", ":"), Arguments: string(argsJSON)},
 		})
 	}
+	if len(out.ToolCalls) > 0 {
+		out.StopReason = "tool_use"
+	}
 
 	if err := pdk.OutputJSON(out); err != nil {
 		pdk.SetError(err)
@@ -436,4 +466,13 @@ func chat() int32 {
 	return 0
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-ai-ollama",
+		Exports: map[string]pdk.Function{
+			"get_metadata": getMetadata,
+			"configure":    configureHot,
+			"chat":         chat,
+		},
+	})
+}

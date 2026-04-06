@@ -1,0 +1,11 @@
+{
+  "name": "@openlobster/validation-layer",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "validate": "go run . -plugins-dir ../../plugins",
+    "validate:smoke": "go run . -plugins-dir ../../plugins -smoke",
+    "test": "go test ./...",
+    "build": "mkdir -p ../../dist/tools && go build -o ../../dist/tools/openlobster-plugin-validator ."
+  }
+}

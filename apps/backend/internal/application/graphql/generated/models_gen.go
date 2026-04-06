@@ -56,6 +56,8 @@ type AppConfig struct {
 	Channels        []*ChannelConfig      `json:"channels"`
 	ChannelSecrets  *ChannelSecretsConfig `json:"channelSecrets,omitempty"`
 	PluginDefaults  *PluginDefaultsConfig `json:"pluginDefaults,omitempty"`
+	A2aEnabled      *bool                 `json:"a2aEnabled,omitempty"`
+	WebEnabled      *bool                 `json:"webEnabled,omitempty"`
 	WizardCompleted *bool                 `json:"wizardCompleted,omitempty"`
 }
 
@@ -508,6 +510,7 @@ type UpdateConfigInput struct {
 	GraphqlPort               *int               `json:"graphqlPort,omitempty"`
 	GraphqlHost               *string            `json:"graphqlHost,omitempty"`
 	GraphqlBaseURL            *string            `json:"graphqlBaseUrl,omitempty"`
+	WebEnabled                *bool              `json:"webEnabled,omitempty"`
 	LoggingLevel              *string            `json:"loggingLevel,omitempty"`
 	LoggingPath               *string            `json:"loggingPath,omitempty"`
 	SecretsBackend            *string            `json:"secretsBackend,omitempty"`
@@ -518,6 +521,7 @@ type UpdateConfigInput struct {
 	PluginDefaultSecrets      *string            `json:"pluginDefaultSecrets,omitempty"`
 	PluginDefaultAudio        *string            `json:"pluginDefaultAudio,omitempty"`
 	PluginDefaultAi           *string            `json:"pluginDefaultAi,omitempty"`
+	A2aEnabled                *bool              `json:"a2aEnabled,omitempty"`
 	SchedulerEnabled          *bool              `json:"schedulerEnabled,omitempty"`
 	SchedulerMemoryEnabled    *bool              `json:"schedulerMemoryEnabled,omitempty"`
 	SchedulerMemoryInterval   *string            `json:"schedulerMemoryInterval,omitempty"`

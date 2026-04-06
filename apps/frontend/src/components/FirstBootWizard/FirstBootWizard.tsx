@@ -13,7 +13,7 @@ import {
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import { t } from "../../App";
 import { getStoredToken, setNeedsAuth } from "../../stores/authStore";
-import { CONFIG_QUERY } from "@openlobster/ui/graphql/queries";
+import { CONFIG_QUERY, PLUGINS_QUERY } from "@openlobster/ui/graphql/queries";
 import {
   CONNECT_MCP_MUTATION,
   INITIATE_OAUTH_MUTATION,
@@ -37,10 +37,42 @@ interface MarketplaceServer {
   oauth?: boolean;
 }
 
+interface WizardPlugin {
+  id: string;
+  name: string;
+  pluginType: string;
+  available: boolean;
+}
+
 const fetchMarketplace = async (): Promise<MarketplaceServer[]> => {
   const res = await fetch("/marketplace.json");
   if (!res.ok) throw new Error("Failed to load marketplace");
   return res.json() as Promise<MarketplaceServer[]>;
+};
+
+const fetchWizardPlugins = async (): Promise<WizardPlugin[]> => {
+  const res = await fetch(GRAPHQL_ENDPOINT, {
+    method: "POST",
+    headers: graphqlHeaders(),
+    body: JSON.stringify({ query: PLUGINS_QUERY }),
+  });
+  if (res.status === 401) {
+    setNeedsAuth(true);
+    return [];
+  }
+  const data = await res.json();
+  const plugins = data?.data?.plugins;
+  if (!Array.isArray(plugins)) {
+    return [];
+  }
+  return plugins
+    .filter((plugin) => typeof plugin?.id === "string")
+    .map((plugin) => ({
+      id: plugin.id as string,
+      name: (plugin.name as string | undefined) ?? (plugin.id as string),
+      pluginType: (plugin.pluginType as string | undefined) ?? "",
+      available: plugin.available !== false,
+    }));
 };
 
 function faviconUrl(url: string, homepage?: string): string {
@@ -83,6 +115,11 @@ function getDefaultFormValues(): Record<string, unknown> {
       filesystem: true,
       sessions: true,
     },
+    pluginDefaultAi: "",
+    pluginDefaultMemory: "",
+    pluginDefaultSecrets: "",
+    pluginDefaultAudio: "",
+    a2aEnabled: true,
     graphqlBaseUrl: typeof window !== "undefined" ? window.location.origin : "",
     channelTelegramEnabled: false,
     channelTelegramToken: "",
@@ -176,6 +213,11 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
     () => fetchMarketplace(),
   );
 
+  const [wizardPlugins] = createResource(
+    () => (step() === 4 ? "fetch" : null),
+    () => fetchWizardPlugins(),
+  );
+
   const marketplaceFiltered = createMemo(() => {
     const q = marketplaceSearch().toLowerCase();
     const data = marketplaceServers() ?? [];
@@ -187,6 +229,20 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
         s.description.toLowerCase().includes(q) ||
         (s.category ?? "").toLowerCase().includes(q),
     );
+  });
+
+  const pluginOptions = createMemo(() => {
+    const sorted = (wizardPlugins() ?? [])
+      .filter((plugin) => plugin.available && plugin.pluginType)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return {
+      ai: sorted.filter((plugin) => plugin.pluginType === "ai"),
+      memory: sorted.filter((plugin) => plugin.pluginType === "memory"),
+      secrets: sorted.filter((plugin) => plugin.pluginType === "secrets"),
+      audio: sorted.filter((plugin) => plugin.pluginType === "audio"),
+    };
   });
 
   const connectMcp = createMutation(() => ({
@@ -286,6 +342,11 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
           anthropicApiKey: config.agent?.anthropicApiKey ?? "",
           dockerModelRunnerEndpoint: config.agent?.dockerModelRunnerEndpoint ?? "http://host.docker.internal:12434/engines/v1",
           capabilities: config.capabilities ?? getDefaultFormValues().capabilities,
+          pluginDefaultAi: config.pluginDefaults?.ai ?? "",
+          pluginDefaultMemory: config.pluginDefaults?.memory ?? "",
+          pluginDefaultSecrets: config.pluginDefaults?.secrets ?? "",
+          pluginDefaultAudio: config.pluginDefaults?.audio ?? "",
+          a2aEnabled: config.a2aEnabled ?? true,
           graphqlBaseUrl: config.graphql?.baseUrl || (typeof window !== "undefined" ? window.location.origin : ""),
           channelTelegramEnabled: config.channelSecrets?.telegramEnabled ?? false,
           channelTelegramToken: config.channelSecrets?.telegramToken ?? "",
@@ -331,10 +392,15 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
               ollamaHost: v.ollamaHost ?? "",
               ollamaApiKey: v.ollamaApiKey ?? "",
               anthropicApiKey: v.anthropicApiKey ?? "",
-                wizardCompleted: true,
               dockerModelRunnerEndpoint: v.dockerModelRunnerEndpoint ?? "",
               capabilities: caps,
+              pluginDefaultAi: v.pluginDefaultAi ?? "",
+              pluginDefaultMemory: v.pluginDefaultMemory ?? "",
+              pluginDefaultSecrets: v.pluginDefaultSecrets ?? "",
+              pluginDefaultAudio: v.pluginDefaultAudio ?? "",
+              a2aEnabled: v.a2aEnabled ?? true,
               graphqlBaseUrl: v.graphqlBaseUrl ?? "",
+              wizardCompleted: true,
               channelTelegramEnabled: v.channelTelegramEnabled ?? false,
               channelTelegramToken: v.channelTelegramToken ?? "",
               channelDiscordEnabled: v.channelDiscordEnabled ?? false,
@@ -596,11 +662,83 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
               </div>
             </Show>
 
-            {/* Step 4: Capabilities */}
+            {/* Step 4: Capabilities + plugin defaults */}
             <Show when={step() === 4}>
               <div class="wizard-step">
                 <h2>{t("wizard.capabilities.title")}</h2>
                 <p>{t("wizard.capabilities.description")}</p>
+
+                <div class="wizard-plugin-defaults">
+                  <div class="wizard-plugin-grid">
+                    <div class="wizard-field">
+                      <label>{t("plugins.defaultAiLabel")}</label>
+                      <select
+                        value={(formValues().pluginDefaultAi as string) ?? ""}
+                        onChange={(e) => handleFieldChange("pluginDefaultAi", e.currentTarget.value)}
+                      >
+                        <option value="">{t("plugins.defaultAuto")}</option>
+                        <For each={pluginOptions().ai}>
+                          {(plugin) => <option value={plugin.id}>{plugin.name}</option>}
+                        </For>
+                      </select>
+                    </div>
+                    <div class="wizard-field">
+                      <label>{t("plugins.defaultMemoryLabel")}</label>
+                      <select
+                        value={(formValues().pluginDefaultMemory as string) ?? ""}
+                        onChange={(e) => handleFieldChange("pluginDefaultMemory", e.currentTarget.value)}
+                      >
+                        <option value="">{t("plugins.defaultAuto")}</option>
+                        <For each={pluginOptions().memory}>
+                          {(plugin) => <option value={plugin.id}>{plugin.name}</option>}
+                        </For>
+                      </select>
+                    </div>
+                    <div class="wizard-field">
+                      <label>{t("plugins.defaultSecretsLabel")}</label>
+                      <select
+                        value={(formValues().pluginDefaultSecrets as string) ?? ""}
+                        onChange={(e) => handleFieldChange("pluginDefaultSecrets", e.currentTarget.value)}
+                      >
+                        <option value="">{t("plugins.defaultAuto")}</option>
+                        <For each={pluginOptions().secrets}>
+                          {(plugin) => <option value={plugin.id}>{plugin.name}</option>}
+                        </For>
+                      </select>
+                    </div>
+                    <div class="wizard-field">
+                      <label>{t("plugins.defaultAudioLabel")}</label>
+                      <select
+                        value={(formValues().pluginDefaultAudio as string) ?? ""}
+                        onChange={(e) => handleFieldChange("pluginDefaultAudio", e.currentTarget.value)}
+                      >
+                        <option value="">{t("plugins.defaultAuto")}</option>
+                        <For each={pluginOptions().audio}>
+                          {(plugin) => <option value={plugin.id}>{plugin.name}</option>}
+                        </For>
+                      </select>
+                    </div>
+                  </div>
+                  <Show when={wizardPlugins.loading}>
+                    <p class="wizard-hint">{t("plugins.loading")}</p>
+                  </Show>
+                </div>
+
+                <div class="wizard-channel-row wizard-channel-row--inline">
+                  <div class="wizard-channel-toggle-row">
+                    <label class="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formValues().a2aEnabled)}
+                        onChange={(e) => handleFieldChange("a2aEnabled", e.currentTarget.checked)}
+                      />
+                      <span class="toggle-slider" />
+                    </label>
+                    <span class="wizard-channel-label">{t("settings.field.a2aEnabled")}</span>
+                  </div>
+                  <p class="wizard-toggle-description">{t("settings.field.a2aEnabledDesc")}</p>
+                </div>
+
                 <div class="wizard-capabilities">
                   <For each={CAPABILITIES}>
                     {(cap) => {

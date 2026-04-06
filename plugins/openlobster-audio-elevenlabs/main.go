@@ -1,12 +1,15 @@
+//go:build !tinygo
+
 package main
 
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 
-	pdk "github.com/extism/go-pdk"
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 	elevenlabs "github.com/plexusone/elevenlabs-go"
 	_ "github.com/stealthrocket/net/http"
 )
@@ -15,24 +18,36 @@ import (
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport get_name
 func getName() int32 { pdk.OutputString("openlobster-audio-elevenlabs"); return 0 }
 
-//go:wasmexport get_version
 func getVersion() int32 { pdk.OutputString("0.1.0"); return 0 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pdk.OutputString("ElevenLabs TTS/STT audio plugin for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 { pdk.OutputString("audio"); return 0 }
 
-//go:wasmexport get_schema
 func getSchema() int32 {
-	pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key","description":"ElevenLabs API key"},"voice_id":{"type":"string","title":"Voice ID","default":"21m00Tcm4TlvDq8ikWAM","description":"Default voice identifier for TTS"},"model_id":{"type":"string","title":"TTS Model","default":"eleven_multilingual_v2","description":"Text-to-speech model identifier"},"stt_model_id":{"type":"string","title":"STT Model","default":"scribe_v1","description":"Speech-to-text model identifier"},"output_format":{"type":"string","title":"Audio Output Format","default":"mp3_44100_128","description":"Audio codec and bitrate format for generated speech"}},"required":["api_key"]}`)
+	pdk.OutputString(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key","description":"ElevenLabs API key"},"voice_id":{"type":"string","title":"Voice ID","default":"21m00Tcm4TlvDq8ikWAM","description":"Default voice identifier for TTS"},"model_id":{"type":"string","title":"TTS Model","default":"eleven_multilingual_v2","description":"Text-to-speech model identifier"},"stt_model_id":{"type":"string","title":"STT Model","default":"scribe_v1","description":"Speech-to-text model identifier"}},"required":["api_key"]}`)
+	return 0
+}
+
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-audio-elevenlabs",
+		"name":        "openlobster-audio-elevenlabs",
+		"version":     "0.1.0",
+		"description": "ElevenLabs TTS/STT audio plugin for OpenLobster",
+		"type":        "audio",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"api_key":{"type":"string","title":"API Key","description":"ElevenLabs API key"},"voice_id":{"type":"string","title":"Voice ID","default":"21m00Tcm4TlvDq8ikWAM","description":"Default voice identifier for TTS"},"model_id":{"type":"string","title":"TTS Model","default":"eleven_multilingual_v2","description":"Text-to-speech model identifier"},"stt_model_id":{"type":"string","title":"STT Model","default":"scribe_v1","description":"Speech-to-text model identifier"}},"required":["api_key"]}`),
+		"properties":  json.RawMessage(`{}`),
+	}
+	if err := pdk.OutputJSON(metadata); err != nil {
+		pdk.SetError(err)
+		return 1
+	}
 	return 0
 }
 
@@ -51,7 +66,6 @@ type ttsInput struct {
 	} `json:"config"`
 }
 
-//go:wasmexport tts
 func tts() int32 {
 	var input ttsInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -128,7 +142,6 @@ type sttInput struct {
 	} `json:"config"`
 }
 
-//go:wasmexport stt
 func stt() int32 {
 	var input sttInput
 	if err := pdk.InputJSON(&input); err != nil {
@@ -173,4 +186,14 @@ func stt() int32 {
 	return 0
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-audio-elevenlabs",
+		Exports: map[string]pdk.Function{
+			"get_metadata": getMetadata,
+			"configure":    configureHot,
+			"tts":          tts,
+			"stt":          stt,
+		},
+	})
+}

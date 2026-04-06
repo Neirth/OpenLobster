@@ -303,6 +303,8 @@ export const CONFIG_QUERY = /* GraphQL */ `
         secrets
         audio
       }
+      a2aEnabled
+      webEnabled
       wizardCompleted
     }
   }

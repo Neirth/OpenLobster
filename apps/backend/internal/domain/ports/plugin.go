@@ -2,13 +2,13 @@
 // and all plugin wrapper adapters.
 package ports
 
-// PluginPort is the interface every loaded WASM plugin must satisfy.
-// The host communicates with plugins by calling their exported WASM functions
-// using the openlobster_* ABI (ptr/len pairs for JSON payloads).
+// PluginPort is the interface every loaded plugin must satisfy.
+// The host communicates with plugins by calling exported function names
+// through the active plugin runtime transport.
 type PluginPort interface {
 	// ID returns a unique identifier for this plugin (usually its filename stem).
 	ID() string
-	// Name returns the human-readable plugin name (from openlobster_get_name).
+	// Name returns the human-readable plugin name.
 	Name() string
 	// Version returns the plugin version string.
 	Version() string
@@ -22,7 +22,7 @@ type PluginPort interface {
 	// Call invokes an exported plugin function by name, passing input as JSON
 	// bytes and returning the result as JSON bytes.
 	Call(function string, input []byte) ([]byte, error)
-	// Close releases all WASM resources held by this plugin.
+	// Close releases all runtime resources held by this plugin.
 	Close() error
 }
 
@@ -38,6 +38,14 @@ type PluginStatePort interface {
 // mark plugins with static metadata such as builtin catalog membership.
 type PluginStateSetterPort interface {
 	SetBuiltin(v bool)
+}
+
+// PluginFunctionIntrospectionPort is an optional extension implemented by
+// runtime adapters that can report whether a plugin exports a given function.
+// It is used by ABI validators to enforce function-level contracts without
+// invoking potentially long-running exports.
+type PluginFunctionIntrospectionPort interface {
+	HasFunction(function string) bool
 }
 
 // PluginRegistryPort is the read interface used by GraphQL resolvers.

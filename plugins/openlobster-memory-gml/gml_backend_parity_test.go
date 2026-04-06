@@ -156,4 +156,3 @@ func TestGML_AddKnowledge_DoesNotOverwriteCrossUserFactContent(t *testing.T) {
 		t.Fatalf("expected to find alice's Elche place node")
 	}
 }
-

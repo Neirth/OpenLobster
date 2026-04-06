@@ -62,6 +62,7 @@ function getDefaultFormValues(): Record<string, unknown> {
     subagentsMaxConcurrent: 5,
     subagentsDefaultTimeout: "300s",
     graphqlEnabled: true,
+    webEnabled: true,
     graphqlPort: 8080,
     graphqlHost: "127.0.0.1",
     graphqlBaseUrl: "",
@@ -78,6 +79,7 @@ function getDefaultFormValues(): Record<string, unknown> {
     schedulerEnabled: true,
     schedulerMemoryEnabled: true,
     schedulerMemoryInterval: "4h",
+    a2aEnabled: true,
     channelTelegramEnabled: false,
     channelTelegramToken: "",
     channelDiscordEnabled: false,
@@ -218,6 +220,10 @@ const SettingsView: Component = () => {
             config.graphql?.enabled !== undefined
               ? config.graphql.enabled
               : true,
+          webEnabled:
+            config.webEnabled !== undefined
+              ? config.webEnabled
+              : true,
           graphqlPort: config.graphql?.port || 8080,
           graphqlHost: config.graphql?.host || "127.0.0.1",
           graphqlBaseUrl: config.graphql?.baseUrl || "",
@@ -234,6 +240,7 @@ const SettingsView: Component = () => {
           schedulerEnabled: config.scheduler?.enabled ?? true,
           schedulerMemoryEnabled: config.scheduler?.memoryEnabled ?? true,
           schedulerMemoryInterval: config.scheduler?.memoryInterval ?? "4h",
+          a2aEnabled: config.a2aEnabled ?? true,
           channelTelegramEnabled:
             config.channelSecrets?.telegramEnabled ?? false,
           channelTelegramToken: config.channelSecrets?.telegramToken || "",
@@ -353,6 +360,7 @@ const SettingsView: Component = () => {
               subagentsMaxConcurrent: v.subagentsMaxConcurrent,
               subagentsDefaultTimeout: v.subagentsDefaultTimeout,
               graphqlEnabled: v.graphqlEnabled,
+              webEnabled: v.webEnabled,
               graphqlPort: v.graphqlPort,
               graphqlHost: v.graphqlHost,
               graphqlBaseUrl: v.graphqlBaseUrl,
@@ -366,6 +374,7 @@ const SettingsView: Component = () => {
               pluginDefaultMemory: v.pluginDefaultMemory,
               pluginDefaultSecrets: v.pluginDefaultSecrets,
               pluginDefaultAudio: v.pluginDefaultAudio,
+              a2aEnabled: v.a2aEnabled,
               schedulerEnabled: v.schedulerEnabled,
               schedulerMemoryEnabled: v.schedulerMemoryEnabled,
               schedulerMemoryInterval: v.schedulerMemoryInterval,
@@ -543,7 +552,7 @@ const SettingsView: Component = () => {
           {/* Render each configuration group */}
           <For each={configGroups}>
             {(group) => (
-              <section class="settings-section">
+              <section class="settings-section" id={`settings-group-${group.id}`}>
                 <h2 class="section-title">{t(`settings.group.${group.id}` as "settings.group.general")}</h2>
                 <div class="settings-list">
                   <For each={group.fields}>
@@ -567,12 +576,40 @@ const SettingsView: Component = () => {
           </For>
         </Show>
 
-        {/* WASM Plugins */}
+        {/* Plugins */}
         <PluginsSection
           defaultAiPluginId={(formValues().pluginDefaultAi as string | undefined) ?? ""}
           defaultMemoryPluginId={(formValues().pluginDefaultMemory as string | undefined) ?? ""}
           defaultSecretsPluginId={(formValues().pluginDefaultSecrets as string | undefined) ?? ""}
           defaultAudioPluginId={(formValues().pluginDefaultAudio as string | undefined) ?? ""}
+          messagingChannelsEnabled={{
+            telegram: Boolean(formValues().channelTelegramEnabled),
+            discord: Boolean(formValues().channelDiscordEnabled),
+            slack: Boolean(formValues().channelSlackEnabled),
+            whatsapp: Boolean(formValues().channelWhatsAppEnabled),
+            twilio: Boolean(formValues().channelTwilioEnabled),
+          }}
+          onMessagingChannelChange={(channelType, enabled) => {
+            switch (channelType) {
+              case "telegram":
+                handleFieldChange("channelTelegramEnabled", enabled);
+                break;
+              case "discord":
+                handleFieldChange("channelDiscordEnabled", enabled);
+                break;
+              case "slack":
+                handleFieldChange("channelSlackEnabled", enabled);
+                break;
+              case "whatsapp":
+                handleFieldChange("channelWhatsAppEnabled", enabled);
+                break;
+              case "twilio":
+                handleFieldChange("channelTwilioEnabled", enabled);
+                break;
+              default:
+                break;
+            }
+          }}
           onDefaultsChange={(next) => {
             handleFieldChange("pluginDefaultAi", next.ai);
             handleFieldChange("pluginDefaultMemory", next.memory);

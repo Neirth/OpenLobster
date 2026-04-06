@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 const mockNeedsAuth = vi.hoisted(() => vi.fn(() => false));
 const mockSetNeedsAuth = vi.hoisted(() => vi.fn());
 const mockGetStoredToken = vi.hoisted(() => vi.fn((): string | null => null));
+const mockSyncNeedsAuthFromSessionStorage = vi.hoisted(() => vi.fn());
 const mockSetOpenPairingRequestHandler = vi.hoisted(() => vi.fn());
 const mockClientRequest = vi.hoisted(() => vi.fn(() => Promise.resolve({})));
 const mockSubscribe = vi.hoisted(() => vi.fn(() => ({ disconnect: vi.fn() })));
@@ -24,6 +25,7 @@ vi.mock("../../stores/authStore", () => ({
   needsAuth: mockNeedsAuth,
   setNeedsAuth: mockSetNeedsAuth,
   getStoredToken: mockGetStoredToken,
+  syncNeedsAuthFromSessionStorage: mockSyncNeedsAuthFromSessionStorage,
 }));
 
 vi.mock("../../stores/wsStore", () => ({
@@ -146,6 +148,11 @@ describe("AuthModals Component", () => {
   it("calls setOpenPairingRequestHandler on mount", () => {
     renderAuthModals();
     expect(mockSetOpenPairingRequestHandler).toHaveBeenCalled();
+  });
+
+  it("hydrates auth state from sessionStorage on mount", () => {
+    renderAuthModals();
+    expect(mockSyncNeedsAuthFromSessionStorage).toHaveBeenCalled();
   });
 
   it("calls client.request to probe the backend on mount", () => {

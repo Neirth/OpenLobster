@@ -49,6 +49,14 @@ func (r *Registry) Remove(channelType string) {
 	delete(r.adapters, channelType)
 }
 
+// Clear removes all registered adapters while keeping the same registry instance.
+// This avoids stale pointer issues for components that keep a reference to Registry.
+func (r *Registry) Clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.adapters = make(map[string]ports.MessagingPort)
+}
+
 // ListTypes returns all currently registered channel type names.
 func (r *Registry) ListTypes() []string {
 	r.mu.RLock()

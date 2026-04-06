@@ -208,6 +208,8 @@ type AppConfigSnapshot struct {
 	Channels        []ChannelConfigSnapshot
 	ChannelSecrets  *ChannelSecretsSnapshot
 	PluginDefaults  *PluginDefaultsSnapshot
+	WebEnabled      bool
+	A2aEnabled      bool
 	WizardCompleted bool
 }
 

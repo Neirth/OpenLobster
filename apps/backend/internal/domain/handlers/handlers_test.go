@@ -3,10 +3,15 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	appcontext "github.com/neirth/openlobster/internal/domain/context"
+	"github.com/neirth/openlobster/internal/domain/ports"
+	"github.com/neirth/openlobster/internal/domain/services/mcp"
+	"github.com/neirth/openlobster/internal/domain/services/permissions"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,6 +201,73 @@ func TestBuildToolsForAgent_NilRegistry(t *testing.T) {
 	runner := &agenticRunner{toolRegistry: nil}
 	tools := runner.buildToolsForAgent("user1")
 	assert.Nil(t, tools)
+}
+
+type toolCallsWithoutToolUseAI struct {
+	firstCall bool
+}
+
+type handlerMockInternalTool struct {
+	def    mcp.ToolDefinition
+	result json.RawMessage
+	err    error
+}
+
+func (t *handlerMockInternalTool) Definition() mcp.ToolDefinition { return t.def }
+
+func (t *handlerMockInternalTool) Execute(_ context.Context, _ map[string]interface{}) (json.RawMessage, error) {
+	if t.err != nil {
+		return nil, t.err
+	}
+	return t.result, nil
+}
+
+func (a *toolCallsWithoutToolUseAI) Chat(_ context.Context, _ ports.ChatRequest) (ports.ChatResponse, error) {
+	if !a.firstCall {
+		a.firstCall = true
+		return ports.ChatResponse{
+			StopReason: "stop",
+			ToolCalls: []ports.ToolCall{{
+				ID:       "tc1",
+				Type:     "function",
+				Function: ports.FunctionCall{Name: "echo_tool", Arguments: `{}`},
+			}},
+		}, nil
+	}
+	return ports.ChatResponse{Content: "Final answer.", StopReason: "stop"}, nil
+}
+
+func (a *toolCallsWithoutToolUseAI) ChatWithAudio(_ context.Context, _ ports.ChatRequestWithAudio) (ports.ChatResponse, error) {
+	return ports.ChatResponse{}, nil
+}
+
+func (a *toolCallsWithoutToolUseAI) ChatToAudio(_ context.Context, _ ports.ChatRequest) (ports.ChatResponseWithAudio, error) {
+	return ports.ChatResponseWithAudio{}, nil
+}
+
+func (a *toolCallsWithoutToolUseAI) SupportsAudioInput() bool  { return false }
+func (a *toolCallsWithoutToolUseAI) SupportsAudioOutput() bool { return false }
+func (a *toolCallsWithoutToolUseAI) GetMaxTokens() int         { return 512 }
+func (a *toolCallsWithoutToolUseAI) GetContextWindow() int     { return 8192 }
+
+func TestAgenticRunner_RunAgenticLoop_ToolCallsWithoutToolUseStopReason(t *testing.T) {
+	pm := permissions.NewManager()
+	pm.SetPermission("user1", "echo_tool", permissions.PermissionAlways)
+	tr := mcp.NewToolRegistry(false, pm)
+	tr.RegisterInternal("echo_tool", &handlerMockInternalTool{
+		def:    mcp.ToolDefinition{Name: "echo_tool"},
+		result: json.RawMessage(`{"ok":true}`),
+	})
+
+	runner := &agenticRunner{
+		aiProvider:   &toolCallsWithoutToolUseAI{},
+		toolRegistry: tr,
+		permManager:  pm,
+	}
+
+	out, err := runner.runAgenticLoop(context.Background(), []ports.ChatMessage{{Role: "user", Content: "hola"}}, []ports.Tool{}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "Final answer.", out)
 }
 
 // ─── HandleMessageInput ───────────────────────────────────────────────────────

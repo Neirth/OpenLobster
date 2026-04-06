@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,14 +12,16 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	pdk "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/runtime"
 )
 
 var (
 	pluginInputJSON = func(v interface{}) error {
-		return fmt.Errorf("plugin runtime unavailable in non-wasip1 build")
+		return fmt.Errorf("plugin runtime unavailable")
 	}
 	pluginOutputJSON = func(v interface{}) error {
-		return fmt.Errorf("plugin runtime unavailable in non-wasip1 build")
+		return fmt.Errorf("plugin runtime unavailable")
 	}
 	pluginOutputString = func(string) {}
 	pluginSetError     = func(error) {}
@@ -1094,24 +1097,36 @@ func serializeGML(graph *InMemoryGraph) []byte {
 // Metadata
 // ---------------------------------------------------------------------------
 
-//go:wasmexport get_name
 func getName() int32 { pluginOutputString("openlobster-memory-gml"); return 0 }
 
-//go:wasmexport get_version
 func getVersion() int32 { pluginOutputString("0.1.0"); return 0 }
 
-//go:wasmexport get_description
 func getDescription() int32 {
 	pluginOutputString("File-based (GML) memory graph storage for OpenLobster")
 	return 0
 }
 
-//go:wasmexport get_type
 func getType() int32 { pluginOutputString("memory"); return 0 }
 
-//go:wasmexport get_schema
 func getSchema() int32 {
 	pluginOutputString(`{"type":"object","properties":{"path":{"type":"string","title":"Storage Path","default":"~/.openlobster/memory.gml","description":"Path to the GML file used to persist memory graph data"}}}`)
+	return 0
+}
+
+func getMetadata() int32 {
+	metadata := map[string]interface{}{
+		"id":          "openlobster-memory-gml",
+		"name":        "openlobster-memory-gml",
+		"version":     "0.1.0",
+		"description": "File-based (GML) memory graph storage for OpenLobster",
+		"type":        "memory",
+		"schema":      json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","title":"Storage Path","default":"~/.openlobster/memory.gml","description":"Path to the GML file used to persist memory graph data"}}}`),
+		"properties":  json.RawMessage(`{}`),
+	}
+	if err := pluginOutputJSON(metadata); err != nil {
+		pluginSetError(err)
+		return 1
+	}
 	return 0
 }
 
@@ -1119,7 +1134,6 @@ type hotConfigInput struct {
 	Config map[string]interface{} `json:"config"`
 }
 
-//go:wasmexport configure
 func configureHot() int32 {
 	var in hotConfigInput
 	if err := pluginInputJSON(&in); err != nil {
@@ -1158,7 +1172,6 @@ type storeInput struct {
 	Config      storeConfig `json:"config"`
 }
 
-//go:wasmexport store
 func storeEntry() int32 {
 	var input storeInput
 	if err := pluginInputJSON(&input); err != nil {
@@ -1227,7 +1240,6 @@ type knowledgeEntry struct {
 	Content string `json:"content"`
 }
 
-//go:wasmexport retrieve
 func retrieve() int32 {
 	var input retrieveInput
 	if err := pluginInputJSON(&input); err != nil {
@@ -1297,7 +1309,6 @@ type graphOut struct {
 	Edges []graphEdgeOut `json:"edges"`
 }
 
-//go:wasmexport query
 func queryMem() int32 {
 	var input queryInput
 	if err := pluginInputJSON(&input); err != nil {
@@ -1376,4 +1387,15 @@ func queryMem() int32 {
 	return 0
 }
 
-func main() {}
+func main() {
+	pdk.MustRun(pdk.Plugin{
+		ID: "openlobster-memory-gml",
+		Exports: map[string]pdk.Function{
+			"get_metadata": getMetadata,
+			"configure":    configureHot,
+			"store":        storeEntry,
+			"retrieve":     retrieve,
+			"query":        queryMem,
+		},
+	})
+}
