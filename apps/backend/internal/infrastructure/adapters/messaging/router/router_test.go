@@ -22,7 +22,7 @@ func (s *stubMessagingPort) SendMedia(ctx context.Context, media *ports.Media) e
 	return nil
 }
 
-func (s *stubMessagingPort) SendTyping(ctx context.Context, channelID string) error {
+func (s *stubMessagingPort) SendTyping(ctx context.Context, channelID string, duration_ms int) error {
 	return nil
 }
 

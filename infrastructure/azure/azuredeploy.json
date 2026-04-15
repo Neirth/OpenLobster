@@ -23,14 +23,12 @@
     },
     "neo4jPassword": {
       "type": "securestring",
-      "defaultValue": "password123",
       "metadata": {
         "description": "Password for the Neo4j database."
       }
     },
     "vaultRootToken": {
       "type": "securestring",
-      "defaultValue": "root-token-123",
       "metadata": {
         "description": "Initial root token for Vault (Dev Mode)."
       }

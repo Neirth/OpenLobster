@@ -63,7 +63,7 @@ func (r *repository) UpdateStatus(ctx context.Context, code, status string) erro
 }
 
 func (r *repository) DeleteExpired(ctx context.Context) error {
-	return r.db.WithContext(ctx).Delete(&domainmodels.PairingModel{}, "expires_at < ?", time.Now().UTC()).Error
+	return r.db.WithContext(ctx).Where("expires_at < ?", time.Now().UTC()).Delete(&domainmodels.PairingModel{}).Error
 }
 
 func (r *repository) ListActive(ctx context.Context) ([]ports.Pairing, error) {

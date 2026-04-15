@@ -11,7 +11,7 @@ vi.mock("@solidjs/router", () => ({
 }));
 
 vi.mock("../../components/AppShell/AppShell", () => ({
-  default: (props: any) => <div class="app-shell" {...props} />,
+  default: (props: any) => <div class="app-shell" data-active-tab={props.activeTab}>{props.children}</div>,
 }));
 
 vi.mock("../../graphql/client", () => ({ client: {} }));

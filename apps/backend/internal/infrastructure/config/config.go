@@ -556,9 +556,9 @@ func setDefaults() {
 	viper.SetDefault("plugins.data_dir", filepath.Join(home, ".openlobster"))
 	viper.SetDefault("plugins.call_timeout", "10s")
 	viper.SetDefault("plugins.defaults", map[string]string{
-		"ai":      "",
-		"memory":  "",
-		"secrets": "",
+		"ai":      "openlobster-ai-ollama",
+		"memory":  "openlobster-memory-gml",
+		"secrets": "openlobster-secrets-json",
 		"audio":   "",
 	})
 	viper.SetDefault("plugins.enabled", map[string]bool{})

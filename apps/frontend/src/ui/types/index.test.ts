@@ -42,7 +42,7 @@ const CONNECTION_STATUSES: ConnectionStatus[] = ['online', 'offline', 'degraded'
 const TASK_STATUSES: TaskStatus[] = ['pending', 'running', 'done', 'failed'];
 const MESSAGE_ROLES: MessageRole[] = ['user', 'agent', 'assistant', 'system', 'tool', 'compaction'];
 const AI_PROVIDERS: AIProvider[] = ['openai', 'openrouter', 'ollama'];
-const MCP_TRANSPORTS: McpTransport[] = ['stdio', 'http', 'sse'];
+const MCP_TRANSPORTS: McpTransport[] = ['http'];
 
 // ─── Shape factories ──────────────────────────────────────────────────────────
 
@@ -94,6 +94,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     channelName: 'discord',
     participantId: 'user-42',
     participantName: 'Alice',
+    isGroup: false,
     lastMessageAt: '2024-01-01T12:00:00Z',
     unreadCount: 0,
     ...overrides,
@@ -116,7 +117,10 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     id: 'task-1',
     prompt: 'Summarize daily news',
     status: 'pending',
+    schedule: '0 8 * * *',
+    taskType: 'cyclic',
     isCyclic: true,
+    enabled: true,
     createdAt: '2024-01-01T08:00:00Z',
     lastRunAt: null,
     nextRunAt: '2024-01-02T08:00:00Z',
@@ -127,7 +131,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 function makeMcpServer(overrides: Partial<McpServer> = {}): McpServer {
   return {
     name: 'filesystem',
-    transport: 'stdio',
+    transport: 'http',
     status: 'online',
     toolCount: 8,
     ...overrides,
@@ -171,6 +175,7 @@ function makeAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     systemPrompt: 'You are a helpful agent.',
     provider: 'openai',
     channels: [],
+    activeSessions: [],
     ...overrides,
   };
 }
@@ -231,14 +236,12 @@ describe('AIProvider', () => {
 });
 
 describe('McpTransport', () => {
-  it('has exactly 3 transport types', () => {
-    expect(MCP_TRANSPORTS).toHaveLength(3);
+  it('has exactly 1 transport type', () => {
+    expect(MCP_TRANSPORTS).toHaveLength(1);
   });
 
-  it('includes stdio, http, sse', () => {
-    expect(MCP_TRANSPORTS).toContain('stdio');
+  it('includes http', () => {
     expect(MCP_TRANSPORTS).toContain('http');
-    expect(MCP_TRANSPORTS).toContain('sse');
   });
 });
 

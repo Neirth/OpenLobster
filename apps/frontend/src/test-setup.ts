@@ -48,6 +48,26 @@ if (typeof window !== "undefined") {
     }
     return originalMatches.call(this, selector);
   };
+
+  // Polyfill localStorage if it's missing or incomplete in happy-dom
+  if (!window.localStorage || typeof window.localStorage.clear !== "function") {
+    const store = new Map<string, string>();
+    const localStorageShim = {
+      getItem: (key: string) => store.get(key) || null,
+      setItem: (key: string, value: string) => store.set(key, value),
+      removeItem: (key: string) => store.delete(key),
+      clear: () => store.clear(),
+      key: (index: number) => Array.from(store.keys())[index] || null,
+      get length() {
+        return store.size;
+      },
+    };
+    Object.defineProperty(window, "localStorage", {
+      value: localStorageShim,
+      writable: true,
+      configurable: true,
+    });
+  }
 }
 
 export {};

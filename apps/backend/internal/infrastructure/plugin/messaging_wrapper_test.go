@@ -18,8 +18,9 @@ import (
 )
 
 type fakeMessagingPlugin struct {
-	id     string
-	callFn func(function string, input []byte) ([]byte, error)
+	id         string
+	properties []byte
+	callFn     func(function string, input []byte) ([]byte, error)
 }
 
 func (f *fakeMessagingPlugin) ID() string          { return f.id }
@@ -36,7 +37,8 @@ func (f *fakeMessagingPlugin) Call(function string, input []byte) ([]byte, error
 	}
 	return f.callFn(function, input)
 }
-func (f *fakeMessagingPlugin) Close() error { return nil }
+func (f *fakeMessagingPlugin) Properties() []byte { return f.properties }
+func (f *fakeMessagingPlugin) Close() error       { return nil }
 
 type fakeMessagingLoopFactory struct {
 	*fakeMessagingPlugin
@@ -145,7 +147,7 @@ func TestMessagingWrapperSendTyping_UsesResolvedChannelID(t *testing.T) {
 	wrapper := NewMessagingWrapper(plugin, "telegram", map[string]interface{}{"token": "test"})
 	ctx := context.WithValue(context.Background(), ports.ContextKeyChannelType, "telegram")
 
-	err := wrapper.SendTyping(ctx, "telegram")
+	err := wrapper.SendTyping(ctx, "telegram", 5000)
 	if err != nil {
 		t.Fatalf("SendTyping returned error: %v", err)
 	}
@@ -171,7 +173,7 @@ func TestMessagingWrapperSendTyping_AllowsMissingTypingExport(t *testing.T) {
 	wrapper := NewMessagingWrapper(plugin, "telegram", map[string]interface{}{"token": "test"})
 	ctx := context.WithValue(context.Background(), ports.ContextKeyChannelType, "telegram")
 
-	err := wrapper.SendTyping(ctx, "telegram")
+	err := wrapper.SendTyping(ctx, "telegram", 5000)
 	if err != nil {
 		t.Fatalf("expected missing typing export to be ignored, got error: %v", err)
 	}
@@ -328,11 +330,12 @@ func TestMessagingWrapperConvertAudioForPlatform_UsesPluginConversion(t *testing
 
 func TestMessagingWrapperStart_SkipsLoopForWebhookInboundMode(t *testing.T) {
 	var startCalls atomic.Int64
-	plugin := &fakeMessagingPlugin{id: "openlobster-messages-twilio"}
+	plugin := &fakeMessagingPlugin{
+		id:         "openlobster-messages-twilio",
+		properties: []byte(`{"inbound_mode":"webhook"}`),
+	}
 	plugin.callFn = func(function string, input []byte) ([]byte, error) {
 		switch function {
-		case inboundModeFn:
-			return []byte(ports.InboundModeWebhook), nil
 		case "start":
 			startCalls.Add(1)
 			return nil, nil
@@ -354,11 +357,12 @@ func TestMessagingWrapperStart_SkipsLoopForWebhookInboundMode(t *testing.T) {
 
 func TestMessagingWrapperStart_RetriesOnFastSuccessfulExit(t *testing.T) {
 	var startCalls atomic.Int64
-	plugin := &fakeMessagingPlugin{id: "openlobster-messages-telegram"}
+	plugin := &fakeMessagingPlugin{
+		id:         "openlobster-messages-telegram",
+		properties: []byte(`{"inbound_mode":"polling"}`),
+	}
 	plugin.callFn = func(function string, input []byte) ([]byte, error) {
 		switch function {
-		case inboundModeFn:
-			return []byte(ports.InboundModePolling), nil
 		case "start":
 			startCalls.Add(1)
 			return nil, nil

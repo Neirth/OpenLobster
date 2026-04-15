@@ -21,9 +21,9 @@
  * terminal) live in their respective apps, NOT in this package.
  */
 
-export * from './src/theme/index';
-export * from './src/types/index';
-export { createGraphqlClient } from './src/graphql/client';
-export * from './src/graphql/queries/index';
-export * from './src/graphql/mutations/index';
-export * from './src/hooks/index';
+export * from './theme/index';
+export * from './types/index';
+export { createGraphqlClient } from './graphql/client';
+export * from './graphql/queries/index';
+export * from './graphql/mutations/index';
+export * from './hooks/index';

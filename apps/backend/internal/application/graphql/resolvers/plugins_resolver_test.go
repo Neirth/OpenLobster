@@ -39,6 +39,9 @@ func (m *mockPlugin) Call(function string, input []byte) ([]byte, error) {
 	}
 	return nil, nil
 }
+func (m *mockPlugin) Properties() []byte {
+	return []byte("{}")
+}
 func (m *mockPlugin) Close() error { return nil }
 
 type mockPluginRegistry struct {

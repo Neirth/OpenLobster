@@ -11,8 +11,9 @@ import (
 )
 
 type fakeAIPlugin struct {
-	id     string
-	callFn func(function string, input []byte) ([]byte, error)
+	id         string
+	properties []byte
+	callFn     func(function string, input []byte) ([]byte, error)
 }
 
 func (f *fakeAIPlugin) ID() string              { return f.id }
@@ -21,6 +22,7 @@ func (f *fakeAIPlugin) Version() string         { return "test" }
 func (f *fakeAIPlugin) Description() string     { return "test" }
 func (f *fakeAIPlugin) Type() string            { return "ai" }
 func (f *fakeAIPlugin) Schema() ([]byte, error) { return []byte(`{"type":"object"}`), nil }
+func (f *fakeAIPlugin) Properties() []byte      { return f.properties }
 func (f *fakeAIPlugin) Close() error            { return nil }
 func (f *fakeAIPlugin) Call(function string, input []byte) ([]byte, error) {
 	if f.callFn == nil {
@@ -30,14 +32,12 @@ func (f *fakeAIPlugin) Call(function string, input []byte) ([]byte, error) {
 }
 
 func TestAIWrapperSupportsAudioCapabilities(t *testing.T) {
-	p := &fakeAIPlugin{id: "openlobster-ai-fake"}
+	p := &fakeAIPlugin{
+		id:         "openlobster-ai-fake",
+		properties: []byte(`{"supports_audio_input":true,"supports_audio_output":true}`),
+	}
 	p.callFn = func(function string, input []byte) ([]byte, error) {
-		switch function {
-		case metadataFn:
-			return []byte(`{"properties":{"supports_audio_input":true,"supports_audio_output":true}}`), nil
-		default:
-			return nil, fmt.Errorf("unexpected function %s", function)
-		}
+		return nil, fmt.Errorf("unexpected function %s", function)
 	}
 
 	w := NewAIWrapper(p, map[string]interface{}{})

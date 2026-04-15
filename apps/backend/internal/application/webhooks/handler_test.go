@@ -48,7 +48,7 @@ func (a *testMessagingAdapter) SendMedia(context.Context, *ports.Media) error {
 	return nil
 }
 
-func (a *testMessagingAdapter) SendTyping(context.Context, string) error {
+func (a *testMessagingAdapter) SendTyping(context.Context, string, int) error {
 	return nil
 }
 

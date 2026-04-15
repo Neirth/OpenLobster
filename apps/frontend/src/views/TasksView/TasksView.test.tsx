@@ -74,8 +74,8 @@ describe("TasksView Component", () => {
   it("renders task prompts from hook data", () => {
     const { getByText } = renderWithClient(() => <TasksView />);
     expect(getByText("Morning brief")).toBeTruthy();
-    expect(getByText("Health check")).toBeTruthy();
-    expect(getByText("Memory cleanup")).toBeTruthy();
+    expect(getByText("Cleanup logs")).toBeTruthy();
+    expect(getByText("One-time backup")).toBeTruthy();
   });
 
   it("renders linear #N IDs in task rows", () => {

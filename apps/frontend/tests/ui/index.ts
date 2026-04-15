@@ -15,7 +15,6 @@
  */
 
 export * from "@/ui/types";
-export * from "@/ui/graphql";
 export * from "@/ui/theme";
 export * from "./hooks/index.js";
 export * from "./graphql/mutations/index.js";

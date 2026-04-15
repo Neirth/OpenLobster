@@ -14,7 +14,6 @@
       "label": "Neo4j Password",
       "description": "Password for the database",
       "type": "string",
-      "defaultValue": "password123",
       "required": true
     },
     {
@@ -22,7 +21,6 @@
       "label": "Vault Root Token",
       "description": "Root token for Vault dev mode",
       "type": "string",
-      "defaultValue": "root-token-123",
       "required": true
     }
   ],
