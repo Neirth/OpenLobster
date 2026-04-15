@@ -94,17 +94,28 @@ pnpm build --filter=@openlobster/frontend
 # 全部构建
 pnpm build
 
+# 复制环境模板并填入您的机密信息
+cp .env.example .env
+
 # 运行
 ./dist/openlobster
 ```
 
-Web 的控制台地址一般在 `http://127.0.0.1:8080`。首次引导将帮助配置所有的环境。
+Web 的控制台地址一般在 `http://127.0.0.1:8080`。首次引导将帮助配置所有的环境。系统会自动读取 `.env` 文件或 shell 中导出的环境变量。
 
 ## Docker
 
+# 推荐：使用 .env 文件存储机密信息
+docker run -p 8080:8080 \
+  --env-file .env \
+  -v ~/.openlobster/data:/app/data \
+  -v ~/.openlobster/workspace:/app/workspace \
+  -d ghcr.io/neirth/openlobster/openlobster:latest
+```
+
+或者单独传递环境变量：
 ```bash
 docker run -p 8080:8080 \
-  -e OPENLOBSTER_GRAPHQL_HOST=0.0.0.0 \
   -e OPENLOBSTER_GRAPHQL_AUTH_TOKEN=您的机密令牌 \
   -v ~/.openlobster/data:/app/data \
   -v ~/.openlobster/workspace:/app/workspace \

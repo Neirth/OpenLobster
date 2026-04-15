@@ -36,6 +36,9 @@ func (f *fakeMessagingABIPlugin) Call(function string, input []byte) ([]byte, er
 		return nil, fmt.Errorf("unexpected function call: %s", function)
 	}
 }
+func (f *fakeMessagingABIPlugin) Properties() []byte {
+	return []byte(fmt.Sprintf(`{"inbound_mode":%q}`, f.inbound))
+}
 func (f *fakeMessagingABIPlugin) Close() error { return nil }
 func (f *fakeMessagingABIPlugin) HasFunction(function string) bool {
 	if f.exported == nil {
@@ -70,6 +73,9 @@ func (f *fakeMessagingABIPluginNoIntrospection) Call(function string, input []by
 	default:
 		return nil, fmt.Errorf("unexpected function call: %s", function)
 	}
+}
+func (f *fakeMessagingABIPluginNoIntrospection) Properties() []byte {
+	return []byte(fmt.Sprintf(`{"inbound_mode":%q}`, f.inbound))
 }
 func (f *fakeMessagingABIPluginNoIntrospection) Close() error { return nil }
 

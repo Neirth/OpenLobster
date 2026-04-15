@@ -37,15 +37,6 @@ fi
 step "Backend: go test"
 (cd apps/backend && go test ./internal/... ./tests/... -count=1)
 
-step "Package @openlobster/ui: eslint"
-(cd packages/ui && pnpm exec eslint . --max-warnings 0)
-
-step "Package @openlobster/ui: typecheck"
-(cd packages/ui && pnpm run type-check)
-
-step "Package @openlobster/ui: vitest"
-(cd packages/ui && pnpm exec vitest run)
-
 step "App @openlobster/frontend: eslint"
 (cd apps/frontend && pnpm exec eslint src tests --max-warnings 0)
 

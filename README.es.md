@@ -94,17 +94,28 @@ pnpm build --filter=@openlobster/frontend
 # Construir ambos
 pnpm build
 
+# Copia la plantilla de entorno y completa tus secretos
+cp .env.example .env
+
 # Ejecutar
 ./dist/openlobster
 ```
 
-El panel de control web estará en `http://127.0.0.1:8080`. En el primer inicio, el asistente de instalación te guiará con la configuración inicial.
+El panel de control web estará en `http://127.0.0.1:8080`. En el primer inicio, el asistente de instalación te guiará con la configuración inicial. Las variables de entorno en `.env` o exportadas a tu shell se detectarán automáticamente.
 
 ## Docker
 
+# Recomendado: usar un archivo .env para los secretos
+docker run -p 8080:8080 \
+  --env-file .env \
+  -v ~/.openlobster/data:/app/data \
+  -v ~/.openlobster/workspace:/app/workspace \
+  -d ghcr.io/neirth/openlobster/openlobster:latest
+```
+
+Alternativamente, pásalos individualmente:
 ```bash
 docker run -p 8080:8080 \
-  -e OPENLOBSTER_GRAPHQL_HOST=0.0.0.0 \
   -e OPENLOBSTER_GRAPHQL_AUTH_TOKEN=tu-token-secreto \
   -v ~/.openlobster/data:/app/data \
   -v ~/.openlobster/workspace:/app/workspace \

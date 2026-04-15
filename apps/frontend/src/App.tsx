@@ -1,9 +1,9 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 
 import type { Component, ParentComponent } from "solid-js";
-import { createSignal, createEffect, onMount, onCleanup, Show, lazy, Suspense } from "solid-js";
+import { createSignal, createEffect, onMount, onCleanup, Show, lazy, Suspense, useContext } from "solid-js";
 import { translator, resolveTemplate } from "@solid-primitives/i18n";
-import { useQueryClient } from "@tanstack/solid-query";
+import { QueryClientContext } from "@tanstack/solid-query";
 import { Router, Route, useLocation } from "@solidjs/router";
 import en from "./locales/en.json";
 import es from "./locales/es.json";
@@ -78,12 +78,14 @@ export { locale, setLocale };
 
 const App: ParentComponent = (props) => {
   const location = useLocation();
-  const queryClient = useQueryClient();
+  const queryClientCtx = useContext(QueryClientContext);
 
   createEffect(() => {
     const path = location.pathname;
     if (!path) return;
-    void queryClient.invalidateQueries();
+    const client = queryClientCtx?.();
+    if (!client) return;
+    void client.invalidateQueries();
   });
 
   return <>{props.children}</>;

@@ -95,18 +95,29 @@ pnpm build --filter=@openlobster/frontend
 # Build both
 pnpm build
 
+# Copy the environment template and fill in your secrets
+cp .env.example .env
+
 # Run
 ./dist/openlobster
 ```
 
-The web dashboard will be at `http://127.0.0.1:8080`. On first launch the setup wizard walks you through the essential config.
+The web dashboard will be at `http://127.0.0.1:8080`. On first launch the setup wizard walks you through the essential config. Environment variables in `.env` or exported to your shell will be automatically picked up.
 
 ## Docker
 
+# Recommended: use a .env file for secrets
+docker run -p 8080:8080 \
+  --env-file .env \
+  -v ~/.openlobster/data:/app/data \
+  -v ~/.openlobster/workspace:/app/workspace \
+  -d ghcr.io/neirth/openlobster/openlobster:latest
+```
+
+Alternatively, pass them individually:
 ```bash
 docker run -p 8080:8080 \
-  -e OPENLOBSTER_GRAPHQL_HOST=0.0.0.0 \
-  -e OPENLOBSTER_GRAPHQL_AUTH_TOKEN=your-secret-token \
+  -e OPENLOBSTER_GRAPHQL_AUTH_TOKEN=your-random-token \
   -v ~/.openlobster/data:/app/data \
   -v ~/.openlobster/workspace:/app/workspace \
   -d ghcr.io/neirth/openlobster/openlobster:latest

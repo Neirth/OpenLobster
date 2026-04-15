@@ -7,14 +7,14 @@ services:
       - "8080:8080"
     environment:
       - OPENLOBSTER_GRAPHQL_HOST=0.0.0.0
-      - OPENLOBSTER_GRAPHQL_AUTH_TOKEN=your-secret-token
+      - OPENLOBSTER_GRAPHQL_AUTH_TOKEN=${OPENLOBSTER_GRAPHQL_AUTH_TOKEN:-your-secret-token}
       - OPENLOBSTER_MEMORY_BACKEND=neo4j
       - OPENLOBSTER_MEMORY_NEO4J_URI=bolt://neo4j:7687
       - OPENLOBSTER_MEMORY_NEO4J_USER=neo4j
-      - OPENLOBSTER_MEMORY_NEO4J_PASSWORD=password
+      - OPENLOBSTER_MEMORY_NEO4J_PASSWORD=${NEO4J_PASSWORD:-password123}
       - OPENLOBSTER_SECRETS_BACKEND=openbao
       - OPENLOBSTER_SECRETS_OPENBAO_URL=http://vault:8200
-      - OPENLOBSTER_SECRETS_OPENBAO_TOKEN=myroot
+      - OPENLOBSTER_SECRETS_OPENBAO_TOKEN=${VAULT_ROOT_TOKEN:-myroot}
     depends_on:
       - neo4j
       - vault
@@ -25,7 +25,7 @@ services:
   neo4j:
     image: neo4j:5-community
     environment:
-      - NEO4J_AUTH=neo4j/password
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-password123}
     ports:
       - "7474:7474"
       - "7687:7687"
@@ -35,7 +35,7 @@ services:
   vault:
     image: hashicorp/vault:latest
     environment:
-      - VAULT_DEV_ROOT_TOKEN_ID=myroot
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_ROOT_TOKEN:-myroot}
       - VAULT_ADDR=http://0.0.0.0:8200
     ports:
       - "8200:8200"

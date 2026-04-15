@@ -5,7 +5,7 @@ import path from "path";
 export default defineConfig({
   plugins: [solid()],
   resolve: {
-    dedupe: ["graphql", "@tanstack/solid-query", "@tanstack/query-core"],
+    dedupe: ["graphql", "solid-js", "@solidjs/router", "@tanstack/solid-query"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },

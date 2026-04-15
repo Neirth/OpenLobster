@@ -210,6 +210,32 @@ func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
 		if v, ok := input["model"].(string); ok && v != "" {
 			viper.Set("providers.docker_model_runner.default_model", v)
 		}
+	default:
+		// Intelligent Bridge: If the provider is an unknown plugin, map common fields
+		// into its generic plugins.settings entry. This supports dynamic plugins
+		// while maintaining a stable configuration schema.
+		if provider != "" {
+			settings := viper.GetStringMap(fmt.Sprintf("plugins.settings.%s", provider))
+			if settings == nil {
+				settings = make(map[string]interface{})
+			}
+			touched := false
+			if v, ok := input["apiKey"].(string); ok && v != "" {
+				settings["apiKey"] = v
+				touched = true
+			}
+			if v, ok := input["baseURL"].(string); ok && v != "" {
+				settings["baseURL"] = v
+				touched = true
+			}
+			if v, ok := input["model"].(string); ok && v != "" {
+				settings["model"] = v
+				touched = true
+			}
+			if touched {
+				viper.Set(fmt.Sprintf("plugins.settings.%s", provider), settings)
+			}
+		}
 	}
 
 	if v, ok := input["reasoningLevel"].(string); ok && v != "" {

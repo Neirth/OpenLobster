@@ -168,36 +168,39 @@ const tasks: Task[] = [
     schedule: "0 8 * * *",
     taskType: "cyclic",
     isCyclic: true,
-    createdAt: "2026-01-01T00:00:00Z",
-    lastRunAt: "2026-02-27T08:00:00Z",
+    enabled: true,
+    createdAt: "2026-02-28T08:00:00Z",
+    lastRunAt: "2026-02-28T08:00:00Z",
     nextRunAt: "2026-02-28T08:00:00Z",
   },
   {
     id: "task2",
-    prompt: "Health check",
+    prompt: "Cleanup logs",
     status: "running",
-    schedule: "0 12 * * *",
+    schedule: "0 0 * * *",
     taskType: "cyclic",
     isCyclic: true,
-    createdAt: "2026-01-01T00:00:00Z",
-    lastRunAt: "2026-02-27T12:00:00Z",
+    enabled: true,
+    createdAt: "2026-03-01T00:00:00Z",
+    lastRunAt: "2026-03-01T00:00:00Z",
     nextRunAt: null,
   },
   {
     id: "task3",
-    prompt: "Memory cleanup",
+    prompt: "One-time backup",
     status: "pending",
     schedule: "",
     taskType: "one-shot",
     isCyclic: false,
-    createdAt: "2026-02-20T00:00:00Z",
+    enabled: true,
+    createdAt: "2026-03-01T12:00:00Z",
     lastRunAt: null,
     nextRunAt: "2026-03-02T03:00:00Z",
   },
 ];
 
-const mcpServers: McpServer[] = [
-  { name: "filesystem", transport: "stdio", status: "online", toolCount: 5, url: "http://localhost:8080" },
+export const MOCK_MCP_SERVERS: McpServer[] = [
+  { name: "filesystem", transport: "http", status: "online", toolCount: 5, url: "http://localhost:8080" },
   { name: "github", transport: "http", status: "degraded", toolCount: 8, url: "https://api.github.com" },
   { name: "broken", transport: "http", status: "offline", toolCount: 0 },
 ];
@@ -361,7 +364,7 @@ export const useMessages = (_client?: unknown, _conversationId?: unknown) =>
 export const useTasks = (_client?: unknown) =>
   createMockQuery<Task[] | undefined>(tasks);
 export const useMcpServers = (_client?: unknown) =>
-  createMockQuery<McpServer[] | undefined>(mcpServers);
+  createMockQuery<McpServer[] | undefined>(MOCK_MCP_SERVERS);
 export const useMcpTools = (_client?: unknown) =>
   createMockQuery<McpTool[] | undefined>(mcpTools);
 

@@ -9,9 +9,11 @@ export default defineConfig({
   plugins: [solid()],
   resolve: {
     alias: {
+      "@/ui/hooks": resolve(__dirname, "./tests/ui/hooks"),
       // Swap only the hooks from @openlobster/ui to ui-tests
       // Keep types, graphql, and theme coming from the real package
-      "@openlobster/ui/hooks": uiTestsHooks,
+      "@openlobster/ui/hooks": resolve(__dirname, "./tests/ui/hooks"),
+      "@": resolve(__dirname, "./src"),
     },
   },
   test: {
