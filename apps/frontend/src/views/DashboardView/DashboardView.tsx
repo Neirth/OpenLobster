@@ -21,7 +21,7 @@ import {
   useMcpServers,
   useAgent,
   useConfig,
-} from "@openlobster/ui/hooks";
+} from "@/ui/hooks";
 import { client } from "../../graphql/client";
 import AppShell from "../../components/AppShell";
 import "./DashboardView.css";

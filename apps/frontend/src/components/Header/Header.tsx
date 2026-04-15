@@ -15,7 +15,7 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import type { Component } from "solid-js";
 import type { GraphQLClient } from "graphql-request";
 import { A } from "@solidjs/router";
-import { useAgent } from "@openlobster/ui/hooks";
+import { useAgent } from "@/ui/hooks";
 import { t } from "../../App";
 import { wsConnected } from "../../stores/wsStore";
 import { pendingPairingsQueue, openPairingRequest } from "../../stores/pairingStore";

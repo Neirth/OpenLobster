@@ -1,0 +1,17 @@
+version: '3.8'
+name: openlobster-dev-container
+services:
+  vscode-tunnel:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.vsremote
+    container_name: openlobster-vscode-tunnel
+    user: root # O usa 'vscode' si creas el usuario en el Dockerfile
+    working_dir: /workspace
+    command: >
+      bash -c "code tunnel --accept-server-license-terms --disable-telemetry  --install-extension idoomblast.idoapico --name openlobster-dev-host"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ..:/workspace
+    restart: unless-stopped

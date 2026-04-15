@@ -1,0 +1,87 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique name for the Web App."
+      }
+    },
+    "openaiApiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: OpenAI API Key."
+      }
+    },
+    "openlobsterAuthToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The secret token for GraphQL Dashboard authentication."
+      }
+    },
+    "neo4jPassword": {
+      "type": "securestring",
+      "defaultValue": "password123",
+      "metadata": {
+        "description": "Password for the Neo4j database."
+      }
+    },
+    "vaultRootToken": {
+      "type": "securestring",
+      "defaultValue": "root-token-123",
+      "metadata": {
+        "description": "Initial root token for Vault (Dev Mode)."
+      }
+    }
+  },
+  "variables": {
+    "composePart1": "version: '3.8'\nservices:\n  openlobster:\n    image: ghcr.io/neirth/openlobster/openlobster:latest\n    environment:\n      - OPENLOBSTER_GRAPHQL_HOST=0.0.0.0\n      - OPENLOBSTER_GRAPHQL_AUTH_TOKEN=",
+    "composePart2": "\n      - OPENLOBSTER_MEMORY_BACKEND=neo4j\n      - OPENLOBSTER_MEMORY_NEO4J_URI=bolt://neo4j:7687\n      - OPENLOBSTER_MEMORY_NEO4J_USER=neo4j\n      - OPENLOBSTER_MEMORY_NEO4J_PASSWORD=",
+    "composePart3": "\n      - OPENLOBSTER_SECRETS_BACKEND=openbao\n      - OPENLOBSTER_SECRETS_OPENBAO_URL=http://vault:8200\n      - OPENLOBSTER_SECRETS_OPENBAO_TOKEN=",
+    "composePart4": "\n      - OPENLOBSTER_PROVIDERS_OPENAI_API_KEY=",
+    "composePart5": "\n    networks:\n      - app-net\n  neo4j:\n    image: neo4j:5-community\n    environment:\n      - NEO4J_AUTH=neo4j/",
+    "composePart6": "\n    networks:\n      - app-net\n  vault:\n    image: hashicorp/vault:latest\n    environment:\n      - VAULT_DEV_ROOT_TOKEN_ID=",
+    "composePart7": "\n      - VAULT_ADDR=http://0.0.0.0:8200\n    networks:\n      - app-net\nnetworks:\n  app-net:\n    driver: bridge",
+    "fullCompose": "[concat(variables('composePart1'), parameters('openlobsterAuthToken'), variables('composePart2'), parameters('neo4jPassword'), variables('composePart3'), parameters('vaultRootToken'), variables('composePart4'), parameters('openaiApiKey'), variables('composePart5'), parameters('neo4jPassword'), variables('composePart6'), parameters('vaultRootToken'), variables('composePart7'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2021-03-01",
+      "name": "[concat(parameters('appName'), '-plan')]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "P1v2",
+        "tier": "PremiumV2"
+      },
+      "kind": "linux",
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2021-03-01",
+      "name": "[parameters('appName')]",
+      "location": "[resourceGroup().location]",
+      "kind": "app,linux,container",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', concat(parameters('appName'), '-plan'))]"
+      ],
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', concat(parameters('appName'), '-plan'))]",
+        "siteConfig": {
+          "linuxFxVersion": "[concat('COMPOSE|', base64(variables('fullCompose')))]",
+          "appSettings": [
+            {
+              "name": "WEBSITES_PORT",
+              "value": "8080"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

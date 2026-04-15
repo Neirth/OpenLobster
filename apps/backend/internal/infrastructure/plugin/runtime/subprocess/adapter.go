@@ -14,20 +14,18 @@ import (
 	"time"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
-	pluginrpc "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/protocol"
-	"google.golang.org/grpc"
 )
 
 var errPluginFunctionFailed = errors.New("plugin function failed")
 
 const (
 	defaultCallTimeout        = 10 * time.Second
-	minLongRunningCallTimeout = 2 * time.Minute
-	minStartCallTimeout       = 5 * time.Minute
+	minLongRunningCallTimeout = 02 * time.Minute
+	minStartCallTimeout       = 05 * time.Minute
 	handshakeTimeout          = 10 * time.Second
 )
 
-// Adapter implements ports.PluginPort using a native subprocess and gRPC over socketpair.
+// Adapter implements ports.PluginPort using a native subprocess and JSON-RPC over stdin/stdout.
 type Adapter struct {
 	id         string
 	binaryPath string
@@ -37,8 +35,7 @@ type Adapter struct {
 	cmd         *exec.Cmd
 	stdin       io.WriteCloser
 	stdout      io.ReadCloser
-	grpcConn    *grpc.ClientConn
-	client      pluginrpc.PluginServiceClient
+	conn        *jrpcConn
 	eventCancel context.CancelFunc
 
 	stateMu   sync.RWMutex
@@ -56,6 +53,7 @@ type Adapter struct {
 	description string
 	pluginType  string
 	schemaJSON  []byte
+	properties  json.RawMessage
 }
 
 func NewAdapter(ctx context.Context, binaryPath string, onMessage func([]byte), callTimeout time.Duration) (*Adapter, error) {
@@ -106,6 +104,15 @@ func (a *Adapter) Schema() ([]byte, error) {
 	out := make([]byte, len(a.schemaJSON))
 	copy(out, a.schemaJSON)
 	return out, nil
+}
+
+func (a *Adapter) Properties() []byte {
+	if len(a.properties) == 0 {
+		return []byte("{}")
+	}
+	out := make([]byte, len(a.properties))
+	copy(out, a.properties)
+	return out
 }
 
 func (a *Adapter) HasFunction(function string) bool {
@@ -170,8 +177,9 @@ func (a *Adapter) Call(function string, input []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), effectiveCallTimeout(function, a.callTimeout))
 	defer cancel()
 
-	resp, err := a.client.Call(ctx, &pluginrpc.CallRequest{Function: function, Input: input})
-	if err != nil {
+	// Flat call: method IS the function name, params ARE the input.
+	var resp callResponse
+	if err := a.conn.call(ctx, function, json.RawMessage(input), &resp); err != nil {
 		if shouldTripCircuit(function, err) {
 			a.handleFailureLocked(function, err)
 		}
@@ -191,7 +199,7 @@ func (a *Adapter) Call(function string, input []byte) ([]byte, error) {
 }
 
 func (a *Adapter) ensureReadyLocked(ctx context.Context) error {
-	if a.client != nil {
+	if a.conn != nil {
 		return nil
 	}
 

@@ -15,7 +15,7 @@ vi.mock('../../components/AppShell/AppShell', () => ({ default: (props: any) => 
 
 vi.mock('../../components/GraphVisualization', () => ({ default: () => <div class="graph-visualization-mock" /> }));
 
-vi.mock('@openlobster/ui/hooks', () => ({ useMemory: () => ({ data: mockMemoryData, isLoading: false, error: null, refetch: vi.fn() }) }));
+vi.mock('@/ui/hooks', () => ({ useMemory: () => ({ data: mockMemoryData, isLoading: false, error: null, refetch: vi.fn() }) }));
 
 vi.mock('../../graphql/client', () => ({ client: { request: vi.fn((mutation: any, vars: any) => {
   if (mutation && mutation.includes('update')) {

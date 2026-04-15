@@ -26,6 +26,7 @@
   <a href="https://github.com/Neirth/OpenLobster/discussions"><img src="https://img.shields.io/badge/Q%26A-1E232A?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Discussions"></a>
 </p>
 
+
 > [!NOTE]
 > **Migrating from OpenClaw?** A step-by-step migration guide is available in [Discussions #44](https://github.com/Neirth/OpenLobster/discussions/44).
 
@@ -69,7 +70,17 @@ This fork started as a personal fix for all of that and grew from there.
 | Channels | Telegram, Discord, WhatsApp, Slack, Twilio SMS |
 | AI | OpenAI, Anthropic, Ollama, OpenRouter, Docker Model Runner, OpenAI-compatible |
 
-## Quick start
+## Quick Deploy
+
+<p align="center">
+  <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FNeirth%2FOpenLobster%2Fmain%2Finfrastructure%2Fazure%2Fazuredeploy.json"><img src="docs/assets/deploy-azure.svg" alt="Deploy to Azure" height="32"></a>
+  <a href="https://deploy.cloud.run/?git_repo=https://github.com/Neirth/OpenLobster.git"><img src="docs/assets/deploy-gcp.svg" alt="Deploy to GCP" height="32"></a>
+  <a href="https://www.digitalocean.com/manage/apps/new?config=https://github.com/Neirth/OpenLobster/blob/main/infrastructure/digitalocean/app.yaml"><img src="docs/assets/deploy-digitalocean.svg" alt="Deploy to DigitalOcean" height="32"></a>
+  <br>
+  <em>One-click deployment — includes automatic Neo4j (Memory) and Vault (Secrets) setup.</em>
+</p>
+
+## Manual Deploy
 
 ```bash
 # Install dependencies

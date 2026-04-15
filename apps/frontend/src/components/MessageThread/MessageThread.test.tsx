@@ -50,11 +50,11 @@ vi.mock("../../graphql/client", () => ({
   client: { request: mockRequest },
 }));
 
-vi.mock("@openlobster/ui/graphql/queries", () => ({
+vi.mock("@/ui/graphql/queries", () => ({
   MESSAGES_QUERY: "MESSAGES_QUERY",
 }));
 
-vi.mock("@openlobster/ui/hooks", () => ({
+vi.mock("@/ui/hooks", () => ({
   useConfig: () => ({
     data: { agentName: "OpenLobster", agent: { name: "OpenLobster" } },
     isLoading: false,
@@ -63,7 +63,7 @@ vi.mock("@openlobster/ui/hooks", () => ({
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-import type { Message } from "@openlobster/ui/types";
+import type { Message } from "@/ui/types";
 import MessageThread from "./MessageThread";
 
 function makeMsg(overrides: Partial<Message> & { id: string }): Message {

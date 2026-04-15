@@ -1,0 +1,55 @@
+name: openlobster
+region: nyc
+services:
+  - name: backend
+    image:
+      registry_type: GHCR
+      repository: ghcr.io/neirth/openlobster/openlobster
+      tag: latest
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: OPENLOBSTER_GRAPHQL_HOST
+        value: 0.0.0.0
+      - key: OPENLOBSTER_GRAPHQL_AUTH_TOKEN
+        value: ${{OPENLOBSTER_GRAPHQL_AUTH_TOKEN}}
+      - key: OPENLOBSTER_MEMORY_BACKEND
+        value: neo4j
+      - key: OPENLOBSTER_MEMORY_NEO4J_URI
+        value: bolt://neo4j:7687
+      - key: OPENLOBSTER_MEMORY_NEO4J_USER
+        value: neo4j
+      - key: OPENLOBSTER_MEMORY_NEO4J_PASSWORD
+        value: ${{NEO4J_PASSWORD}}
+      - key: OPENLOBSTER_SECRETS_BACKEND
+        value: openbao
+      - key: OPENLOBSTER_SECRETS_OPENBAO_URL
+        value: http://vault:8200
+      - key: OPENLOBSTER_SECRETS_OPENBAO_TOKEN
+        value: ${{VAULT_ROOT_TOKEN}}
+
+  - name: neo4j
+    image:
+      registry: neo4j
+      repository: neo4j
+      tag: 5-community
+    internal_ports:
+      - 7687
+      - 7474
+    envs:
+      - key: NEO4J_AUTH
+        value: neo4j/${{NEO4J_PASSWORD}}
+
+  - name: vault
+    image:
+      registry: hashicorp
+      repository: vault
+      tag: latest
+    internal_ports:
+      - 8200
+    envs:
+      - key: VAULT_DEV_ROOT_TOKEN_ID
+        value: ${{VAULT_ROOT_TOKEN}}
+      - key: VAULT_ADDR
+        value: http://0.0.0.0:8200

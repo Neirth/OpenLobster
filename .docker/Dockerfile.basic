@@ -1,30 +1,43 @@
 #########################################################################
 # Application build stage: Build the Go backend and frontend and produce a static binary.
 #########################################################################
-FROM dhi.io/golang:1.26-debian13-dev AS backend-build
+FROM dhi.io/debian-base:trixie-debian13-dev AS backend-build
 
-# Install Node.js and pnpm to run backend build scripts
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm jq && rm -rf /var/lib/apt/lists/* \
-    && corepack enable && corepack prepare pnpm@9.1.0 --activate
+# Install Go, Node.js, Rust, and build tools via APT
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    golang nodejs npm jq curl build-essential musl-tools rustup \
+    && rm -rf /var/lib/apt/lists/* \
+    && rustup set profile minimal \
+    && rustup toolchain install stable \
+    && rustup default stable \
+    && corepack enable && corepack prepare pnpm@10.33.0 --activate
 
-# Copy project files
+ENV PATH="/root/.cargo/bin:${PATH}"
+ENV OPENSSL_DIR=/nonexistent
+ENV OPENSSL_NO_VENDOR=1
+ENV OPENSSL_STATIC=1
+
+# Project setup
 COPY . /build
 WORKDIR /build
 
-# Download Go module dependencies
-WORKDIR /build/apps/backend
-RUN go mod tidy && go mod download
-WORKDIR /build
+# Build everything via the root Makefile
+# Use TARGETARCH to select the correct static target
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        rustup target add aarch64-unknown-linux-musl && \
+        export CARGO_BUILD_TARGET=aarch64-unknown-linux-musl && \
+        TARGET=linux-arm64; \
+    else \
+        rustup target add x86_64-unknown-linux-musl && \
+        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl && \
+        TARGET=linux-amd64; \
+    fi && \
+    export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc && \
+    export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc && \
+    make build-prod TARGET=$TARGET IS_CROSS=0
 
-# Install workspace (needed for pnpm --filter)
-RUN pnpm install --ignore-scripts
-
-# Build Go backend as static binary (CGO_ENABLED=0 required for scratch image)
-ENV CGO_ENABLED=0
-RUN pnpm build
-
-# Generate the folders with proper permissions for the final image without using unix commands, only docker layer commands.
-# Create .ollama so the Ollama SDK has a writable path (avoids "Failed to load private key" noise when OLLAMA_AUTH is used)
+# Generate the folders with proper permissions
 RUN mkdir -p /app/{bin,config,data,logs,.ollama} && \
     chown -R nonroot:nonroot /app && \
     chmod -R 755 /app
@@ -52,12 +65,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     && rm -rf /var/lib/apt/lists/*
 
-# Create nonroot user directories (nonroot user already exists in base image)
+# Create nonroot user directories
 COPY --chown=nonroot:nonroot --from=backend-build /app /app
 WORKDIR /app
 
-# Persist config, DB, workspace under /app (writable). Without this, serve uses
-# $HOME/.openlobster which often fails in containers (missing or read-only HOME).
 ENV HOME=/app
 
 # Switch to nonroot user and set the working directory
@@ -72,10 +83,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Explicit serve + data dir so listen/bind and SQLite paths are correct
 CMD ["/app/bin/openlobster", "serve", "--data-dir", "/app"]
 
-# Persist data: docker run -v openlobster-data:/app ...
 LABEL maintainer="neirth <7413024+Neirth@users.noreply.github.com>" \
     org.opencontainers.image.title="OpenLobster" \
-    org.opencontainers.image.description="OpenLobster is a self-hosted, open-source personal ai autonomous agent platform built with Go and Solid.js, designed to run on your own hardware for maximum privacy and control." \
-    org.opencontainers.image.licenses="GPLv3" \
-    org.opencontainers.image.source="https://github.com/neirth/OpenLobster" \
-    org.opencontainers.image.created="2026-02-14"
+    org.opencontainers.image.description="OpenLobster is a self-hosted, open-source personal ai autonomous agent platform built with Go and Solid.js."

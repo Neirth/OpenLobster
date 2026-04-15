@@ -25,14 +25,14 @@ vi.mock("../../graphql/client", () => ({
   client: { request: vi.fn(() => Promise.resolve({})) },
 }));
 
-vi.mock("@openlobster/ui/graphql/mutations", () => ({
+vi.mock("@/ui/graphql/mutations", () => ({
   ADD_TASK_MUTATION: "ADD_TASK_MUTATION",
   REMOVE_TASK_MUTATION: "REMOVE_TASK_MUTATION",
   TOGGLE_TASK_MUTATION: "TOGGLE_TASK_MUTATION",
   UPDATE_TASK_MUTATION: "UPDATE_TASK_MUTATION",
 }));
 
-vi.mock("@openlobster/ui/hooks", () => ({
+vi.mock("@/ui/hooks", () => ({
   useTasks: () => ({
     data: [],
     isLoading: false,

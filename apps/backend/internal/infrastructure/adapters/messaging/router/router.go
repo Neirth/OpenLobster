@@ -92,7 +92,7 @@ func NewRouter(reg *Registry) *Router {
 	return &Router{reg: reg}
 }
 
-func (m *Router) SendTyping(ctx context.Context, channelID string) error {
+func (m *Router) SendTyping(ctx context.Context, channelID string, duration_ms int) error {
 	ct, _ := ctx.Value(ports.ContextKeyChannelType).(string)
 	if ct == "" {
 		return nil
@@ -101,7 +101,7 @@ func (m *Router) SendTyping(ctx context.Context, channelID string) error {
 	if adapter == nil {
 		return nil
 	}
-	return adapter.SendTyping(ctx, channelID)
+	return adapter.SendTyping(ctx, channelID, duration_ms)
 }
 
 func (m *Router) SendMessage(ctx context.Context, msg *models.Message) error {

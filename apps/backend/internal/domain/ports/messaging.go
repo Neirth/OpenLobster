@@ -30,9 +30,9 @@ const (
 type MessagingPort interface {
 	SendMessage(ctx context.Context, msg *models.Message) error
 	SendMedia(ctx context.Context, media *Media) error
-	// SendTyping shows a typing indicator to the user. No-op if not supported.
-	// Used before sending a delayed response to give feedback.
-	SendTyping(ctx context.Context, channelID string) error
+	// SendTyping shows a typing indicator to the user for approximately the
+	// given duration. No-op if not supported.
+	SendTyping(ctx context.Context, channelID string, duration_ms int) error
 	// HandleWebhook processes inbound HTTP webhook payloads.
 	// Payload is a JSON-serialized webhook envelope produced by the host
 	// (method, path, query, headers, body).

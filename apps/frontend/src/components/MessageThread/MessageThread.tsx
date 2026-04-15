@@ -11,9 +11,9 @@
 import type { Component } from 'solid-js';
 import { createSignal, For, Show, createEffect, batch, createMemo } from 'solid-js';
 import { useQueryClient } from '@tanstack/solid-query';
-import { useConfig } from '@openlobster/ui/hooks';
-import { MESSAGES_QUERY } from '@openlobster/ui/graphql/queries';
-import type { Message } from '@openlobster/ui/types';
+import { useConfig } from '@/ui/hooks';
+import { MESSAGES_QUERY } from '@/ui/graphql/queries';
+import type { Message } from '@/ui/types';
 import { renderMarkdown } from '../../lib/markdown';
 import { t } from '../../App';
 import { client } from '../../graphql/client';

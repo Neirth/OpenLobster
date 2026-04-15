@@ -14,7 +14,7 @@
  * @module graphql/client
  */
 
-import { createGraphqlClient } from '@openlobster/ui/graphql';
+import { createGraphqlClient } from '@/ui/graphql';
 import { getStoredToken, setNeedsAuth } from '../stores/authStore';
 
 /** GraphQL endpoint: same-origin /graphql so it works on any domain (e.g. https://agent.hoki-ghoul.ts.net). */

@@ -14,9 +14,9 @@
 import type { Component } from 'solid-js';
 import { For, Index, createMemo, createSignal, Show } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
-import { useMemory } from '@openlobster/ui/hooks';
-import type { MemoryNode } from '@openlobster/ui/types';
-import { UPDATE_MEMORY_NODE_MUTATION, DELETE_MEMORY_NODE_MUTATION, DELETE_RELATION_MUTATION } from '@openlobster/ui/graphql/mutations';
+import { useMemory } from '@/ui/hooks';
+import type { MemoryNode } from '@/ui/types';
+import { UPDATE_MEMORY_NODE_MUTATION, DELETE_MEMORY_NODE_MUTATION, DELETE_RELATION_MUTATION } from '@/ui/graphql/mutations';
 import { client } from '../../graphql/client';
 import AppShell from '../../components/AppShell';
 import Modal from '../../components/Modal';

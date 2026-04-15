@@ -3,7 +3,7 @@
 import type { Component } from 'solid-js';
 import { For, Show, Suspense, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
-import { useMcpServers, useMcpUsers, useMcpTools, useToolPermissions, useConfig } from '@openlobster/ui/hooks';
+import { useMcpServers, useMcpUsers, useMcpTools, useToolPermissions, useConfig } from '@/ui/hooks';
 import {
   CONNECT_MCP_MUTATION,
   DISCONNECT_MCP_MUTATION,
@@ -11,7 +11,7 @@ import {
   SET_TOOL_PERMISSION_MUTATION,
   DELETE_TOOL_PERMISSION_MUTATION,
   SET_ALL_TOOL_PERMISSIONS_MUTATION,
-} from '@openlobster/ui/graphql/mutations';
+} from '@/ui/graphql/mutations';
 import { client } from '../../graphql/client';
 import AppShell from '../../components/AppShell';
 import Modal from '../../components/Modal';

@@ -27,7 +27,7 @@ func New() *Adapter { return &Adapter{} }
 func (a *Adapter) SendMessage(_ context.Context, _ *models.Message) error { return nil }
 
 // SendTyping is a no-op for the loopback channel.
-func (a *Adapter) SendTyping(_ context.Context, _ string) error { return nil }
+func (a *Adapter) SendTyping(_ context.Context, _ string, _ int) error { return nil }
 
 // SendMedia is a no-op for the loopback channel.
 func (a *Adapter) SendMedia(_ context.Context, _ *ports.Media) error { return nil }

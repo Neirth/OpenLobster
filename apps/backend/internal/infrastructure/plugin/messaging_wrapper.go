@@ -102,6 +102,12 @@ type sendPluginInput struct {
 	Message *models.Message        `json:"message"`
 }
 
+type typingPluginInput struct {
+	Config     map[string]interface{} `json:"config"`
+	Message    *models.Message        `json:"message"`
+	DurationMS int                    `json:"duration_ms"`
+}
+
 type convertAudioPluginInput struct {
 	Config map[string]interface{} `json:"config"`
 	Audio  string                 `json:"audio"`
@@ -156,7 +162,7 @@ func (w *MessagingWrapper) SendMedia(_ context.Context, _ *ports.Media) error {
 	return nil // optional — plugins may not support media
 }
 
-func (w *MessagingWrapper) SendTyping(ctx context.Context, channelID string) error {
+func (w *MessagingWrapper) SendTyping(ctx context.Context, channelID string, duration_ms int) error {
 	msg := models.NewMessage(channelID, "")
 	if msg.Metadata == nil {
 		msg.Metadata = make(map[string]interface{})
@@ -175,7 +181,13 @@ func (w *MessagingWrapper) SendTyping(ctx context.Context, channelID string) err
 	outbound := *msg
 	outbound.ChannelID = resolvedChannelID
 
-	raw, err := json.Marshal(sendPluginInput{Config: w.currentConfig(), Message: &outbound})
+	input := typingPluginInput{
+		Config:     w.currentConfig(),
+		Message:    &outbound,
+		DurationMS: duration_ms,
+	}
+
+	raw, err := json.Marshal(input)
 	if err != nil {
 		return fmt.Errorf("messaging plugin %s: marshal typing: %w", w.plugin.ID(), err)
 	}
@@ -217,15 +229,20 @@ func (w *MessagingWrapper) InboundMode() string {
 	w.inboundModeOnce.Do(func() {
 		w.inboundMode = ports.InboundModePolling
 
-		out, err := w.plugin.Call(inboundModeFn, nil)
-		if err != nil {
-			log.Printf("messaging plugin %s: %s unavailable, defaulting to %s: %v", w.plugin.ID(), inboundModeFn, ports.InboundModePolling, err)
+		raw := w.plugin.Properties()
+		if len(raw) == 0 {
 			return
 		}
 
-		mode, parseErr := parseInboundModeOutput(out)
+		var props struct {
+			InboundMode string `json:"inbound_mode"`
+		}
+		if err := json.Unmarshal(raw, &props); err != nil {
+			return
+		}
+
+		mode, parseErr := parseInboundModeOutput([]byte(props.InboundMode))
 		if parseErr != nil {
-			log.Printf("messaging plugin %s: %v; defaulting to %s", w.plugin.ID(), parseErr, ports.InboundModePolling)
 			return
 		}
 		w.inboundMode = mode
@@ -296,15 +313,18 @@ func (w *MessagingWrapper) React(_ context.Context, _ string, _ string) error {
 }
 
 func (w *MessagingWrapper) GetCapabilities() ports.ChannelCapabilities {
-	out, err := w.plugin.Call("capabilities", nil)
-	if err != nil || len(out) == 0 {
+	raw := w.plugin.Properties()
+	if len(raw) == 0 {
 		return ports.GetCapabilitiesForType(w.channelType)
 	}
-	var caps ports.ChannelCapabilities
-	if err := json.Unmarshal(out, &caps); err != nil {
+
+	var props struct {
+		Capabilities ports.ChannelCapabilities `json:"capabilities"`
+	}
+	if err := json.Unmarshal(raw, &props); err != nil {
 		return ports.GetCapabilitiesForType(w.channelType)
 	}
-	return caps
+	return props.Capabilities
 }
 
 func (w *MessagingWrapper) ConvertAudioForPlatform(_ context.Context, audioData []byte, format string) ([]byte, string, error) {
@@ -416,19 +436,10 @@ func (w *MessagingWrapper) Start(ctx context.Context, _ func(context.Context, *m
 		_ = prevRunner.Close()
 	}
 
-	log.Printf(
-		"messaging plugin %s: start loop launching (channel=%s, inbound_mode=%s, generation=%d, dedicated=%t)",
-		w.plugin.ID(), w.channelType, inboundMode, generation, dedicated,
-	)
-
 	// Run in a goroutine — the plugin's start loop is blocking. If the loop
 	// exits unexpectedly, try to recover so inbound channel delivery keeps working.
 	go func(loopGen uint64) {
 		defer func() {
-			log.Printf(
-				"messaging plugin %s: start loop exited cleanly (channel=%s, generation=%d)",
-				w.plugin.ID(), w.channelType, loopGen,
-			)
 			if dedicated {
 				_ = runner.Close()
 			}
@@ -527,10 +538,6 @@ func (w *MessagingWrapper) Start(ctx context.Context, _ func(context.Context, *m
 			}
 
 			sleepFor := restartDelayWithJitter(backoff)
-			log.Printf(
-				"messaging plugin %s: scheduling restart attempt #%d in %s (last_runtime=%s)",
-				w.plugin.ID(), attempt+1, sleepFor.Round(time.Millisecond), runtime.Round(time.Millisecond),
-			)
 			select {
 			case <-loopCtx.Done():
 				return

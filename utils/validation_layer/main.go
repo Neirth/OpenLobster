@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/neirth/openlobster/utils/validation_layer/src/smoke"
+	"github.com/neirth/openlobster/utils/validation_layer/src/types"
 )
 
 func main() {
@@ -15,11 +18,18 @@ func main() {
 }
 
 func run() int {
-	pluginsDir := flag.String("plugins-dir", "./plugins", "Path to plugins directory")
-	pluginSelector := flag.String("plugin", "", "Plugin selector: name, substring, or plugin directory path")
 	smokeConfigArg := flag.String("config", "", "JSON object (or @file.json) passed as config to smoke tests")
+	recipient := flag.String("recipient", "", "Optional recipient/channel ID for messaging smoke tests")
+	expect := flag.String("expect", "", "Optional expected content of inbound message (default: OK)")
 	jsonOutput := flag.Bool("json", false, "Emit report as JSON")
 	flag.Parse()
+
+	args := flag.Args()
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "usage: validator [--config <json|@file>] [--recipient <id>] [--expect <text>] [--json] <binary-path>\n")
+		return 2
+	}
+	binaryPath := args[0]
 
 	smokeConfig, err := parseConfigArg(*smokeConfigArg)
 	if err != nil {
@@ -27,8 +37,11 @@ func run() int {
 		return 2
 	}
 
-	report, err := ValidatePluginsWithOptions(*pluginsDir, *pluginSelector, ValidateOptions{
-		SmokeConfig: smokeConfig,
+	// Use modular validator from the smoke package
+	report, err := smoke.ValidatePluginBinary(binaryPath, types.ValidateOptions{
+		SmokeConfig:            smokeConfig,
+		SmokeTestRecipient:    *recipient,
+		ExpectedInboundContent: *expect,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "validator error: %v\n", err)
@@ -80,39 +93,46 @@ func parseConfigArg(raw string) (map[string]any, error) {
 	return cfg, nil
 }
 
-func printTextReport(report Report) {
-	fmt.Printf("Plugin validation report\n")
-	fmt.Printf("  Plugins dir: %s\n", report.PluginsDir)
-	fmt.Printf("  Plugins scanned: %d\n", len(report.Plugins))
-	fmt.Printf("  Errors: %d\n", report.ErrorCount())
-	fmt.Printf("  Smoke failures: %d\n", smokeIssueSummary(report))
-	fmt.Printf("\n")
+func printTextReport(report types.PluginReport) {
+	status := "OK"
+	if report.ErrorCount() > 0 {
+		status = "ERROR"
+	}
 
-	for _, plugin := range report.Plugins {
-		status := "OK"
-		if plugin.ErrorCount() > 0 {
-			status = "ERROR"
-		} else if plugin.WarningCount() > 0 {
-			status = "WARN"
-		}
+	typeLabel := report.Type
+	if strings.TrimSpace(typeLabel) == "" {
+		typeLabel = "unknown"
+	}
 
-		typeLabel := plugin.Type
-		if strings.TrimSpace(typeLabel) == "" {
-			typeLabel = "unknown"
+	fmt.Printf("Plugin: %s  Binary: %s  Type: %s\n", report.Name, report.Binary, typeLabel)
+	if report.ID != "" {
+		fmt.Printf("ID: %s  Version: %s\n", report.ID, report.Version)
+	}
+	if len(report.Exports) > 0 {
+		fmt.Printf("Exports (%d): %s\n", len(report.Exports), strings.Join(report.Exports, ", "))
+	}
+	fmt.Printf("Status: %s\n", status)
+	for _, issue := range report.Issues {
+		path := issue.File
+		if strings.TrimSpace(path) == "" {
+			path = "(n/a)"
 		}
+		fmt.Printf("  - %s [%s] %s (%s)\n", strings.ToUpper(string(issue.Severity)), issue.Rule, issue.Message, path)
+	}
+}
 
-		fmt.Printf("[%s] %s (%s)\n", status, plugin.Name, typeLabel)
-		fmt.Printf("  ID: %s\n", plugin.ID)
-		if len(plugin.Exports) > 0 {
-			fmt.Printf("  Exports (%d): %s\n", len(plugin.Exports), strings.Join(plugin.Exports, ", "))
-		}
-		for _, issue := range plugin.Issues {
-			path := issue.File
-			if strings.TrimSpace(path) == "" {
-				path = "(n/a)"
-			}
-			fmt.Printf("  - %s [%s] %s (%s)\n", strings.ToUpper(string(issue.Severity)), issue.Rule, issue.Message, path)
-		}
-		fmt.Println()
+func configString(cfg map[string]any, key string) string {
+	if cfg == nil {
+		return ""
+	}
+	value, ok := cfg[key]
+	if !ok || value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", typed))
 	}
 }

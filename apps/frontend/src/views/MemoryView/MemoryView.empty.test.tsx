@@ -37,12 +37,12 @@ vi.mock("@tanstack/solid-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
-vi.mock("@openlobster/ui/graphql/mutations", () => ({
+vi.mock("@/ui/graphql/mutations", () => ({
   UPDATE_MEMORY_NODE_MUTATION: "UPDATE_MEMORY_NODE_MUTATION",
   DELETE_MEMORY_NODE_MUTATION: "DELETE_MEMORY_NODE_MUTATION",
 }));
 
-vi.mock("@openlobster/ui/hooks", () => ({
+vi.mock("@/ui/hooks", () => ({
   useMemory: () => ({
     data: { nodes: [], edges: [] },
     isLoading: false,

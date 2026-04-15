@@ -83,8 +83,8 @@ vi.mock("./graphql/client", () => ({
 }));
 
 // CSS imports — vite-plugin-solid handles these, but mock for safety
-vi.mock("@openlobster/ui/styles/tokens.css", () => ({}));
-vi.mock("@openlobster/ui/styles/reset.css", () => ({}));
+vi.mock("@/ui/styles/tokens.css", () => ({}));
+vi.mock("@/ui/styles/reset.css", () => ({}));
 vi.mock("./styles/global.css", () => ({}));
 
 // Lazy view mocks

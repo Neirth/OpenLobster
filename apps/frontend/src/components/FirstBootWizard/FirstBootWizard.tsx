@@ -13,12 +13,12 @@ import {
 import { createMutation, useQueryClient } from "@tanstack/solid-query";
 import { t } from "../../App";
 import { getStoredToken, setNeedsAuth } from "../../stores/authStore";
-import { CONFIG_QUERY, PLUGINS_QUERY } from "@openlobster/ui/graphql/queries";
+import { CONFIG_QUERY, PLUGINS_QUERY } from "@/ui/graphql/queries";
 import {
   CONNECT_MCP_MUTATION,
   INITIATE_OAUTH_MUTATION,
-} from "@openlobster/ui/graphql/mutations";
-import { UPDATE_CONFIG_MUTATION } from "@openlobster/ui/graphql/mutations";
+} from "@/ui/graphql/mutations";
+import { UPDATE_CONFIG_MUTATION } from "@/ui/graphql/mutations";
 import { GRAPHQL_ENDPOINT } from "../../graphql/client";
 import { client } from "../../graphql/client";
 import { Input } from "../Input/Input";

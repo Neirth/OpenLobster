@@ -57,3 +57,8 @@ icon: book-open
 * [Overview](settings/README.md)
 * [Configuration Editor](settings/configuration.md)
 * [Workspace Files Editor](settings/workspace-files.md)
+
+## Plugins
+
+* [Overview](plugins/README.md)
+* [Creating Custom Plugins](plugins/create.md)
