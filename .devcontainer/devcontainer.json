@@ -1,0 +1,36 @@
+// Copyright (c) OpenLobster contributors
+// SPDX-License-Identifier: MIT
+{
+  "name": "OpenLobster Dev Container",
+  "dockerFile": "Dockerfile.vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers-contrib/features/rustup-as-extension:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.useLanguageServer": true,
+        "eslint.enable": true,
+        "editor.formatOnSave": true,
+        "chat.tools.terminal.enableAutoApprove": true
+      },
+      "extensions": [
+        "golang.Go",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "ms-azuretools.vscode-docker",
+        "GitHub.copilot",
+        "GitHub.vscode-pull-request-github",
+        "idoomblast.idoapico"
+      ]
+    }
+  },
+  "forwardPorts": [5173, 8080, 9229],
+  "postCreateCommand": "pnpm install && pnpm --filter @openlobster/backend build && pnpm --filter @openlobster/frontend build"
+}

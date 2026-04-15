@@ -7,13 +7,13 @@ import { getStoredToken } from "../../stores/authStore";
 import { GRAPHQL_ENDPOINT } from "../../graphql/client";
 import {
   PLUGINS_QUERY,
-} from "@openlobster/ui/graphql/queries";
+} from "@/ui/graphql/queries";
 import {
   UPDATE_CONFIG_MUTATION,
   RELOAD_PLUGINS_MUTATION,
   SET_PLUGIN_ENABLED_MUTATION,
   UPDATE_PLUGIN_CONFIG_MUTATION,
-} from "@openlobster/ui/graphql/mutations";
+} from "@/ui/graphql/mutations";
 import "./PluginsSection.css";
 
 interface Plugin {

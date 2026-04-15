@@ -41,7 +41,7 @@ vi.mock("../../stores/pairingStore", () => ({
   setOpenPairingRequestHandler: mockSetOpenPairingRequestHandler,
 }));
 
-vi.mock("@openlobster/ui/hooks", () => ({
+vi.mock("@/ui/hooks", () => ({
   createSubscriptionManager: mockCreateSubscriptionManager,
 }));
 

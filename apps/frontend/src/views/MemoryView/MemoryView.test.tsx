@@ -33,7 +33,7 @@ vi.mock("../../components/GraphVisualization", () => ({
   default: () => <div class="graph-visualization-mock" />,
 }));
 
-vi.mock("@openlobster/ui/hooks", () => ({
+vi.mock("@/ui/hooks", () => ({
   useMemory: () => ({
     data: mockMemoryData,
     isLoading: false,

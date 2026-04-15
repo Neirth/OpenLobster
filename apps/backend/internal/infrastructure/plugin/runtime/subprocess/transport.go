@@ -3,33 +3,134 @@
 package subprocess
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
-
-	pluginrpc "github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/protocol"
-	"github.com/neirth/openlobster/plugins/openlobster-sdk-base/src/sdk/transport/stdio"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
-type pluginMetadataPayload struct {
-	ID          string          `json:"id,omitempty"`
-	Name        string          `json:"name,omitempty"`
-	Version     string          `json:"version,omitempty"`
-	Description string          `json:"description,omitempty"`
-	Type        string          `json:"type,omitempty"`
-	Schema      json.RawMessage `json:"schema,omitempty"`
-	Properties  json.RawMessage `json:"properties,omitempty"`
+// jrpcConn is a JSON-RPC 2.0 client over a plugin's stdin/stdout pipes.
+// Requests are written to stdin; responses and notifications are read from
+// stdout. Both sides may initiate requests at any time; all IDs are UUID v4
+// strings. All methods are safe for concurrent use.
+type jrpcConn struct {
+	writer  *rpcWriter
+	pending sync.Map // string (UUID) → chan *jrpcResult
 }
+
+type jrpcResult struct {
+	result json.RawMessage
+	err    *rpcError
+}
+
+func newJRPCConn(stdin io.Writer) *jrpcConn {
+	return &jrpcConn{writer: newRPCWriter(stdin)}
+}
+
+func (c *jrpcConn) call(ctx context.Context, method string, params any, out any) error {
+	id, err := c.writer.call(method, params)
+	if err != nil {
+		return fmt.Errorf("jsonrpc write %s: %w", method, err)
+	}
+
+	ch := make(chan *jrpcResult, 1)
+	c.pending.Store(id, ch)
+	defer c.pending.Delete(id)
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case res := <-ch:
+		if res.err != nil {
+			return errors.New(res.err.Message)
+		}
+		if out != nil && len(res.result) > 0 {
+			return json.Unmarshal(res.result, out)
+		}
+		return nil
+	}
+}
+
+// dispatch routes an incoming response to the call() future that is awaiting it.
+func (c *jrpcConn) dispatch(msg *rpcMessage) {
+	if msg.ID == nil {
+		return
+	}
+	val, ok := c.pending.LoadAndDelete(*msg.ID)
+	if !ok {
+		return
+	}
+	ch := val.(chan *jrpcResult)
+	ch <- &jrpcResult{result: msg.Result, err: msg.Error}
+}
+
+// respond writes a JSON-RPC 2.0 response for a plugin-initiated request back
+// to the plugin's stdin.
+func (c *jrpcConn) respond(id string, result json.RawMessage, rpcErr *rpcError) error {
+	return c.writer.respond(id, result, rpcErr)
+}
+
+// ---------------------------------------------------------------------------
+// readLoop
+// ---------------------------------------------------------------------------
+
+// readLoop reads stdout of the plugin process and classifies each message:
+//
+//   - Response (has id, no method): routed to the call() future via dispatch.
+//   - Plugin-initiated request (has method + id): dispatched to onPluginRequest
+//     in a new goroutine so the read loop is never blocked.
+//   - Notification (has method, no id): dispatched to onNotification inline.
+//
+// onNotification and onPluginRequest may be nil (messages are silently dropped).
+func readLoop(
+	stdout io.Reader,
+	conn *jrpcConn,
+	onNotification func(method string, params json.RawMessage),
+	onPluginRequest func(id string, method string, params json.RawMessage),
+) {
+	scanner := newRPCScanner(stdout)
+	for {
+		msg, err := scanner.scan()
+		if err != nil {
+			return
+		}
+		if msg == nil {
+			return
+		}
+
+		if msg.Method != "" {
+			if msg.ID != nil {
+				// Plugin-initiated request — the plugin expects a response.
+				if onPluginRequest != nil {
+					id := *msg.ID
+					params := append(json.RawMessage(nil), msg.Params...)
+					go onPluginRequest(id, msg.Method, params)
+				}
+			} else {
+				// Fire-and-forget notification.
+				if onNotification != nil {
+					onNotification(msg.Method, msg.Params)
+				}
+			}
+			continue
+		}
+
+		// No method field: response to a host-initiated call.
+		conn.dispatch(msg)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Schema normalisation helper
+// ---------------------------------------------------------------------------
 
 func normalizeMetadataSchema(raw json.RawMessage) []byte {
 	trimmed := bytes.TrimSpace(raw)
@@ -49,134 +150,119 @@ func normalizeMetadataSchema(raw json.RawMessage) []byte {
 	return append([]byte(nil), trimmed...)
 }
 
-func (a *Adapter) startLocked(ctx context.Context) error {
-	hostConn, childFile, err := openSocketpair()
-	if err != nil {
-		return err
-	}
+// ---------------------------------------------------------------------------
+// Adapter lifecycle
+// ---------------------------------------------------------------------------
 
+func (a *Adapter) startLocked(ctx context.Context) error {
 	cmd := exec.Command(a.binaryPath)
 	cmd.Stderr = os.Stderr
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		_ = hostConn.Close()
-		_ = childFile.Close()
 		return fmt.Errorf("plugin %s: stdin pipe: %w", a.id, err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		_ = hostConn.Close()
-		_ = childFile.Close()
 		_ = stdin.Close()
 		return fmt.Errorf("plugin %s: stdout pipe: %w", a.id, err)
 	}
-	cmd.ExtraFiles = []*os.File{childFile}
 
 	if err := cmd.Start(); err != nil {
-		_ = hostConn.Close()
-		_ = childFile.Close()
 		_ = stdin.Close()
 		_ = stdout.Close()
 		return fmt.Errorf("plugin %s: start %s: %w", a.id, a.binaryPath, err)
 	}
-	_ = childFile.Close()
 
-	if err := stdio.WriteFrame(stdin, stdio.HandshakeFrame{
-		Type:      stdio.HandshakeTypeRequest,
-		Version:   stdio.HandshakeVersion,
-		Transport: "grpc_socketpair",
-		FD:        3,
-	}); err != nil {
-		_ = hostConn.Close()
-		_ = stdin.Close()
-		_ = stdout.Close()
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
-		return fmt.Errorf("plugin %s: write handshake: %w", a.id, err)
-	}
+	conn := newJRPCConn(stdin)
 
-	ack, err := readHandshakeAck(stdout, handshakeTimeout)
-	if err != nil {
-		_ = hostConn.Close()
-		_ = stdin.Close()
-		_ = stdout.Close()
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
-		return fmt.Errorf("plugin %s: handshake ack: %w", a.id, err)
-	}
-	if ack.Type != stdio.HandshakeTypeAck || !ack.OK {
-		_ = hostConn.Close()
-		_ = stdin.Close()
-		_ = stdout.Close()
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
-		if strings.TrimSpace(ack.Error) != "" {
-			return fmt.Errorf("plugin %s: handshake rejected: %s", a.id, strings.TrimSpace(ack.Error))
+	// onNotification handles fire-and-forget messages from the plugin
+	// (no id — no response expected).
+	onNotification := func(method string, params json.RawMessage) {
+		switch method {
+		case methodEmitMessage:
+			if a.onMessage == nil || len(params) == 0 {
+				return
+			}
+			var p struct {
+				Payload json.RawMessage `json:"payload"`
+			}
+			if json.Unmarshal(params, &p) == nil && len(p.Payload) > 0 {
+				payload := append([]byte(nil), p.Payload...)
+				go a.onMessage(payload)
+			}
+
+		case methodEmitLog:
+			if len(params) == 0 {
+				return
+			}
+			var p struct {
+				Level   string `json:"level"`
+				Message string `json:"message"`
+			}
+			if json.Unmarshal(params, &p) == nil {
+				level := strings.TrimSpace(strings.ToLower(p.Level))
+				if level == "" {
+					level = "info"
+				}
+				log.Printf("plugin %s [%s]: %s", a.id, level, strings.TrimSpace(p.Message))
+			}
 		}
-		return fmt.Errorf("plugin %s: invalid handshake ack", a.id)
 	}
 
-	dialer := newSingleConnDialer(hostConn)
-
-	grpcConn, err := grpc.NewClient(
-		"passthrough:///openlobster-plugin",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(dialer.DialContext),
-		grpc.WithDefaultCallOptions(grpc.ForceCodec(pluginrpc.JSONCodec{})),
-	)
-	if err != nil {
-		_ = hostConn.Close()
-		_ = stdin.Close()
-		_ = stdout.Close()
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
-		return fmt.Errorf("plugin %s: grpc dial: %w", a.id, err)
+	// onPluginRequest handles plugin-initiated RPC calls (has id — must respond).
+	// No core handlers are registered yet; return method-not-found for all calls.
+	// Future: wire up a service registry so plugins can call vault.get etc.
+	onPluginRequest := func(id string, method string, _ json.RawMessage) {
+		_ = conn.respond(id, nil, &rpcError{
+			Code:    -32601,
+			Message: fmt.Sprintf("method not found: %s", method),
+		})
 	}
 
-	client := pluginrpc.NewPluginServiceClient(grpcConn)
+	eventCtx, eventCancel := context.WithCancel(context.Background())
+	go func() {
+		readLoop(stdout, conn, onNotification, onPluginRequest)
+		eventCancel()
+	}()
+
 	infoCtx, cancelInfo := context.WithTimeout(ctxOrBackground(ctx), handshakeTimeout)
 	defer cancelInfo()
-	info, err := client.GetInfo(infoCtx, &pluginrpc.GetInfoRequest{})
-	if err != nil {
-		_ = grpcConn.Close()
-		_ = hostConn.Close()
+
+	var info getInfoResponse
+	if err := conn.call(infoCtx, methodGetInfo, &getInfoRequest{}, &info); err != nil {
+		eventCancel()
 		_ = stdin.Close()
 		_ = stdout.Close()
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
-		return fmt.Errorf("plugin %s: info: %w", a.id, err)
+		return fmt.Errorf("plugin %s: get_info: %w", a.id, err)
 	}
 
-	resolved := pluginMetadataPayload{
-		ID:          strings.TrimSpace(info.ID),
-		Name:        strings.TrimSpace(info.Name),
-		Version:     strings.TrimSpace(info.Version),
-		Description: strings.TrimSpace(info.Description),
-		Type:        strings.TrimSpace(info.Type),
-		Schema:      append(json.RawMessage(nil), info.Schema...),
-		Properties:  append(json.RawMessage(nil), info.Properties...),
+	id := strings.TrimSpace(info.ID)
+	if id == "" {
+		id = a.id
 	}
-	if resolved.ID == "" {
-		resolved.ID = a.id
+	if id == "" {
+		id = moduleStem(a.binaryPath)
 	}
-	if resolved.ID == "" {
-		resolved.ID = moduleStem(a.binaryPath)
-	}
-	if resolved.Name == "" {
-		resolved.Name = resolved.ID
+	name := strings.TrimSpace(info.Name)
+	if name == "" {
+		name = id
 	}
 
 	a.cmd = cmd
 	a.stdin = stdin
 	a.stdout = stdout
-	a.grpcConn = grpcConn
-	a.client = client
-	a.id = resolved.ID
-	a.name = resolved.Name
-	a.version = resolved.Version
-	a.description = resolved.Description
-	a.pluginType = resolved.Type
-	a.schemaJSON = normalizeMetadataSchema(resolved.Schema)
+	a.conn = conn
+	a.eventCancel = eventCancel
+	a.id = id
+	a.name = name
+	a.version = strings.TrimSpace(info.Version)
+	a.description = strings.TrimSpace(info.Description)
+	a.pluginType = strings.TrimSpace(info.Type)
+	a.schemaJSON = normalizeMetadataSchema(json.RawMessage(info.Schema))
+	a.properties = append(json.RawMessage(nil), info.Properties...)
 	a.exports = make(map[string]struct{}, len(info.Exports))
 	for _, fn := range info.Exports {
 		if fn = strings.TrimSpace(fn); fn != "" {
@@ -189,10 +275,7 @@ func (a *Adapter) startLocked(ctx context.Context) error {
 	a.lastError = nil
 	a.stateMu.Unlock()
 
-	eventCtx, eventCancel := context.WithCancel(context.Background())
-	a.eventCancel = eventCancel
-	go a.consumeEvents(eventCtx, client)
-	go a.monitorProcess(cmd)
+	go a.monitorProcess(cmd, eventCtx)
 
 	return nil
 }
@@ -204,104 +287,49 @@ func (a *Adapter) stopLocked() error {
 	}
 
 	var closeErr error
-	if a.client != nil {
+	if a.conn != nil {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_, err := a.client.Close(closeCtx, &pluginrpc.CloseRequest{})
+		err := a.conn.call(closeCtx, methodClose, &closeRequest{}, nil)
 		cancel()
 		if err != nil {
 			closeErr = err
 		}
-	}
-	if a.grpcConn != nil {
-		if err := a.grpcConn.Close(); err != nil && closeErr == nil {
-			closeErr = err
-		}
+		a.conn = nil
 	}
 	if a.stdin != nil {
 		if err := a.stdin.Close(); err != nil && closeErr == nil {
 			closeErr = err
 		}
+		a.stdin = nil
 	}
 	if a.stdout != nil {
 		if err := a.stdout.Close(); err != nil && closeErr == nil {
 			closeErr = err
 		}
+		a.stdout = nil
 	}
-
 	if a.cmd != nil && a.cmd.Process != nil {
 		_ = a.cmd.Process.Kill()
 	}
-
 	a.cmd = nil
-	a.stdin = nil
-	a.stdout = nil
-	a.grpcConn = nil
-	a.client = nil
 
 	return closeErr
 }
 
-func (a *Adapter) consumeEvents(ctx context.Context, client pluginrpc.PluginServiceClient) {
-	stream, err := client.StreamEvents(ctx, &pluginrpc.StreamEventsRequest{})
-	if err != nil {
-		if ctx.Err() == nil {
-			log.Printf("plugin %s: stream events init failed: %v", a.id, err)
-		}
-		return
-	}
-
-	for {
-		event, err := stream.Recv()
-		if err != nil {
-			if ctx.Err() == nil {
-				log.Printf("plugin %s: stream events closed: %v", a.id, err)
-			}
-			return
-		}
-		switch event.Type {
-		case pluginrpc.EventTypeEmitMessage:
-			if a.onMessage != nil && len(event.Payload) > 0 {
-				payload := append([]byte(nil), event.Payload...)
-				go a.onMessage(payload)
-			}
-		case pluginrpc.EventTypeLog:
-			level := strings.TrimSpace(strings.ToLower(event.Level))
-			if level == "" {
-				level = "info"
-			}
-			log.Printf("plugin %s [%s]: %s", a.id, level, strings.TrimSpace(event.Message))
-		}
-	}
-}
-
-func (a *Adapter) monitorProcess(cmd *exec.Cmd) {
+func (a *Adapter) monitorProcess(cmd *exec.Cmd, eventCtx context.Context) {
 	err := cmd.Wait()
+	// Only update state if the event loop is still running (not a clean stop).
+	select {
+	case <-eventCtx.Done():
+		return
+	default:
+	}
 	a.stateMu.Lock()
 	a.available = false
 	if err != nil {
 		a.lastError = fmt.Errorf("plugin %s exited: %w", a.id, err)
 	}
 	a.stateMu.Unlock()
-}
-
-func readHandshakeAck(stdout io.Reader, timeout time.Duration) (stdio.HandshakeFrame, error) {
-	reader := bufio.NewReader(stdout)
-	type result struct {
-		frame stdio.HandshakeFrame
-		err   error
-	}
-	ch := make(chan result, 1)
-	go func() {
-		frame, err := stdio.ReadFrame(reader)
-		ch <- result{frame: frame, err: err}
-	}()
-
-	select {
-	case got := <-ch:
-		return got.frame, got.err
-	case <-time.After(timeout):
-		return stdio.HandshakeFrame{}, fmt.Errorf("timeout waiting handshake ack")
-	}
 }
 
 func ctxOrBackground(ctx context.Context) context.Context {

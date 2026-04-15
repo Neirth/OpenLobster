@@ -9,7 +9,7 @@
  */
 
 import type { Component } from 'solid-js';
-import type { ConnectionStatus } from '@openlobster/ui/types';
+import type { ConnectionStatus } from '@/ui/types';
 import './StatusBadge.css';
 
 interface StatusBadgeProps {

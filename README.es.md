@@ -69,7 +69,17 @@ Este fork comenzó como un arreglo personal para todo eso y creció desde ahí.
 | Canales | Telegram, Discord, WhatsApp, Slack, Twilio SMS |
 | IA | OpenAI, Anthropic, Ollama, OpenRouter, Docker Model Runner, compatibles con OpenAI |
 
-## Inicio básico
+## Despliegue Rápido
+
+<p align="center">
+  <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FNeirth%2FOpenLobster%2Fmain%2Finfrastructure%2Fazure%2Fazuredeploy.json"><img src="docs/assets/deploy-azure.svg" alt="Deploy to Azure" height="32"></a>
+  <a href="https://deploy.cloud.run/?git_repo=https://github.com/Neirth/OpenLobster.git"><img src="docs/assets/deploy-gcp.svg" alt="Deploy to GCP" height="32"></a>
+  <a href="https://www.digitalocean.com/manage/apps/new?config=https://github.com/Neirth/OpenLobster/blob/main/infrastructure/digitalocean/app.yaml"><img src="docs/assets/deploy-digitalocean.svg" alt="Deploy to DigitalOcean" height="32"></a>
+  <br>
+  <em>Despliegue en un clic — incluye configuración automática de Neo4j (Memoria) y Vault (Secretos).</em>
+</p>
+
+## Despliegue Manual
 
 ```bash
 # Instalar dependencias

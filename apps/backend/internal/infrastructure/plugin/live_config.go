@@ -1,3 +1,5 @@
+// Copyright (c) OpenLobster contributors. See LICENSE for details.
+
 package plugin
 
 import (

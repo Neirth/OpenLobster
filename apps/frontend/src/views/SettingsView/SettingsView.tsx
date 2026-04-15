@@ -10,8 +10,8 @@ import { SchemaField } from "../../components/SchemaForm/SchemaField";
 import {
   CONFIG_QUERY,
   SYSTEM_FILES_QUERY,
-} from "@openlobster/ui/graphql/queries";
-import { WRITE_SYSTEM_FILE_MUTATION } from "@openlobster/ui/graphql/mutations";
+} from "@/ui/graphql/queries";
+import { WRITE_SYSTEM_FILE_MUTATION } from "@/ui/graphql/mutations";
 import { GRAPHQL_ENDPOINT } from "../../graphql/client";
 import { effectiveTheme, setTheme } from "../../stores/themeStore";
 import AppShell from "../../components/AppShell";

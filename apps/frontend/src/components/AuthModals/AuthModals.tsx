@@ -6,7 +6,7 @@ import { t } from "../../App";
 import {
   createSubscriptionManager,
   type PairingRequestEvent,
-} from "@openlobster/ui/hooks";
+} from "@/ui/hooks";
 import { client, GRAPHQL_ENDPOINT } from "../../graphql/client";
 import { useWsConnection } from "../../stores/wsStore";
 import { needsAuth, getStoredToken, syncNeedsAuthFromSessionStorage } from "../../stores/authStore";

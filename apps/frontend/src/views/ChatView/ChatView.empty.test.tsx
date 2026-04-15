@@ -18,16 +18,16 @@ vi.mock("@tanstack/solid-query", () => ({
   }),
 }));
 
-vi.mock("@openlobster/ui/graphql/mutations", () => ({
+vi.mock("@/ui/graphql/mutations", () => ({
   SEND_MESSAGE_MUTATION: "SEND_MESSAGE_MUTATION",
   DELETE_USER_MUTATION: "DELETE_USER_MUTATION",
 }));
 
-vi.mock("@openlobster/ui/graphql/queries", () => ({
+vi.mock("@/ui/graphql/queries", () => ({
   MESSAGES_QUERY: "MESSAGES_QUERY",
 }));
 
-vi.mock("@openlobster/ui/hooks", () => ({
+vi.mock("@/ui/hooks", () => ({
   useConversations: () => ({ data: [], isLoading: false, error: null }),
   useSubscriptions: () => ({
     isConnected: () => false,

@@ -16,7 +16,7 @@ vi.mock('../Header/Header', () => ({
   default: () => <header class="header" />,
 }));
 
-// Mock @openlobster/ui utilities
+// Mock @/ui utilities
 vi.mock('../../graphql/client', () => ({
   client: {},
 }));

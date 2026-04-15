@@ -93,4 +93,4 @@ jobs:
           cache-dependency-path: apps/backend/go.sum
 
       - name: Build binary
-        run: go build -v ./cmd/openlobster/...
+        run: make build

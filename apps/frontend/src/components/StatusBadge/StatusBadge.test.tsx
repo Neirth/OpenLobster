@@ -5,8 +5,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from '@solidjs/testing-library';
 import StatusBadge from './StatusBadge';
 
-// Mock @openlobster/ui/types
-vi.mock('@openlobster/ui/types', () => ({}));
+// Mock @/ui/types
+vi.mock('@/ui/types', () => ({}));
 
 describe('StatusBadge Component', () => {
   it('renders status badge container', () => {

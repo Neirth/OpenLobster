@@ -1,4 +1,3 @@
-# Build cross-platform binaries and publish a GitHub Release when a tag is pushed.
 name: Release
 
 on:
@@ -15,22 +14,24 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build and publish release
+  build-and-release:
+    name: Unified Build & Sign (Linux Host)
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
+        with:
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version-file: ".node-version"
           cache: "pnpm"
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -38,26 +39,48 @@ jobs:
           go-version-file: "apps/backend/go.mod"
           cache: true
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          target: |
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
+            aarch64-apple-darwin
 
-      - name: Build frontend
-        run: pnpm build --filter=@openlobster/frontend
-
-      - name: Build cross-platform binaries
-        working-directory: apps/backend
-        run: pnpm run build:cross
-
-      - name: Rename binaries with version tag
+      - name: Install Build Tools (Zig, bsign, jq)
         run: |
-          VERSION="${{ github.event.inputs.tag || github.event.release.tag_name }}"
-          mv dist/daemon/openlobster-darwin-arm64  dist/daemon/openlobster-${VERSION}-darwin-arm64
-          mv dist/daemon/openlobster-linux-arm64   dist/daemon/openlobster-${VERSION}-linux-arm64
-          mv dist/daemon/openlobster-linux-amd64   dist/daemon/openlobster-${VERSION}-linux-amd64
+          sudo apt-get update
+          sudo apt-get install -y zig bsign jq python3-pip
+          pip3 install cargo-zigbuild --break-system-packages
 
-      - name: Upload binaries to GitHub Release
+      - name: Install rcodesign (Apple Codesign from Linux)
+        run: |
+          RCODESIGN_VER="0.22.0"
+          curl -L -o rcodesign.tar.gz "https://github.com/indygreg/apple-codesign/releases/download/apple-codesign%2F${RCODESIGN_VER}/apple-codesign-${RCODESIGN_VER}-x86_64-unknown-linux-musl.tar.gz"
+          tar -xzf rcodesign.tar.gz
+          mv apple-codesign-${RCODESIGN_VER}-x86_64-unknown-linux-musl/rcodesign /usr/local/bin/
+          rm -rf apple-codesign-* rcodesign.tar.gz
+
+      - name: Setup Apple Certificate
+        if: env.APPLE_CERTIFICATE_P12 != ''
+        run: |
+          echo "${{ secrets.APPLE_CERTIFICATE_P12 }}" | base64 -d > /tmp/cert.p12
+          echo "APPLE_CERTIFICATE_P12_PATH=/tmp/cert.p12" >> $GITHUB_ENV
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+
+      - name: Build All Targets (Static & Signed)
+        run: make release
+        env:
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          BSIGN_OPTS: "-s"
+
+      - name: Upload Binaries to Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.event.inputs.tag || github.event.release.tag_name }}"
-          gh release upload "${VERSION}" dist/daemon/openlobster-* --clobber
+          gh release upload "${VERSION}" dist/openlobster-* --clobber

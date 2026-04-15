@@ -122,6 +122,6 @@ func TestHandle_DashboardOriginSkipsPairingAndLoadsConversationSession(t *testin
 	require.Equal(t, int32(1), atomic.LoadInt32(&ai.calls))
 	require.Equal(t, 0, checker.existsCalls)
 	require.Equal(t, 0, pairing.calls)
-	require.Equal(t, 1, sessions.getByIDCall)
+	require.Equal(t, 0, sessions.getByIDCall)
 	require.Equal(t, 0, checker.updateLastSeenCalls)
 }

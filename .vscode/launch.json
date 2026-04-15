@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Backend (Go)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/apps/backend/cmd/openlobster/main.go",
+      "cwd": "${workspaceFolder}/apps/backend",
+      "args": ["serve"],
+      "env": {
+        "OPENLOBSTER_PLUGINS_DIR": "${workspaceFolder}/plugins"
+      }
+    },
+    {
+      "name": "Debug Frontend (Chrome)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/apps/frontend",
+      "sourceMaps": true,
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack (Backend + Frontend)",
+      "configurations": ["Debug Backend (Go)", "Debug Frontend (Chrome)"]
+    }
+  ]
+}

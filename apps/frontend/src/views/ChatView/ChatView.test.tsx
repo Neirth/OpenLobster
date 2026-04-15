@@ -24,7 +24,7 @@ vi.mock("@tanstack/solid-query", () => {
   };
 });
 
-vi.mock("@openlobster/ui/graphql/mutations", () => ({
+vi.mock("@/ui/graphql/mutations", () => ({
   SEND_MESSAGE_MUTATION: "SEND_MESSAGE_MUTATION",
 }));
 

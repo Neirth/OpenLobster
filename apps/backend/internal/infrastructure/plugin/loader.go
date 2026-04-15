@@ -22,6 +22,11 @@ import (
 //
 // Plugins are native subprocess binaries from plugins dir.
 func LoadPlugins(ctx context.Context, dir string, onMessage func([]byte), builtins []string, callTimeout time.Duration) ([]ports.PluginPort, error) {
+	// Ensure bundled plugins are extracted/updated before loading
+	if err := ExtractEmbeddedPlugins(dir); err != nil {
+		log.Printf("plugins: extraction failed: %v", err)
+	}
+
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("plugins: mkdir %s: %w", dir, err)
 	}
@@ -81,6 +86,14 @@ func LoadPlugins(ctx context.Context, dir string, onMessage func([]byte), builti
 			if err := validateMessagingPluginABI(adapter); err != nil {
 				_ = adapter.Close()
 				log.Printf("plugins: skip %s — invalid messaging ABI: %v", adapter.ID(), err)
+				return false
+			}
+		}
+
+		if pluginType == "ai" {
+			if err := validateAIPluginABI(adapter); err != nil {
+				_ = adapter.Close()
+				log.Printf("plugins: skip %s — invalid AI ABI: %v", adapter.ID(), err)
 				return false
 			}
 		}
@@ -200,11 +213,19 @@ func runtimeOnMessage(pluginID string, onMessage func([]byte)) func([]byte) {
 }
 
 func validateMessagingPluginABI(p ports.PluginPort) error {
-	inboundModeRaw, err := p.Call(inboundModeFn, nil)
-	if err != nil {
-		return fmt.Errorf("required function %q failed: %w", inboundModeFn, err)
+	raw := p.Properties()
+	if len(raw) == 0 {
+		return fmt.Errorf("plugin properties are empty (required for messaging ABI check)")
 	}
-	inboundMode, parseErr := parseInboundModeOutput(inboundModeRaw)
+
+	var props struct {
+		InboundMode string `json:"inbound_mode"`
+	}
+	if err := json.Unmarshal(raw, &props); err != nil {
+		return fmt.Errorf("parse plugin properties (inbound_mode): %w", err)
+	}
+
+	inboundMode, parseErr := parseInboundModeOutput([]byte(props.InboundMode))
 	if parseErr != nil {
 		return parseErr
 	}
@@ -265,5 +286,16 @@ func validateMessagingInboundContract(inboundMode string, hasStart bool, hasHand
 		return fmt.Errorf("invalid %s value %q", inboundModeFn, inboundMode)
 	}
 
+	return nil
+}
+
+func validateAIPluginABI(p ports.PluginPort) error {
+	introspector, ok := p.(ports.PluginFunctionIntrospectionPort)
+	if !ok {
+		return nil // Basic adapters might not support introspection
+	}
+	if !introspector.HasFunction("chat") {
+		return fmt.Errorf("AI plugin must export %q function", "chat")
+	}
 	return nil
 }

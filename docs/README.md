@@ -57,6 +57,11 @@ This guide is for end users and operators who interact with the agent through th
       <td>Configure the agent, AI provider, database, memory backend, channels, and more.</td>
       <td><a href="settings/README.md">Settings</a></td>
     </tr>
+    <tr>
+      <td><strong>Plugins</strong></td>
+      <td>Extend the platform with custom plugins for AI providers, channels, and integrations.</td>
+      <td><a href="plugins/README.md">Plugins</a></td>
+    </tr>
   </tbody>
 </table>
 

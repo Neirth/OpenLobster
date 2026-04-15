@@ -7,7 +7,7 @@
 
 import { onMount, onCleanup, createEffect, createSignal, Show } from 'solid-js';
 import type { Core } from 'cytoscape';
-import type { MemoryNode, MemoryEdge } from '@openlobster/ui';
+import type { MemoryNode, MemoryEdge } from '@/ui';
 import './GraphVisualization.css';
 
 interface GraphVisualizationProps {

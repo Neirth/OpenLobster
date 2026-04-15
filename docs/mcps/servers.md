@@ -35,6 +35,22 @@ Click the **Add MCP Server** button. A modal will open with fields for the serve
 * **URL** — The full HTTPS endpoint of the MCP server (e.g., `https://example-mcp.com/mcp`).
 * **API Key** — Optional. Enter an API key if the server requires one for authentication.
 
+### Example: Adding Linear MCP
+
+| Field    | Value                                    |
+|----------|------------------------------------------|
+| Name     | Linear MCP                               |
+| URL      | `https://linear-mcp.example.com/mcp`     |
+| API Key  | (your Linear API key, if required)       |
+
+### Example: Adding Exa.ai MCP
+
+| Field    | Value                                    |
+|----------|------------------------------------------|
+| Name     | Exa.ai MCP                               |
+| URL      | `https://exa-mcp.example.com/mcp`        |
+| API Key  | (your Exa.ai API key, if required)       |
+
 {% endstep %}
 
 {% step %}

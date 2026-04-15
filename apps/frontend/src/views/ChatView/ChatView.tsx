@@ -10,9 +10,9 @@
 import type { Component } from 'solid-js';
 import { createSignal, For, Show, Suspense } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
-import { useConversations, useSubscriptions } from '@openlobster/ui/hooks';
-import { SEND_MESSAGE_MUTATION, DELETE_USER_MUTATION, DELETE_GROUP_MUTATION } from '@openlobster/ui/graphql/mutations';
-import type { Message } from '@openlobster/ui/types';
+import { useConversations, useSubscriptions } from '@/ui/hooks';
+import { SEND_MESSAGE_MUTATION, DELETE_USER_MUTATION, DELETE_GROUP_MUTATION } from '@/ui/graphql/mutations';
+import type { Message } from '@/ui/types';
 import { t } from '../../App';
 import { client, GRAPHQL_ENDPOINT } from '../../graphql/client';
 import AppShell from '../../components/AppShell';

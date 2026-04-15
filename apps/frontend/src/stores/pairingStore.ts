@@ -1,7 +1,7 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 
 import { createSignal } from "solid-js";
-import type { PairingRequestEvent } from "@openlobster/ui/hooks";
+import type { PairingRequestEvent } from "@/ui/hooks";
 
 const [pendingPairingsQueue, setPendingPairingsQueue] = createSignal<PairingRequestEvent[]>([]);
 

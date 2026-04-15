@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { waitFor } from "@solidjs/testing-library";
 import { configGroups, configSchema } from "../../schemas/config.schema";
-import { CONFIG_QUERY } from "@openlobster/ui/graphql/queries";
+import { CONFIG_QUERY } from "@/ui/graphql/queries";
 
 // Mock Router first
 vi.mock("@solidjs/router", () => ({

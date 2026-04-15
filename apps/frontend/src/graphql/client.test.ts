@@ -3,12 +3,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ------------------------------------------------------------------ //
-// Mock @openlobster/ui/graphql so tests never need a real HTTP server  //
+// Mock @/ui/graphql so tests never need a real HTTP server  //
 // ------------------------------------------------------------------ //
 
 var mockRequest = vi.fn();
 
-vi.mock('@openlobster/ui/graphql', () => ({
+vi.mock('@/ui/graphql', () => ({
   createGraphqlClient: (_endpoint: string, _getToken?: () => string | null) => ({
     request: mockRequest,
   }),

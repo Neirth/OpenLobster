@@ -1,0 +1,47 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: openlobster
+  labels:
+    cloud.googleapis.com/location: us-central1
+spec:
+  template:
+    spec:
+      containers:
+        # Main Container
+        - image: ghcr.io/neirth/openlobster/openlobster:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: OPENLOBSTER_GRAPHQL_HOST
+              value: 0.0.0.0
+            - name: OPENLOBSTER_GRAPHQL_AUTH_TOKEN
+              value: your-secret-token
+            - name: OPENLOBSTER_MEMORY_BACKEND
+              value: neo4j
+            - name: OPENLOBSTER_MEMORY_NEO4J_URI
+              value: bolt://localhost:7687
+            - name: OPENLOBSTER_MEMORY_NEO4J_USER
+              value: neo4j
+            - name: OPENLOBSTER_MEMORY_NEO4J_PASSWORD
+              value: password
+            - name: OPENLOBSTER_SECRETS_BACKEND
+              value: openbao
+            - name: OPENLOBSTER_SECRETS_OPENBAO_URL
+              value: http://localhost:8200
+            - name: OPENLOBSTER_SECRETS_OPENBAO_TOKEN
+              value: myroot
+
+        # Neo4j sidecar
+        - image: neo4j:5-community
+          env:
+            - name: NEO4J_AUTH
+              value: neo4j/password
+
+        # Vault sidecar
+        - image: hashicorp/vault:latest
+          env:
+            - name: VAULT_DEV_ROOT_TOKEN_ID
+              value: myroot
+            - name: VAULT_ADDR
+              value: http://0.0.0.0:8200

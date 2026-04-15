@@ -24,8 +24,8 @@ import FirstBootWizard from "./components/FirstBootWizard";
 import { GRAPHQL_ENDPOINT } from "./graphql/client";
 import { getStoredToken } from "./stores/authStore";
 import { effectiveTheme, setSystemTheme } from "./stores/themeStore";
-import "@openlobster/ui/styles/tokens.css";
-import "@openlobster/ui/styles/reset.css";
+import "@/ui/styles/tokens.css";
+import "@/ui/styles/reset.css";
 import "./styles/global.css";
 
 // Exported so that AccessTokenModal can trigger a re-check after saving a token.

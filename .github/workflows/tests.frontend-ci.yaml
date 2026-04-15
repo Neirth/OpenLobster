@@ -5,21 +5,11 @@ on:
     branches: [ master, 'feature/**', 'fix/**', 'refactor/**', 'chore/**' ]
     paths:
       - 'apps/frontend/**'
-      - 'packages/ui/**'
-      - 'packages/ui-tests/**'
-      - 'package.json'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
       - '.github/workflows/tests.frontend-ci.yaml'
   pull_request:
     branches: [ master ]
     paths:
       - 'apps/frontend/**'
-      - 'packages/ui/**'
-      - 'packages/ui-tests/**'
-      - 'package.json'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
       - '.github/workflows/tests.frontend-ci.yaml'
 
 jobs:
@@ -38,15 +28,16 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: make -C apps/frontend install
 
       - name: Typecheck
-        run: pnpm --filter @openlobster/frontend typecheck
+        run: pnpm --dir apps/frontend typecheck
 
       - name: Run ESLint
-        run: pnpm --filter @openlobster/frontend lint
+        run: pnpm --dir apps/frontend lint
 
   unit-tests:
     name: Unit Tests
@@ -63,12 +54,13 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: make -C apps/frontend install
 
       - name: Run unit tests with coverage
-        run: pnpm --filter @openlobster/frontend test:coverage
+        run: pnpm --dir apps/frontend test:coverage
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v7
@@ -92,15 +84,16 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: make -C apps/frontend install
 
       - name: Install Playwright browsers
-        run: pnpm --filter @openlobster/frontend exec playwright install --with-deps chromium
+        run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: pnpm --filter @openlobster/frontend test:e2e
+        run: pnpm --dir apps/frontend test:e2e
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v7

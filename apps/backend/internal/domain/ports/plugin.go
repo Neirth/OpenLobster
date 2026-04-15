@@ -19,6 +19,8 @@ type PluginPort interface {
 	// Schema returns the JSON Schema (as raw JSON bytes) describing the plugin's
 	// required configuration properties. Used for YAML validation and frontend forms.
 	Schema() ([]byte, error)
+	// Properties returns technical metadata exported by the plugin during handshake.
+	Properties() []byte
 	// Call invokes an exported plugin function by name, passing input as JSON
 	// bytes and returning the result as JSON bytes.
 	Call(function string, input []byte) ([]byte, error)
