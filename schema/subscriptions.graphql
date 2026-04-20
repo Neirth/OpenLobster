@@ -1,0 +1,30 @@
+# ─── Subscription ─────────────────────────────────────────────────────────────
+
+type EventPayload {
+  type:      String!
+  timestamp: String!
+  data:      JSON
+}
+
+type Subscription {
+  events(eventType: String): EventPayload
+
+  onMessageReceived:       EventPayload
+  onMessageSent:           EventPayload
+  onMessageProcessed:      EventPayload
+  onSessionStarted:        EventPayload
+  onSessionEnded:          EventPayload
+  onUserPaired:            EventPayload
+  onUserUnpaired:          EventPayload
+  onPairingRequested:      EventPayload
+  onPairingApproved:       EventPayload
+  onPairingDenied:         EventPayload
+  onTaskAdded:             EventPayload
+  onTaskCompleted:         EventPayload
+  onCronJobExecuted:       EventPayload
+  onMCPServerConnected:    EventPayload
+  onMCPServerDisconnected: EventPayload
+  onMemoryUpdated:         EventPayload
+  onCompactionTriggered:   EventPayload
+  onCompactionCompleted:   EventPayload
+}

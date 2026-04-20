@@ -1,0 +1,161 @@
+/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
+
+/* Legacy aliases — kept for migrating view components */
+:root {
+  --font-family-sans: var(--font-sans);
+  --font-family-mono: var(--font-mono);
+
+  --font-size-xs:   0.6875rem;
+  --font-size-sm:   0.8125rem;
+  --font-size-base: 1rem;
+  --font-size-lg:   1.125rem;
+  --font-size-xl:   1.25rem;
+  --font-size-2xl:  1.5rem;
+  --font-size-3xl:  1.875rem;
+  --font-size-4xl:  2.25rem;
+
+  --text-xs:   0.6875rem;
+  --text-sm:   0.8125rem;
+  --text-base: 1rem;
+
+  --tracking-wide:  0.1em;
+  --tracking-wider: 0.15em;
+
+  --line-height-tight:  1.2;
+  --line-height-normal: 1.5;
+  --line-height-loose:  1.75;
+
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2rem;
+  --space-2xl: 2.5rem;
+  --space-3xl: 3rem;
+
+  --duration-fast:   100ms;
+  --duration-normal: 200ms;
+  --duration-slow:   300ms;
+
+  --leading-tight:  1.2;
+  --leading-normal: 1.5;
+  --leading-loose:  1.75;
+
+  --color-primary:           var(--color-accent);
+  --color-surface:           var(--color-bg-elevated);
+  --color-surface-secondary: var(--color-bg-selected);
+  --color-text:              var(--color-text-primary);
+}
+
+[data-theme="light"] * {
+  scrollbar-color: var(--color-scrollbar) transparent;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-hover);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-family-sans);
+  font-size: var(--text-sm);
+  line-height: var(--line-height-normal);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: var(--font-family-sans);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+button:disabled {
+  cursor: not-allowed !important;
+  pointer-events: none;
+  background-color: var(--color-disabled-bg) !important;
+  border-color: var(--color-disabled-border) !important;
+  color: var(--color-disabled-text) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  filter: saturate(0.35);
+}
+
+button:disabled .material-symbols-outlined {
+  color: var(--color-disabled-text) !important;
+}
+
+input, textarea, select {
+  font-family: var(--font-family-sans);
+  font-size: var(--text-sm);
+  border: none;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  cursor: not-allowed;
+  background-color: var(--color-disabled-bg);
+  border-color: var(--color-disabled-border);
+  color: var(--color-disabled-text);
+  opacity: 1;
+}
+
+::placeholder {
+  color: var(--color-text-muted);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar) transparent;
+}
+
+/* Chromium / Safari */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

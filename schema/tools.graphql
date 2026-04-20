@@ -1,0 +1,75 @@
+# ─── Permissions / Users / Pairing ─────────────────────────────────────────────
+
+type ToolPermission {
+  toolName: String!
+  mode:     String!
+}
+
+type MCPUser {
+  channelId:   String!
+  displayName: String
+  isAgent:     Boolean!
+}
+
+type User {
+  id:        String!
+  primaryID: String
+  createdAt: Int
+}
+
+type PendingPairing {
+  code:             String!
+  channelID:        String
+  channelType:      String
+  platformUserName: String
+  status:           String!
+  expiresAt:        String
+  createdAt:        String
+}
+
+type PairingInfo {
+  code:   String!
+  status: String!
+}
+
+type ApprovePairingResult {
+  success: Boolean!
+  pairing: PairingInfo
+  error:   String
+}
+
+type DenyPairingResult {
+  success: Boolean!
+  code:    String
+  reason:  String
+  error:   String
+}
+
+extend type Query {
+  toolPermissions(userId: String!): [ToolPermission!]!
+  mcpUsers:        [MCPUser!]!
+  pendingPairings: [PendingPairing!]!
+  users:           [User!]!
+}
+
+extend type Mutation {
+  setToolPermission(
+    userId:   String!
+    toolName: String!
+    mode:     String!
+  ): MutationResult!
+  deleteToolPermission(
+    userId:   String!
+    toolName: String!
+  ): MutationResult!
+  setAllToolPermissions(
+    userId: String!
+    mode:   String!
+  ): MutationResult!
+  approvePairing(
+    code:        String!
+    userID:      String
+    displayName: String
+  ): ApprovePairingResult!
+  denyPairing(code: String!, reason: String): DenyPairingResult!
+}

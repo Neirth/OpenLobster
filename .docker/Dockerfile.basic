@@ -1,0 +1,88 @@
+#########################################################################
+# Application build stage: Build the Go backend and frontend and produce a static binary.
+#########################################################################
+FROM dhi.io/debian-base:trixie-debian13-dev AS backend-build
+
+# Install Go, Node.js, Rust, and build tools via APT
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    golang nodejs npm jq curl build-essential musl-tools rustup \
+    && rm -rf /var/lib/apt/lists/* \
+    && rustup set profile minimal \
+    && rustup toolchain install stable \
+    && rustup default stable \
+    && corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+ENV OPENSSL_DIR=/nonexistent
+ENV OPENSSL_NO_VENDOR=1
+ENV OPENSSL_STATIC=1
+
+# Project setup
+COPY . /build
+WORKDIR /build
+
+# Build everything via the root Makefile
+# Use TARGETARCH to select the correct static target
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        rustup target add aarch64-unknown-linux-musl && \
+        export CARGO_BUILD_TARGET=aarch64-unknown-linux-musl && \
+        TARGET=linux-arm64; \
+    else \
+        rustup target add x86_64-unknown-linux-musl && \
+        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl && \
+        TARGET=linux-amd64; \
+    fi && \
+    export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc && \
+    export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc && \
+    make build-prod TARGET=$TARGET IS_CROSS=0
+
+# Generate the folders with proper permissions
+RUN mkdir -p /app/{bin,config,data,logs,.ollama} && \
+    chown -R nonroot:nonroot /app && \
+    chmod -R 755 /app
+
+RUN cp /build/dist/openlobster /app/bin/openlobster
+
+#########################################################################
+# Final stage: Create a minimal image with the static binary and necessary assets.
+#########################################################################
+FROM dhi.io/debian-base:bookworm AS runtime
+
+# Switch to root user to install dependencies and set up environment
+USER 0
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    git \
+    python3 \
+    python3-pip \
+    chromium \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create nonroot user directories
+COPY --chown=nonroot:nonroot --from=backend-build /app /app
+WORKDIR /app
+
+ENV HOME=/app
+
+# Switch to nonroot user and set the working directory
+USER nonroot
+WORKDIR /app
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1
+
+# Explicit serve + data dir so listen/bind and SQLite paths are correct
+CMD ["/app/bin/openlobster", "serve", "--data-dir", "/app"]
+
+LABEL maintainer="neirth <7413024+Neirth@users.noreply.github.com>" \
+    org.opencontainers.image.title="OpenLobster" \
+    org.opencontainers.image.description="OpenLobster is a self-hosted, open-source personal ai autonomous agent platform built with Go and Solid.js."

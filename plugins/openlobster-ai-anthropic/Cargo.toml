@@ -1,0 +1,19 @@
+[package]
+name = "openlobster-ai-anthropic"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anthropic = { git = "https://github.com/AbdelStark/anthropic-rs", package = "anthropic", default-features = false, features = ["rustls"] }
+async-trait = "0.1"
+openlobster-sdk-base = { path = "../openlobster-sdk-base" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -1,0 +1,68 @@
+#########################################################################
+# Application build stage
+#########################################################################
+FROM dhi.io/debian-base:trixie-debian13-dev AS backend-build
+
+# Install Go, Node.js, Rust, and build tools via APT
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    golang nodejs npm jq curl build-essential musl-tools rustup \
+    && rm -rf /var/lib/apt/lists/* \
+    && rustup set profile minimal \
+    && rustup toolchain install stable \
+    && rustup default stable \
+    && corepack enable && corepack prepare pnpm@10.33.0 --activate
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+ENV OPENSSL_DIR=/nonexistent
+ENV OPENSSL_NO_VENDOR=1
+ENV OPENSSL_STATIC=1
+
+# Project setup
+COPY . /build
+WORKDIR /build
+
+# Build everything via the root Makefile
+# Use TARGETARCH (populated by buildx) or detect from uname
+ARG TARGETARCH
+RUN if [ -z "$TARGETARCH" ]; then \
+        ARCH=$(uname -m); \
+        if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then TARGETARCH="arm64"; else TARGETARCH="amd64"; fi; \
+    fi && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        rustup target add aarch64-unknown-linux-musl && \
+        export CARGO_BUILD_TARGET=aarch64-unknown-linux-musl && \
+        TARGET=linux-arm64; \
+    else \
+        rustup target add x86_64-unknown-linux-musl && \
+        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl && \
+        TARGET=linux-amd64; \
+    fi && \
+    export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc && \
+    export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc && \
+    make build-prod TARGET=$TARGET IS_CROSS=0
+
+# Generate the folders with proper permissions
+RUN mkdir -p /app/{bin,config,data,logs,workspace,.ollama} && \
+    chown -R nonroot:nonroot /app && \
+    chmod -R 755 /app
+
+RUN cp /build/dist/openlobster /app/bin/openlobster
+
+#########################################################################
+# Final stage: Distroless
+#########################################################################
+FROM gcr.io/distroless/static-debian12 AS runtime
+
+# Copy assets and binary
+COPY --chown=65532:65532 --from=backend-build /app /app
+WORKDIR /app
+
+ENV HOME=/app
+USER nonroot
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/bin/openlobster", "serve", "--data-dir", "/app"]
+
+LABEL maintainer="neirth <7413024+Neirth@users.noreply.github.com>" \
+    org.opencontainers.image.title="OpenLobster (Distroless)"

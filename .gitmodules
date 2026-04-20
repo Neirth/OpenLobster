@@ -1,0 +1,3 @@
+[submodule ".claude"]
+	path = .claude
+	url = https://github.com/Neirth/AgentRules.git

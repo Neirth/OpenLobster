@@ -1,0 +1,35 @@
+# Copyright (c) OpenLobster contributors. See LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name        = "openlobster-sdk-base"
+version     = "0.1.0"
+edition     = "2021"
+description = "Shared JSON-RPC 2.0 / STDIO plugin SDK for OpenLobster Rust plugins"
+license     = "Apache-2.0"
+
+[lib]
+name = "openlobster_sdk_base"
+
+# -----------------------------------------------------------------------------
+# Dependencies — always async, always bidirectional
+# -----------------------------------------------------------------------------
+[dependencies]
+serde        = { version = "1.0", features = ["derive"] }
+serde_json   = "1.0"
+uuid         = { version = "1.0", features = ["v4"] }
+async-trait  = "0.1"
+
+[dependencies.tokio]
+version  = "1.0"
+features = ["rt-multi-thread", "macros", "io-std", "io-util", "sync"]
+
+# -----------------------------------------------------------------------------
+# Release profile — matches the settings used by individual plugin binaries
+# -----------------------------------------------------------------------------
+[profile.release]
+opt-level     = "z"
+lto           = true
+codegen-units = 1
+strip         = true
+panic         = "abort"

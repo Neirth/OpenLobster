@@ -1,0 +1,67 @@
+# Packages excluded from coverage report.
+# External adapters that require real services (Discord, Telegram, etc.)
+# or heavy SDKs that are tested via integration tests.
+# One pattern per line; lines starting with # are comments.
+# Patterns are matched against the package import path.
+
+# External messaging adapters
+adapters/messaging/discord
+adapters/messaging/telegram
+adapters/messaging/slack
+adapters/messaging/twilio
+adapters/messaging/whatsapp
+# External AI adapters
+adapters/ai/anthropic
+adapters/ai/docker
+adapters/ai/openai
+adapters/ai/openaicompat
+adapters/ai/ollama
+adapters/ai/openrouter
+adapters/ai/zen
+# Browser and terminal
+adapters/browser
+infrastructure/browser
+adapters/terminal
+# Memory backends (file, neo4j)
+adapters/memory/file
+adapters/memory/neo4j
+# Audio adapter (ffmpeg, heavy encoding)
+adapters/audio
+# Logging
+logging
+# Integration/e2e tests (run separately, no coverable production code)
+tests/e2e
+tests/integration
+# Persistence: Migrate/Open(postgres/mysql) require real DB
+infrastructure/persistence
+# MCP OAuth: complex HTTP flows; covered by integration
+domain/services/mcp
+# Subscriptions: WebSocket edge cases; covered by integration
+application/graphql/subscriptions
+# Context: memory backend integration; covered by integration
+domain/context
+# Pairing: external service flows
+domain/services/pairing
+# Filesystem adapter: I/O heavy
+adapters/filesystem
+# AI mocks: test doubles
+adapters/ai/mocks
+# Agent resolver: thin wrapper
+resolvers/agent
+# Resolvers package (parent only; subpackages like resolvers/conversations kept)
+graphql/resolvers$
+# Repositories: DB integration
+repositories/mcp_server
+repositories/channel
+repositories/conversation
+repositories/message
+repositories/tool_permission
+repositories/user
+# Secrets: file/OpenBAO integration
+infrastructure/secrets
+# Domain services with integration points
+domain/services/skills
+domain/services/dashboard
+domain/services/message_processor
+domain/services/scheduler
+domain/models

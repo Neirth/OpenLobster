@@ -1,0 +1,96 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ master, 'feature/**', 'fix/**', 'refactor/**', 'chore/**' ]
+    paths:
+      - 'apps/backend/**'
+      - '.github/workflows/tests.backend-ci.yaml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'apps/backend/**'
+      - '.github/workflows/tests.backend-ci.yaml'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: apps/backend
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/backend/go.mod
+          cache-dependency-path: apps/backend/go.sum
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          working-directory: apps/backend
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/backend/go.mod
+          cache-dependency-path: apps/backend/go.sum
+
+      - name: Run unit tests with coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./internal/...
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage
+          path: apps/backend/coverage.out
+          retention-days: 7
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/backend/go.mod
+          cache-dependency-path: apps/backend/go.sum
+
+      - name: Run integration tests
+        run: go test -race -timeout 120s ./tests/integration/...
+
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    needs: [ lint, unit-tests ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/backend/go.mod
+          cache-dependency-path: apps/backend/go.sum
+
+      - name: Build binary
+        run: make build

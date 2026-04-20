@@ -1,0 +1,26 @@
+# Configuration for detecting dead code and other issues
+version: "2"
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  go: "1.24"
+
+linters:
+  enable:
+    - staticcheck   # U1000: unused code, SA4011: unreachable code
+    - unused        # unused variables/functions
+    - ineffassign   # ineffectual assignments
+  disable:
+    - errcheck      # can be too strict initially
+    - gosec         # security - enable if desired
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - unused
+          - errcheck
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

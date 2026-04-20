@@ -1,0 +1,49 @@
+#!/usr/bin/env sh
+# Pre-commit: backend lint + tests, frontend lint + tests.
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Go modules in this project require Go 1.26 via GOTOOLCHAIN auto-download.
+export GOTOOLCHAIN=auto
+export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
+export CGO_ENABLED=0
+
+die() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+step() {
+  printf '\n\033[1m== %s ==\033[0m\n' "$1"
+}
+
+step "Environment: Node.js"
+if ! command -v node >/dev/null 2>&1; then
+  die "Node.js not found in PATH. Install Node.js 22+ (see .node-version)."
+fi
+NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
+if [ "$NODE_MAJOR" -lt 22 ]; then
+  die "Node.js 22+ required for frontend checks (rolldown/vitest). Current: $(node -v)."
+fi
+
+step "Backend: golangci-lint"
+if ! command -v golangci-lint >/dev/null 2>&1; then
+  die "golangci-lint not found in PATH. Install: https://golangci-lint.run/welcome/install/"
+fi
+(cd apps/backend && golangci-lint run ./...)
+
+step "Backend: go test"
+(cd apps/backend && go test ./internal/... ./tests/... -count=1)
+
+step "App @openlobster/frontend: eslint"
+(cd apps/frontend && pnpm exec eslint src tests --max-warnings 0)
+
+step "App @openlobster/frontend: typecheck"
+(cd apps/frontend && pnpm typecheck)
+
+step "App @openlobster/frontend: vitest"
+(cd apps/frontend && pnpm exec vitest run)
+
+printf '\n\033[1mPre-commit OK\033[0m\n'

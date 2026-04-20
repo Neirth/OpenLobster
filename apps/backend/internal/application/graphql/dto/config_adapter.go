@@ -1,0 +1,299 @@
+// ConfigUpdateAdapter persists GraphQL config mutations into viper + disk.
+package dto
+
+import (
+	"context"
+	"fmt"
+	"sync"
+
+	"github.com/neirth/openlobster/internal/infrastructure/config"
+	"github.com/spf13/viper"
+)
+
+// ConfigUpdateAdapter persists UpdateConfigInput into viper and reconciles
+// runtime state through callbacks.
+// When provider/agent keys change, OnApplied receives providerTouched=true and
+// must refresh ConfigSnapshot and perform a soft reboot (recreate AI provider).
+type ConfigUpdateAdapter struct {
+	mu            sync.Mutex
+	ConfigPath    string
+	ReloadChannel func(channelType string)
+	ViperKeys     map[string]string
+	OnApplied     func(providerTouched bool)
+}
+
+// Apply saves the input fields to viper, persists to disk, and triggers any
+// required channel reloads or provider soft-reboots.
+func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interface{}) ([]string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	var changedChannels []string
+	channelTouched := make(map[string]bool)
+
+	a.applyProviderKeys(input)
+
+	if caps, ok := input["capabilities"].(map[string]interface{}); ok {
+		// Read the full current capabilities map and merge incoming changes into
+		// it, then set the parent key as a whole. Setting sub-keys individually
+		// (e.g. "agent.capabilities.browser") can interact poorly with viper's
+		// nested-map merging when AllSettings() is called for serialisation —
+		// setting the parent map atomically avoids the issue.
+		merged := map[string]interface{}{
+			"browser":    viper.GetBool("agent.capabilities.browser"),
+			"terminal":   viper.GetBool("agent.capabilities.terminal"),
+			"subagents":  viper.GetBool("agent.capabilities.subagents"),
+			"memory":     viper.GetBool("agent.capabilities.memory"),
+			"mcp":        viper.GetBool("agent.capabilities.mcp"),
+			"filesystem": viper.GetBool("agent.capabilities.filesystem"),
+			"sessions":   viper.GetBool("agent.capabilities.sessions"),
+		}
+		for k, v := range caps {
+			merged[k] = v
+		}
+		viper.Set("agent.capabilities", merged)
+	}
+
+	for inputKey, val := range input {
+		if inputKey == "capabilities" || a.isProviderInputKey(inputKey) {
+			continue
+		}
+		if inputKey == "pluginsEnabled" {
+			if enabledMap, ok := val.(map[string]interface{}); ok {
+				for pluginID, rawEnabled := range enabledMap {
+					enabled, ok := rawEnabled.(bool)
+					if !ok {
+						continue
+					}
+					viper.Set(fmt.Sprintf("plugins.enabled.%s", pluginID), enabled)
+				}
+			}
+			continue
+		}
+		if inputKey == "pluginsSettings" {
+			if cfgMap, ok := val.(map[string]interface{}); ok {
+				for pluginID, rawCfg := range cfgMap {
+					cfg, ok := rawCfg.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					viper.Set(fmt.Sprintf("plugins.settings.%s", pluginID), cfg)
+				}
+			}
+			continue
+		}
+		viperKey, ok := a.ViperKeys[inputKey]
+		if !ok {
+			continue
+		}
+		viper.Set(viperKey, val)
+		switch inputKey {
+		case "channelTelegramEnabled", "channelTelegramToken":
+			channelTouched["telegram"] = true
+		case "channelDiscordEnabled", "channelDiscordToken":
+			channelTouched["discord"] = true
+		case "channelSlackEnabled", "channelSlackBotToken", "channelSlackAppToken":
+			channelTouched["slack"] = true
+		case "channelWhatsAppEnabled", "channelWhatsAppPhoneId", "channelWhatsAppApiToken":
+			channelTouched["whatsapp"] = true
+		case "channelTwilioEnabled", "channelTwilioAccountSid", "channelTwilioAuthToken", "channelTwilioFromNumber":
+			channelTouched["twilio"] = true
+		}
+	}
+	for ch := range channelTouched {
+		changedChannels = append(changedChannels, ch)
+	}
+
+	providerTouched := false
+	for k := range input {
+		if a.isProviderInputKey(k) {
+			providerTouched = true
+			break
+		}
+	}
+
+	if len(input) > 0 {
+		if err := config.WriteEncryptedConfig(a.ConfigPath); err != nil {
+			return nil, fmt.Errorf("persisting config to %s: %w", a.ConfigPath, err)
+		}
+
+		// Keep a single runtime reconciliation path when OnApplied is available.
+		// ReloadChannel is retained as a compatibility fallback for legacy setups
+		// that do not wire OnApplied.
+		if a.OnApplied != nil {
+			a.OnApplied(providerTouched)
+		} else if a.ReloadChannel != nil {
+			for _, ch := range changedChannels {
+				a.ReloadChannel(ch)
+			}
+		}
+	}
+	return changedChannels, nil
+}
+func (a *ConfigUpdateAdapter) isProviderInputKey(k string) bool {
+	switch k {
+	case "provider", "model", "apiKey", "baseURL", "ollamaHost", "ollamaApiKey",
+		"anthropicApiKey", "dockerModelRunnerEndpoint",
+		"reasoningLevel":
+		return true
+	}
+	return false
+}
+
+func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
+	provider, _ := input["provider"].(string)
+	if provider == "" {
+		provider = viper.GetString("agent.provider")
+	}
+	if p, ok := input["provider"].(string); ok && p != "" {
+		viper.Set("agent.provider", p)
+	}
+	switch provider {
+	case "openrouter":
+		if v, ok := input["apiKey"].(string); ok && v != "" {
+			viper.Set("providers.openrouter.api_key", v)
+		}
+		if v, ok := input["model"].(string); ok && v != "" {
+			viper.Set("providers.openrouter.default_model", v)
+		}
+	case "ollama":
+		if v, ok := input["ollamaHost"].(string); ok && v != "" {
+			viper.Set("providers.ollama.endpoint", v)
+		}
+		if v, ok := input["ollamaApiKey"].(string); ok && v != "" {
+			viper.Set("providers.ollama.api_key", v)
+		}
+		if v, ok := input["model"].(string); ok && v != "" {
+			viper.Set("providers.ollama.default_model", v)
+		}
+	case "openai":
+		if v, ok := input["apiKey"].(string); ok && v != "" {
+			viper.Set("providers.openai.api_key", v)
+		}
+		if v, ok := input["model"].(string); ok && v != "" {
+			viper.Set("providers.openai.model", v)
+		}
+		if v, ok := input["baseURL"].(string); ok && v != "" {
+			viper.Set("providers.openai.base_url", v)
+		}
+	case "openai-compatible":
+		if v, ok := input["apiKey"].(string); ok && v != "" {
+			viper.Set("providers.openaicompat.api_key", v)
+		}
+		if v, ok := input["model"].(string); ok && v != "" {
+			viper.Set("providers.openaicompat.model", v)
+		}
+		if v, ok := input["baseURL"].(string); ok && v != "" {
+			viper.Set("providers.openaicompat.base_url", v)
+		}
+	case "anthropic":
+		if v, ok := input["anthropicApiKey"].(string); ok && v != "" {
+			viper.Set("providers.anthropic.api_key", v)
+		}
+		if v, ok := input["apiKey"].(string); ok && v != "" {
+			viper.Set("providers.anthropic.api_key", v)
+		}
+		if v, ok := input["model"].(string); ok && v != "" {
+			viper.Set("providers.anthropic.model", v)
+		}
+	case "opencode-zen":
+		if v, ok := input["apiKey"].(string); ok && v != "" {
+			viper.Set("providers.opencode.api_key", v)
+		}
+		if v, ok := input["model"].(string); ok && v != "" {
+			viper.Set("providers.opencode.model", v)
+		}
+	case "docker-model-runner":
+		if v, ok := input["dockerModelRunnerEndpoint"].(string); ok && v != "" {
+			viper.Set("providers.docker_model_runner.endpoint", v)
+		}
+		if v, ok := input["model"].(string); ok && v != "" {
+			viper.Set("providers.docker_model_runner.default_model", v)
+		}
+	default:
+		// Intelligent Bridge: If the provider is an unknown plugin, map common fields
+		// into its generic plugins.settings entry. This supports dynamic plugins
+		// while maintaining a stable configuration schema.
+		if provider != "" {
+			settings := viper.GetStringMap(fmt.Sprintf("plugins.settings.%s", provider))
+			if settings == nil {
+				settings = make(map[string]interface{})
+			}
+			touched := false
+			if v, ok := input["apiKey"].(string); ok && v != "" {
+				settings["apiKey"] = v
+				touched = true
+			}
+			if v, ok := input["baseURL"].(string); ok && v != "" {
+				settings["baseURL"] = v
+				touched = true
+			}
+			if v, ok := input["model"].(string); ok && v != "" {
+				settings["model"] = v
+				touched = true
+			}
+			if touched {
+				viper.Set(fmt.Sprintf("plugins.settings.%s", provider), settings)
+			}
+		}
+	}
+
+	if v, ok := input["reasoningLevel"].(string); ok && v != "" {
+		viper.Set("agent.reasoning_level", v)
+	}
+}
+
+// InputToViperKeyMap returns the mapping from GraphQL input field names to
+// their corresponding viper config keys.
+func InputToViperKeyMap() map[string]string {
+	return map[string]string{
+		"agentName":               "agent.name",
+		"systemPrompt":            "agent.system_prompt",
+		"databaseDriver":          "database.driver",
+		"databaseDSN":             "database.dsn",
+		"databaseMaxOpenConns":    "database.max_open_conns",
+		"databaseMaxIdleConns":    "database.max_idle_conns",
+		"memoryBackend":           "memory.backend",
+		"memoryFilePath":          "memory.file.path",
+		"memoryNeo4jURI":          "memory.neo4j.uri",
+		"memoryNeo4jUser":         "memory.neo4j.user",
+		"memoryNeo4jPassword":     "memory.neo4j.password",
+		"subagentsMaxConcurrent":  "subagents.max_concurrent",
+		"subagentsDefaultTimeout": "subagents.default_timeout",
+		"graphqlEnabled":          "graphql.enabled",
+		"graphqlPort":             "graphql.port",
+		"graphqlHost":             "graphql.host",
+		"graphqlBaseUrl":          "graphql.base_url",
+		"webEnabled":              "web.enabled",
+		"loggingLevel":            "logging.level",
+		"loggingPath":             "logging.path",
+		"secretsBackend":          "secrets.backend",
+		"secretsFilePath":         "secrets.file.path",
+		"secretsOpenbaoURL":       "secrets.openbao.url",
+		"secretsOpenbaoToken":     "secrets.openbao.token",
+		"pluginDefaultMemory":     "plugins.defaults.memory",
+		"pluginDefaultSecrets":    "plugins.defaults.secrets",
+		"pluginDefaultAudio":      "plugins.defaults.audio",
+		"pluginDefaultAi":         "plugins.defaults.ai",
+		"a2aEnabled":              "a2a.enabled",
+		"schedulerEnabled":        "scheduler.enabled",
+		"schedulerMemoryEnabled":  "scheduler.memory_enabled",
+		"schedulerMemoryInterval": "scheduler.memory_interval",
+		"channelTelegramEnabled":  "channels.telegram.enabled",
+		"channelTelegramToken":    "channels.telegram.bot_token",
+		"channelDiscordEnabled":   "channels.discord.enabled",
+		"channelDiscordToken":     "channels.discord.bot_token",
+		"channelWhatsAppEnabled":  "channels.whatsapp.enabled",
+		"channelWhatsAppPhoneId":  "channels.whatsapp.phone_id",
+		"channelWhatsAppApiToken": "channels.whatsapp.api_token",
+		"channelTwilioEnabled":    "channels.twilio.enabled",
+		"channelTwilioAccountSid": "channels.twilio.account_sid",
+		"channelTwilioAuthToken":  "channels.twilio.auth_token",
+		"channelTwilioFromNumber": "channels.twilio.from_number",
+		"channelSlackEnabled":     "channels.slack.enabled",
+		"channelSlackBotToken":    "channels.slack.bot_token",
+		"channelSlackAppToken":    "channels.slack.app_token",
+		"wizardCompleted":         "wizard.completed",
+		"reasoningLevel":          "agent.reasoning_level",
+	}
+}

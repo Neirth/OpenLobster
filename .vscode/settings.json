@@ -1,0 +1,47 @@
+{
+  "chat.tools.terminal.enableAutoApprove": true,
+  "idoapico.models": [
+    {
+      "id": "minimax-m2.5-free",
+      "owned_by": "opencode",
+      "displayName": "Minimax M2.5 Free",
+      "baseUrl": "https://opencode.ai/zen/v1/",
+      "context_length": 256000,
+      "request_delay": 5000
+    },
+    {
+      "id": "trinity-large-preview-free",
+      "owned_by": "opencode",
+      "displayName": "Trinity Large Preview Free",
+      "baseUrl": "https://opencode.ai/zen/v1/",
+      "context_length": 256000,
+      "request_delay": 5000
+    },
+    {
+      "id": "nemotron-3-super-free",
+      "owned_by": "opencode",
+      "displayName": "Nemotron 3 Super Free",
+      "baseUrl": "https://opencode.ai/zen/v1/",
+      "context_length": 256000,
+      "request_delay": 5000
+    }
+  ],
+  "chat.tools.terminal.autoApprove": {
+    "*": {
+      "approve": true,
+      "comment": "Auto-approve all terminal commands from chat tools"
+    },
+    "rm": false,
+    "rmdir": false,
+    "del": false,
+    "kill": false,
+    "/^Remove-Item\\b/i": false
+  },
+  "github.copilot.chat.agent.terminal.denyList": {
+    "rm": true,
+    "rmdir": true,
+    "del": true,
+    "kill": true,
+    "npm install": true
+  }
+}

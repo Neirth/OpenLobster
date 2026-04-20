@@ -1,0 +1,104 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [ master, 'feature/**', 'fix/**', 'refactor/**', 'chore/**' ]
+    paths:
+      - 'apps/frontend/**'
+      - '.github/workflows/tests.frontend-ci.yaml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'apps/frontend/**'
+      - '.github/workflows/tests.frontend-ci.yaml'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: make -C apps/frontend install
+
+      - name: Typecheck
+        run: pnpm --dir apps/frontend typecheck
+
+      - name: Run ESLint
+        run: pnpm --dir apps/frontend lint
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: make -C apps/frontend install
+
+      - name: Run unit tests with coverage
+        run: pnpm --dir apps/frontend test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-coverage
+          path: apps/frontend/coverage/
+          retention-days: 7
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: make -C apps/frontend install
+
+      - name: Install Playwright browsers
+        run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm --dir apps/frontend test:e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/frontend/playwright-report/
+          retention-days: 7

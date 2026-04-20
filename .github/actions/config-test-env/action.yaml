@@ -1,0 +1,29 @@
+name: Configure Test Environment
+description: Action for Configure Test Enviroment
+runs:
+  using: "composite"
+  steps:
+    - name: Configure MicroK8s for test changes
+      uses: balchua/microk8s-actions@v0.3.2
+      with:
+        channel: '1.30-strict/stable'
+
+    - name: Apply Sysctl for CIS Hardening
+      shell: bash
+      run: |
+        echo -e "vm.overcommit_memory=1\nkernel.panic=10\nkernel.panic_on_oops=1\n" | sudo tee /etc/sysctl.d/90-kubelet.conf
+        sudo sysctl -p /etc/sysctl.d/90-kubelet.conf
+
+    - name: Apply MicroK8s configuration
+      shell: bash
+      run: |
+        # Apply whole the cluster the config
+        sudo snap set microk8s config="$(cat ./devices/microk8s/config.yaml)"
+        sleep 180
+
+        # Ensure a lightweight storage backend for CI tests (TopoLVM is used in production)
+        sudo microk8s enable hostpath-storage
+        sleep 60
+
+        # Check the testing cluster config
+        sudo microk8s status --wait-ready

@@ -1,0 +1,60 @@
+# Copyright (c) OpenLobster contributors
+# SPDX-License-Identifier: MIT
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+
+# Set default shell to bash and define SHELL env
+SHELL ["/bin/bash", "-c"]
+ENV SHELL=/bin/bash
+
+# Install base dependencies
+RUN apt-get update \
+    && apt-get install -y curl git build-essential wget gnupg ca-certificates lsb-release \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go 1.25
+ENV GOLANG_VERSION=1.25.0
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/go
+ENV PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+RUN curl -fsSL https://go.dev/dl/go${GOLANG_VERSION}.linux-amd64.tar.gz -o /tmp/go.tar.gz \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz \
+    && go version
+
+# Install Rust
+ENV RUSTUP_HOME=/opt/rust/rustup
+ENV CARGO_HOME=/opt/rust/cargo
+ENV PATH=$PATH:$CARGO_HOME/bin
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable \
+    && rustc --version \
+    && cargo --version
+
+# Install Docker
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js and pnpm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g pnpm
+
+# Install VS Code from official Microsoft repository
+RUN apt-get update \
+    && wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg \
+    && install -o root -g root -m 644 packages.microsoft.gpg /usr/share/keyrings/ \
+    && sh -c 'echo "deb [signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list' \
+    && apt-get update \
+    && apt-get install -y code \
+    && rm -f packages.microsoft.gpg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set workdir
+WORKDIR /workspace
+
+# Expose default code-server port
+EXPOSE 8080

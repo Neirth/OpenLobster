@@ -1,0 +1,25 @@
+[
+  {
+    "uuid": "openai-api",
+    "name": "OpenAI API",
+    "port": 3003,
+    "hostname": "0.0.0.0",
+    "routes": [
+      {
+        "uuid": "chat-completions",
+        "method": "POST",
+        "path": "",
+        "responses": [
+          {
+            "uuid": "success",
+            "statusCode": 200,
+            "body": "{\"id\": \"chatcmpl-123\", \"object\": \"chat.completion\", \"created\": 1677652288, \"model\": \"gpt-4\", \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"Hello!\"}, \"finish_reason\": \"stop\"}], \"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 20, \"total_tokens\": 30}}",
+            "headers": {
+              "Content-Type": "application/json"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
