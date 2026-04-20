@@ -17,13 +17,19 @@ interface AppShellProps {
   children: JSX.Element;
   fullWidth?: boolean;
   fullHeight?: boolean;
+  noScroll?: boolean;
 }
 
 const AppShell: Component<AppShellProps> = (props) => {
   return (
     <div class="app-shell">
       <Header activeTab={props.activeTab} graphqlClient={client} />
-      <main class="app-shell__main">
+      <main
+        class="app-shell__main"
+        classList={{
+          "app-shell__main--no-scroll": props.noScroll,
+        }}
+      >
         <div
           class="app-shell__content"
           classList={{

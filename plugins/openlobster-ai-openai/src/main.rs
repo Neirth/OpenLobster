@@ -27,7 +27,7 @@ use serde_json::Value;
 // Plugin constants
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-ai-openai";
+const PLUGIN_ID: &str = "openai";
 const PLUGIN_VERSION: &str = "0.1.0";
 const PLUGIN_DESC: &str = "OpenAI AI provider plugin for OpenLobster";
 const PLUGIN_TYPE: &str = "ai";
@@ -100,26 +100,37 @@ fn metadata_schema() -> Value {
             "api_key": {
                 "type": "string",
                 "title": "API Key",
-                "description": "Provider API key used for authentication"
+                "description": "Provider API key used for authentication",
+                "placeholder": "sk-..."
             },
             "model": {
                 "type": "string",
                 "title": "Model",
+                "description": "Default model when a request does not specify one",
                 "default": "gpt-4o",
-                "description": "Default model when a request does not specify one"
+                "placeholder": "gpt-4o"
             },
             "endpoint": {
                 "type": "string",
                 "title": "Endpoint",
                 "description": "Select the provider endpoint by name",
                 "default": "OpenAI",
+                "placeholder": "Select an endpoint",
                 "enum": ["OpenAI", "OpenRouter", "Docker Model Runner", "OpenCode Zen",
                          "Groq", "Perplexity", "Mistral", "xAI", "Custom"]
             },
             "base_url": {
                 "type": "string",
                 "title": "Base URL (Custom)",
-                "description": "Required when endpoint is Custom"
+                "description": "Required only when endpoint is set to Custom",
+                "placeholder": "https://api.your-provider.com/v1",
+                "dependencies": {
+                    "endpoint": {
+                        "properties": {
+                            "endpoint": { "const": "Custom" }
+                        }
+                    }
+                }
             }
         },
         "required": ["api_key"]
@@ -345,7 +356,7 @@ impl Plugin for OpenAiPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
             id: PLUGIN_ID,
-            name: PLUGIN_ID,
+            name: "OpenAI",
             version: PLUGIN_VERSION,
             description: PLUGIN_DESC,
             plugin_type: PLUGIN_TYPE,

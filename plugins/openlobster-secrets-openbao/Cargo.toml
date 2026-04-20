@@ -1,5 +1,5 @@
 [package]
-name = "openlobster-secrets-openbao-rust"
+name = "openlobster-secrets-openbao"
 version = "0.1.0"
 edition = "2021"
 

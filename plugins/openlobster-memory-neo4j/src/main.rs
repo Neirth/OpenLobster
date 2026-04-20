@@ -38,13 +38,11 @@ fn next_node_id() -> String {
 
 fn get_connection() -> (String, String, String) {
     let hot = CONFIG.merge(None);
-    let uri  = HotConfig::get_str(&hot, "uri");
-    let user = HotConfig::get_str(&hot, "username");
-    let pass = HotConfig::get_str(&hot, "password");
+
     (
-        if uri.is_empty()  { "bolt://localhost:7687".to_string() } else { uri },
-        if user.is_empty() { "neo4j".to_string() } else { user },
-        pass,
+        HotConfig::get_str(&hot, "uri"),
+        HotConfig::get_str(&hot, "username"),
+        HotConfig::get_str(&hot, "password")
     )
 }
 
@@ -56,18 +54,36 @@ async fn connect(uri: &str, user: &str, pass: &str) -> Result<Graph, String> {
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-memory-neo4j-rust";
+const PLUGIN_ID: &str = "neo4j";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "Neo4j memory plugin (Rust, neo4rs 0.8)";
+const PLUGIN_DESC: &str = "Neo4j graph memory provider for high-scale knowledge storage";
 const PLUGIN_TYPE: &str = "memory";
 
 fn metadata_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "uri":      {"type": "string"},
-            "username": {"type": "string"},
-            "password": {"type": "string"}
+            "uri": {
+                "type": "string",
+                "title": "Neo4j URI",
+                "description": "Connection URI for the Neo4j instance (bolt or neo4j scheme)",
+                "default": "bolt://localhost:7687",
+                "placeholder": "bolt://localhost:7687"
+            },
+            "username": {
+                "type": "string",
+                "title": "Username",
+                "description": "Database user for authentication",
+                "default": "neo4j",
+                "placeholder": "neo4j"
+            },
+            "password": {
+                "type": "string",
+                "format": "password",
+                "title": "Password",
+                "description": "Database password for the selected user",
+                "placeholder": "Enter neo4j password"
+            }
         }
     })
 }
@@ -269,9 +285,13 @@ struct Neo4jPlugin;
 impl Plugin for Neo4jPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "Neo4j",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["configure", "store", "retrieve", "query", "list", "delete"],
         }
     }

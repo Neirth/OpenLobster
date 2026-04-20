@@ -20,18 +20,35 @@ static CONFIG: HotConfig = HotConfig::new();
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-audio-elevenlabs";
+const PLUGIN_ID: &str = "elevenlabs";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "ElevenLabs TTS/STT plugin (Rust, reqwest + rustls)";
+const PLUGIN_DESC: &str = "ElevenLabs high-quality text-to-speech and speech-to-text plugin";
 const PLUGIN_TYPE: &str = "audio";
 
 fn metadata_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "api_key":          {"type": "string"},
-            "default_voice_id": {"type": "string", "default": "21m00Tcm4TlvDq8ikWAM"},
-            "default_model_id": {"type": "string", "default": "eleven_multilingual_v2"}
+            "api_key": {
+                "type": "string",
+                "title": "API Key",
+                "description": "Your ElevenLabs API key from the dashboard profile",
+                "placeholder": "Enter your ElevenLabs key"
+            },
+            "default_voice_id": {
+                "type": "string",
+                "title": "Default Voice ID",
+                "description": "ID of the voice to use by default for TTS",
+                "default": "21m00Tcm4TlvDq8ikWAM",
+                "placeholder": "e.g., 21m00Tcm4TlvDq8ikWAM"
+            },
+            "default_model_id": {
+                "type": "string",
+                "title": "Default Model ID",
+                "description": "ElevenLabs model ID (e.g., v1, v2, multilingual)",
+                "default": "eleven_multilingual_v2",
+                "placeholder": "eleven_multilingual_v2"
+            }
         },
         "required": ["api_key"]
     })
@@ -194,9 +211,13 @@ struct ElevenLabsPlugin;
 impl Plugin for ElevenLabsPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "ElevenLabs",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["configure", "tts", "stt"],
         }
     }

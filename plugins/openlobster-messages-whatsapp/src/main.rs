@@ -87,9 +87,9 @@ struct TypingInput {
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-messages-whatsapp";
+const PLUGIN_ID: &str = "whatsapp";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "WhatsApp Business messaging plugin for OpenLobster";
+const PLUGIN_DESC: &str = "WhatsApp Business Cloud API messaging plugin for OpenLobster";
 const PLUGIN_TYPE: &str = "messaging";
 
 fn metadata_schema() -> Value {
@@ -99,28 +99,36 @@ fn metadata_schema() -> Value {
             "phone_number_id": {
                 "type": "string",
                 "title": "Phone Number ID",
-                "description": "WhatsApp Business Phone Number ID from Meta Developer Console"
+                "description": "WhatsApp Business Phone Number ID from Meta Developer Console",
+                "placeholder": "e.g., 102938475657483"
             },
             "access_token": {
                 "type": "string",
+                "format": "password",
                 "title": "Access Token",
-                "description": "WhatsApp Business API access token from Meta Developer Console"
+                "description": "WhatsApp Business API access token from Meta Developer Console",
+                "placeholder": "EAAG..."
             },
             "app_secret": {
                 "type": "string",
+                "format": "password",
                 "title": "App Secret",
-                "description": "Meta app secret for webhook verification"
+                "description": "Meta app secret for webhook signature verification",
+                "placeholder": "Enter your app secret"
             },
             "webhook_verify_token": {
                 "type": "string",
+                "format": "password",
                 "title": "Webhook Verify Token",
-                "description": "Token used to verify webhook endpoint"
+                "description": "Token to verify your webhook endpoint in the Meta dashboard",
+                "placeholder": "e.g., my_secure_token_123"
             },
             "api_version": {
                 "type": "string",
                 "title": "API Version",
+                "description": "WhatsApp Business API version (e.g., v20.0)",
                 "default": "v18.0",
-                "description": "WhatsApp Business API version"
+                "placeholder": "v18.0"
             }
         },
         "required": ["phone_number_id", "access_token"]
@@ -129,6 +137,7 @@ fn metadata_schema() -> Value {
 
 fn metadata_properties() -> Value {
     serde_json::json!({
+        "inbound_mode": "webhook",
         "HasVoiceMessage": true, "HasCallStream": false,
         "HasTextStream": true, "HasMediaSupport": true
     })
@@ -136,7 +145,7 @@ fn metadata_properties() -> Value {
 
 fn get_metadata() -> CallResponse {
     CallResponse::ok(serde_json::json!({
-        "id": PLUGIN_ID, "name": PLUGIN_ID, "version": PLUGIN_VERSION,
+        "id": PLUGIN_ID, "name": "WhatsApp", "version": PLUGIN_VERSION,
         "description": PLUGIN_DESC, "type": PLUGIN_TYPE,
         "schema": metadata_schema(), "properties": metadata_properties()
     }))
@@ -492,9 +501,13 @@ struct WhatsAppPlugin;
 impl Plugin for WhatsAppPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "WhatsApp",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["inbound_mode", "capabilities", "resolve_channel_id",
                           "send", "start", "configure", "get_metadata", "handle_webhook", "typing"],
         }

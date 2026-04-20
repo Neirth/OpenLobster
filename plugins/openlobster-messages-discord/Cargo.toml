@@ -1,5 +1,5 @@
 [package]
-name = "openlobster-messages-discord-rust"
+name = "openlobster-messages-discord"
 version = "0.1.0"
 edition = "2021"
 

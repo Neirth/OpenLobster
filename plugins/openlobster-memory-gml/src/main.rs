@@ -8,8 +8,13 @@
 
 use async_trait::async_trait;
 use openlobster_sdk_base::{run, CallResponse, HotConfig, Plugin, PluginInfo};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::fs;
+use std::io::{Read, Write};
 use std::sync::{Arc, LazyLock, Mutex};
+
+mod gml_serde;
 
 // ---------------------------------------------------------------------------
 // Hot config
@@ -21,6 +26,8 @@ static CONFIG: HotConfig = HotConfig::new();
 // Domain types
 // ---------------------------------------------------------------------------
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
 struct KnowledgeNode {
     id: u64,
     user_id: String,
@@ -29,11 +36,24 @@ struct KnowledgeNode {
     entity_type: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
 struct Relation {
     from: String,
     to: String,
-    rel_type: String,
+    label: String,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "lowercase")]
+struct Graph {
+    #[serde(default = "default_directed")]
+    directed: i32,
+    node: Vec<KnowledgeNode>,
+    edge: Vec<Relation>,
+}
+
+fn default_directed() -> i32 { 1 }
 
 // ---------------------------------------------------------------------------
 // Global state (graph data only)
@@ -46,7 +66,66 @@ struct GraphState {
 }
 
 impl GraphState {
-    fn new() -> Self { Self { nodes: Vec::new(), relations: Vec::new(), next_id: 1 } }
+    fn new() -> Self {
+        Self { nodes: Vec::new(), relations: Vec::new(), next_id: 1 }
+    }
+
+    fn clear(&mut self) {
+        self.nodes.clear();
+        self.relations.clear();
+        self.next_id = 1;
+    }
+
+    fn resolve_path(path: &str) -> String {
+        if !path.is_empty() {
+            return path.to_string();
+        }
+        // Default fallback to ~/.openlobster/data/memory.gml
+        if let Ok(home) = std::env::var("HOME") {
+            let dir = format!("{}/.openlobster/data", home);
+            let _ = fs::create_dir_all(&dir);
+            format!("{}/memory.gml", dir)
+        } else {
+            "memory.gml".to_string() // Absolute fallback to current dir
+        }
+    }
+
+    fn save(&self, path: &str) {
+        let effective_path = Self::resolve_path(path);
+        
+        let graph = Graph {
+            directed: 1,
+            node: self.nodes.clone(),
+            edge: self.relations.clone(),
+        };
+
+        if let Ok(gml_string) = gml_serde::to_string(&graph) {
+            if let Ok(mut file) = fs::File::create(effective_path) {
+                let _ = file.write_all(gml_string.as_bytes());
+            }
+        }
+    }
+
+    fn load(&mut self, path: &str) {
+        let effective_path = Self::resolve_path(path);
+        let mut content = String::new();
+        if let Ok(mut file) = fs::File::open(effective_path) {
+            if file.read_to_string(&mut content).is_err() { return; }
+        } else {
+            return;
+        }
+
+        if content.is_empty() { return; }
+
+        if let Ok(graph) = gml_serde::from_str::<Graph>(&content) {
+            self.clear();
+            self.nodes = graph.node;
+            self.relations = graph.edge;
+            for n in &self.nodes {
+                if n.id >= self.next_id { self.next_id = n.id + 1; }
+            }
+        }
+    }
 }
 
 static STATE: LazyLock<Arc<Mutex<GraphState>>> =
@@ -56,16 +135,21 @@ static STATE: LazyLock<Arc<Mutex<GraphState>>> =
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-memory-gml-rust";
+const PLUGIN_ID: &str = "gml";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "Graph Memory Language in-memory store (Rust)";
+const PLUGIN_DESC: &str = "Lightweight Graph Memory Layer (GML) for persistent knowledge storage";
 const PLUGIN_TYPE: &str = "memory";
 
 fn metadata_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "path": {"type": "string", "description": "Optional path to .gml persistence file"}
+            "path": {
+                "type": "string",
+                "title": "GML Storage Path",
+                "description": "Local path for graph persistence. Defaults to ~/.openlobster/data/memory.gml",
+                "placeholder": "~/.openlobster/data/memory.gml"
+            }
         }
     })
 }
@@ -116,7 +200,11 @@ fn store_add_relation(input: &Value) -> CallResponse {
         return CallResponse::err("from and to are required for add_relation");
     }
     let mut state = STATE.lock().unwrap();
-    state.relations.push(Relation { from, to, rel_type });
+    state.relations.push(Relation {
+        from,
+        to,
+        label: rel_type,
+    });
     CallResponse::ok(json!({"ok": true}))
 }
 
@@ -172,7 +260,7 @@ fn query_user_graph(input: &Value) -> CallResponse {
     let state = STATE.lock().unwrap();
     let edges: Vec<Value> = state.relations.iter()
         .filter(|r| norm(&r.from) == uid || norm(&r.to) == uid)
-        .map(|r| json!({"source": r.from, "target": r.to, "label": r.rel_type}))
+        .map(|r| json!({"source": r.from, "target": r.to, "label": r.label}))
         .collect();
 
     CallResponse::ok(json!({"edges": edges}))
@@ -183,7 +271,7 @@ fn query_cypher(_input: &Value) -> CallResponse {
 
     let data: Vec<Value> = if !state.relations.is_empty() {
         state.relations.iter()
-            .map(|r| json!({"a": r.from, "r": r.rel_type, "b": r.to}))
+            .map(|r| json!({"a": r.from, "r": r.label, "b": r.to}))
             .collect()
     } else {
         state.nodes.iter().map(|n| {
@@ -204,17 +292,39 @@ struct GmlPlugin;
 impl Plugin for GmlPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "GML",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["configure", "store", "retrieve", "query", "list", "delete"],
         }
     }
 
     async fn call(&mut self, function: &str, input: Option<Value>) -> CallResponse {
         match function {
-            "configure" => CONFIG.configure(input),
-            "store"     => fn_store(&input.unwrap_or(Value::Null)),
+            "configure" => {
+                let res = CONFIG.configure(input.clone());
+                let hot = CONFIG.merge(None);
+                let path = HotConfig::get_str(&hot, "path");
+                if !path.is_empty() {
+                  let mut state = STATE.lock().unwrap();
+                  state.load(&path);
+                }
+                res
+            },
+            "store"     => {
+              let res = fn_store(&input.unwrap_or(Value::Null));
+              let hot = CONFIG.merge(None);
+              let path = HotConfig::get_str(&hot, "path");
+              if !path.is_empty() {
+                let state = STATE.lock().unwrap();
+                state.save(&path);
+              }
+              res
+            },
             "retrieve"  => fn_retrieve(&input.unwrap_or(Value::Null)),
             "query"     => fn_query(&input.unwrap_or(Value::Null)),
             "list"      => CallResponse::err("not implemented"),

@@ -90,9 +90,9 @@ struct ResolveChannelIdMessage {
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-messages-discord";
+const PLUGIN_ID: &str = "discord";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "Discord Bot messaging plugin for OpenLobster";
+const PLUGIN_DESC: &str = "Discord messaging plugin for OpenLobster via bot gateway";
 const PLUGIN_TYPE: &str = "messaging";
 
 fn metadata_schema() -> Value {
@@ -101,30 +101,17 @@ fn metadata_schema() -> Value {
         "properties": {
             "token": {
                 "type": "string",
+                "format": "password",
                 "title": "Bot Token",
-                "description": "Discord bot token with permissions to send and read messages"
-            },
-            "guild_id": {
-                "type": "string",
-                "title": "Guild ID (optional)",
-                "description": "Optional guild scope for startup checks and routing"
-            },
-            "default_channel_id": {
-                "type": "string",
-                "title": "Default Channel ID (optional)",
-                "description": "Fallback Discord channel id used when message.channel_id is the logical channel slug"
-            },
-            "default_recipient_id": {
-                "type": "string",
-                "title": "Default Recipient User ID (optional)",
-                "description": "Fallback Discord user id for private DM delivery when no channel id is available"
+                "description": "Discord bot token from the Discord Developer Portal",
+                "placeholder": "Enter your bot token"
             }
         },
         "required": ["token"]
     })
 }
 
-fn metadata_properties() -> Value { serde_json::json!({}) }
+fn metadata_properties() -> Value { serde_json::json!({"inbound_mode": "gateway"}) }
 
 // ---------------------------------------------------------------------------
 // Messaging discovery
@@ -520,9 +507,13 @@ struct DiscordPlugin;
 impl Plugin for DiscordPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "Discord",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["inbound_mode", "capabilities", "resolve_channel_id",
                           "send", "start", "configure", "typing"],
         }

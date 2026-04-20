@@ -35,6 +35,7 @@ export interface SchemaProperty {
   maximum?: number;
   pattern?: string;
   format?: string;
+  placeholder?: string;
   dependencies?: Record<string, SchemaCondition>;
   oneOf?: SchemaCondition[];
   allOf?: SchemaCondition[];
@@ -245,6 +246,7 @@ export const configSchema: ConfigSchema = {
       title: "File Path",
       description: "Path for file-based memory storage",
       default: "./data/memory",
+      placeholder: "./data/memory.gml or ./data/memory.json",
       dependencies: {
         memoryBackend: {
           properties: { memoryBackend: { const: "file" } },

@@ -12,6 +12,8 @@ WHITELIST = openlobster-ai-anthropic \
             openlobster-messages-discord \
             openlobster-messages-telegram \
             openlobster-messages-slack \
+            openlobster-messages-twilio \
+            openlobster-messages-whatsapp \
             openlobster-secrets-json \
             openlobster-secrets-openbao
 
@@ -89,10 +91,10 @@ frontend:
 
 plugins:
 	@for p in $(WHITELIST); do \
-		if [ -d "plugins/$$p-rust" ]; then \
-			$(MAKE) -C "plugins/$$p-rust" build; \
-		elif [ -d "plugins/$$p" ]; then \
-			$(MAKE) -C "plugins/$$p" build; \
+		if [ -d "plugins/$$p" ]; then \
+			$(MAKE) -C "plugins/$$p" build RUST_TARGET=$(RUST_TARGET) IS_CROSS=$(IS_CROSS); \
+		elif [ -d "plugins/$$p-rust" ]; then \
+			$(MAKE) -C "plugins/$$p-rust" build RUST_TARGET=$(RUST_TARGET) IS_CROSS=$(IS_CROSS); \
 		fi; \
 	done
 
@@ -116,9 +118,7 @@ sign:
 		fi; \
 	fi
 	@for p in $(WHITELIST); do \
-		src="plugins/$$p-rust/target/$(RUST_TARGET)/release/$$p-rust"; \
-		if [ ! -f "$$src" ]; then src="plugins/$$p/target/$(RUST_TARGET)/release/$$p"; fi; \
-		if [ ! -f "$$src" ]; then src="plugins/$$p-rust/target/release/$$p-rust"; fi; \
+		src="plugins/$$p/target/$(RUST_TARGET)/release/$$p"; \
 		if [ ! -f "$$src" ]; then src="plugins/$$p/target/release/$$p"; fi; \
 		if [ -f "$$src" ]; then \
 			if [ "$(OS)" = "Darwin" ]; then \
@@ -140,9 +140,7 @@ prepare-prod:
 	@mkdir -p $(EMBED_DIR)
 	@rm -rf $(EMBED_DIR)/*
 	@for p_id in $(WHITELIST); do \
-		src="plugins/$$p_id-rust/target/$(RUST_TARGET)/release/$$p_id-rust"; \
-		if [ ! -f "$$src" ]; then src="plugins/$$p_id/target/$(RUST_TARGET)/release/$$p_id"; fi; \
-		if [ ! -f "$$src" ]; then src="plugins/$$p_id-rust/target/release/$$p_id-rust"; fi; \
+		src="plugins/$$p_id/target/$(RUST_TARGET)/release/$$p_id"; \
 		if [ ! -f "$$src" ]; then src="plugins/$$p_id/target/release/$$p_id"; fi; \
 		if [ -f "$$src" ]; then \
 			cp "$$src" "$(EMBED_DIR)/$$p_id"; \

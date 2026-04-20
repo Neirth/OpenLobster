@@ -12,7 +12,7 @@ use aes_gcm::{
 };
 use base64::{engine::general_purpose, Engine};
 use async_trait::async_trait;
-use openlobster_sdk_base::{run, CallResponse, Plugin, PluginInfo};
+use openlobster_sdk_base::{run, CallResponse, Plugin, PluginInfo, HotConfig};
 use rand::RngCore;
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
@@ -22,27 +22,18 @@ use std::path::Path;
 use std::sync::{Arc, LazyLock, Mutex};
 
 // ---------------------------------------------------------------------------
-// Global state (custom: hot config wins over per-call, matching Go behavior)
+// Hot config
 // ---------------------------------------------------------------------------
 
-struct PluginState {
-    hot_config: Map<String, Value>,
-}
-
-impl PluginState {
-    fn new() -> Self { Self { hot_config: Map::new() } }
-}
-
-static STATE: LazyLock<Arc<Mutex<PluginState>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(PluginState::new())));
+static CONFIG: openlobster_sdk_base::HotConfig = openlobster_sdk_base::HotConfig::new();
 
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-secrets-json-rust";
+const PLUGIN_ID: &str = "secrets-json";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "Encrypted JSON secrets provider for OpenLobster (Rust)";
+const PLUGIN_DESC: &str = "JSON-based secret storage plugin for OpenLobster";
 const PLUGIN_TYPE: &str = "secrets";
 
 fn metadata_schema() -> Value {
@@ -51,14 +42,17 @@ fn metadata_schema() -> Value {
         "properties": {
             "path": {
                 "type": "string",
-                "title": "Secrets File Path",
+                "title": "Storage Path",
+                "description": "Absolute path to the JSON file where secrets are stored",
                 "default": "~/.openlobster/secrets.json",
-                "description": "Encrypted JSON file used to store secrets"
+                "placeholder": "/home/user/.openlobster/secrets.json"
             },
             "key": {
                 "type": "string",
-                "title": "Encryption Key Override",
-                "description": "Optional base64/hex/passphrase. If empty, the plugin uses environment key fallback"
+                "format": "password",
+                "title": "Encryption Key",
+                "description": "Internal encryption key to obfuscate secrets on disk",
+                "placeholder": "Enter a strong passphrase"
             }
         },
         "additionalProperties": false
@@ -72,23 +66,11 @@ fn metadata_properties() -> Value { json!({}) }
 // ---------------------------------------------------------------------------
 
 /// Returns per-call config merged with hot config (hot config wins).
-fn merged_config(input: &Value) -> Value {
-    let per_call = input.get("config").cloned().unwrap_or(Value::Object(Map::new()));
-    let state    = STATE.lock().unwrap();
-
-    let mut merged: Map<String, Value> = per_call
-        .as_object()
-        .cloned()
-        .unwrap_or_default();
-    // Hot config wins: overwrite per-call values
-    for (k, v) in &state.hot_config {
-        merged.insert(k.clone(), v.clone());
-    }
-    Value::Object(merged)
-}
-
-fn cfg_str<'a>(cfg: &'a Value, key: &str) -> &'a str {
-    cfg.get(key).and_then(Value::as_str).unwrap_or("")
+fn merged_config(input: &Value) -> HashMap<String, Value> {
+    let per_call: Option<HashMap<String, Value>> = input
+        .get("config")
+        .and_then(|v| serde_json::from_value(v.clone()).ok());
+    CONFIG.merge(per_call)
 }
 
 fn input_str<'a>(input: &'a Value, key: &str) -> &'a str {
@@ -257,14 +239,14 @@ static FILE_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 fn fn_get(input: Value) -> CallResponse {
     let cfg = merged_config(&input);
-    let key_str  = cfg_str(&cfg, "key");
-    let path_raw = cfg_str(&cfg, "path");
+    let key_str  = HotConfig::get_str(&cfg, "key");
+    let path_raw = HotConfig::get_str(&cfg, "path");
     let secret_key = input_str(&input, "key");
 
     if secret_key.is_empty() { return CallResponse::err("key is required"); }
 
-    let path    = resolve_storage_path(path_raw);
-    let enc_key = resolve_key(key_str);
+    let path    = resolve_storage_path(&path_raw);
+    let enc_key = resolve_key(&key_str);
 
     let _guard = FILE_MUTEX.lock().unwrap();
     match load_secrets(&path, &enc_key) {
@@ -278,15 +260,15 @@ fn fn_get(input: Value) -> CallResponse {
 
 fn fn_set(input: Value) -> CallResponse {
     let cfg = merged_config(&input);
-    let key_str  = cfg_str(&cfg, "key");
-    let path_raw = cfg_str(&cfg, "path");
+    let key_str  = HotConfig::get_str(&cfg, "key");
+    let path_raw = HotConfig::get_str(&cfg, "path");
     let secret_key   = input_str(&input, "key");
     let secret_value = input_str(&input, "value");
 
     if secret_key.is_empty() { return CallResponse::err("key is required"); }
 
-    let path    = resolve_storage_path(path_raw);
-    let enc_key = resolve_key(key_str);
+    let path    = resolve_storage_path(&path_raw);
+    let enc_key = resolve_key(&key_str);
 
     let _guard = FILE_MUTEX.lock().unwrap();
     let mut data = match load_secrets(&path, &enc_key) {
@@ -302,14 +284,14 @@ fn fn_set(input: Value) -> CallResponse {
 
 fn fn_delete(input: Value) -> CallResponse {
     let cfg = merged_config(&input);
-    let key_str  = cfg_str(&cfg, "key");
-    let path_raw = cfg_str(&cfg, "path");
+    let key_str  = HotConfig::get_str(&cfg, "key");
+    let path_raw = HotConfig::get_str(&cfg, "path");
     let secret_key = input_str(&input, "key");
 
     if secret_key.is_empty() { return CallResponse::err("key is required"); }
 
-    let path    = resolve_storage_path(path_raw);
-    let enc_key = resolve_key(key_str);
+    let path    = resolve_storage_path(&path_raw);
+    let enc_key = resolve_key(&key_str);
 
     let _guard = FILE_MUTEX.lock().unwrap();
     let mut data = match load_secrets(&path, &enc_key) {
@@ -325,12 +307,12 @@ fn fn_delete(input: Value) -> CallResponse {
 
 fn fn_list(input: Value) -> CallResponse {
     let cfg = merged_config(&input);
-    let key_str  = cfg_str(&cfg, "key");
-    let path_raw = cfg_str(&cfg, "path");
+    let key_str  = HotConfig::get_str(&cfg, "key");
+    let path_raw = HotConfig::get_str(&cfg, "path");
     let prefix   = input_str(&input, "prefix");
 
-    let path    = resolve_storage_path(path_raw);
-    let enc_key = resolve_key(key_str);
+    let path    = resolve_storage_path(&path_raw);
+    let enc_key = resolve_key(&key_str);
 
     let _guard = FILE_MUTEX.lock().unwrap();
     match load_secrets(&path, &enc_key) {
@@ -357,7 +339,9 @@ struct SecretsJsonPlugin;
 impl Plugin for SecretsJsonPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
+            id: PLUGIN_ID,
+            name: "JSON Secrets",
+            version: PLUGIN_VERSION,
             description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
             schema: metadata_schema(), properties: metadata_properties(),
             exports: vec!["configure", "get", "set", "delete", "list"],
@@ -365,13 +349,12 @@ impl Plugin for SecretsJsonPlugin {
     }
 
     async fn call(&mut self, function: &str, input: Option<Value>) -> CallResponse {
-        let input = input.unwrap_or(Value::Null);
         match function {
-            "configure" => STATE.lock().unwrap().configure(Some(input)),
-            "get"       => fn_get(input),
-            "set"       => fn_set(input),
-            "delete"    => fn_delete(input),
-            "list"      => fn_list(input),
+            "configure" => CONFIG.configure(input),
+            "get"       => fn_get(input.unwrap_or(Value::Null)),
+            "set"       => fn_set(input.unwrap_or(Value::Null)),
+            "delete"    => fn_delete(input.unwrap_or(Value::Null)),
+            "list"      => fn_list(input.unwrap_or(Value::Null)),
             other       => CallResponse::err(format!("unknown function: {}", other)),
         }
     }

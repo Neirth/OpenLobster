@@ -130,7 +130,7 @@ func (a *App) buildCORSHandler(effectiveToken string, authEnabled bool) http.Han
 				return
 			}
 			protected := strings.HasPrefix(r.URL.Path, "/graphql") || strings.HasPrefix(r.URL.Path, "/logs")
-			if !protected || !authEnabled || effectiveToken == "" {
+			if !protected || !authEnabled || effectiveToken == "" || (a.Cfg != nil && !a.Cfg.Wizard.Completed) {
 				next.ServeHTTP(w, r)
 				return
 			}

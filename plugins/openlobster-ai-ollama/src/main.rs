@@ -19,7 +19,7 @@ use serde_json::Value;
 // Plugin constants
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-ai-ollama";
+const PLUGIN_ID: &str = "ollama";
 const PLUGIN_VERSION: &str = "0.1.0";
 const PLUGIN_DESC: &str = "Ollama local AI provider plugin for OpenLobster";
 const PLUGIN_TYPE: &str = "ai";
@@ -92,19 +92,22 @@ fn metadata_schema() -> Value {
             "base_url": {
                 "type": "string",
                 "title": "Base URL",
+                "description": "Ollama API endpoint (e.g., local instance or remote server)",
                 "default": "http://localhost:11434",
-                "description": "Ollama endpoint (local or remote)"
+                "placeholder": "http://localhost:11434"
             },
             "default_model": {
                 "type": "string",
                 "title": "Default Model",
+                "description": "The local Ollama model to use when the request omits one",
                 "default": "llama3.2",
-                "description": "Model used when the request does not specify one"
+                "placeholder": "llama3.2"
             },
             "api_key": {
                 "type": "string",
-                "title": "API Key",
-                "description": "Optional Bearer token for protected or cloud Ollama endpoints"
+                "title": "API Key (Optional)",
+                "description": "Optional Bearer token for protected or cloud-hosted Ollama endpoints",
+                "placeholder": "Enter key if required"
             }
         },
         "required": []
@@ -291,7 +294,7 @@ impl Plugin for OllamaPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
             id: PLUGIN_ID,
-            name: PLUGIN_ID,
+            name: "Ollama",
             version: PLUGIN_VERSION,
             description: PLUGIN_DESC,
             plugin_type: PLUGIN_TYPE,

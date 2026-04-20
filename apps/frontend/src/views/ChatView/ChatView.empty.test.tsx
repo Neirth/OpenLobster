@@ -39,9 +39,13 @@ vi.mock("@/ui/hooks", () => ({
 }));
 
 vi.mock("../../graphql/client", () => ({
-  GRAPHQL_ENDPOINT: "/graphql",
   client: { request: vi.fn(() => Promise.resolve({})) },
 }));
+
+vi.mock("../../graphql/config", () => ({
+  GRAPHQL_ENDPOINT: "/graphql",
+}));
+
 
 vi.mock("../../components/AppShell/AppShell", () => ({
   default: (props: any) => <div class="app-shell" {...props} />,

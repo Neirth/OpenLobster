@@ -22,18 +22,35 @@ static CONFIG: HotConfig = HotConfig::new();
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-secrets-openbao-rust";
+const PLUGIN_ID: &str = "openbao";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "OpenBao/Vault KV v2 secrets provider (Rust, vaultrs SDK)";
+const PLUGIN_DESC: &str = "OpenBao / HashiCorp Vault KV v2 secrets provider";
 const PLUGIN_TYPE: &str = "secrets";
 
 fn metadata_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "url":   {"type": "string", "description": "OpenBao base URL (required)"},
-            "token": {"type": "string", "description": "Vault token (required)"},
-            "mount": {"type": "string", "default": "secret"}
+            "url": {
+                "type": "string",
+                "title": "Vault URL",
+                "description": "Base URL of the OpenBao or Vault server",
+                "placeholder": "https://vault.example.com:8200"
+            },
+            "token": {
+                "type": "string",
+                "format": "password",
+                "title": "Vault Token",
+                "description": "Authentication token with read/write permissions to the specified mount",
+                "placeholder": "Enter your vault token"
+            },
+            "mount": {
+                "type": "string",
+                "title": "KV Mount Path",
+                "description": "The path where the KV v2 engine is mounted",
+                "default": "secret",
+                "placeholder": "secret"
+            }
         },
         "required": ["url", "token"]
     })
@@ -154,9 +171,13 @@ struct OpenBaoPlugin;
 impl Plugin for OpenBaoPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "OpenBao",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["configure", "get", "set", "delete", "list"],
         }
     }

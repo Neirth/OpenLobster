@@ -1,29 +1,23 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 
-import type { Component } from "solid-js";
+import { createSignal, createMemo, onMount, For, Show, type Component } from "solid-js";
+import { useQueryClient, createMutation, createQuery } from "@tanstack/solid-query";
+import { t, getStoredToken } from "../../App";
+import { setNeedsAuth } from "../../stores/authStore";
 import {
-  createSignal,
-  For,
-  Show,
-  onMount,
-  createMemo,
-  createResource,
-  createEffect,
-} from "solid-js";
-import { createMutation, useQueryClient } from "@tanstack/solid-query";
-import { t } from "../../App";
-import { getStoredToken, setNeedsAuth } from "../../stores/authStore";
-import { CONFIG_QUERY, PLUGINS_QUERY } from "@/ui/graphql/queries";
+  CONFIG_QUERY,
+  PLUGINS_QUERY,
+  MARKETPLACE_QUERY,
+} from "@/ui/graphql/queries";
 import {
   CONNECT_MCP_MUTATION,
-  INITIATE_OAUTH_MUTATION,
 } from "@/ui/graphql/mutations";
 import { UPDATE_CONFIG_MUTATION } from "@/ui/graphql/mutations";
-import { GRAPHQL_ENDPOINT } from "../../graphql/client";
+import { GRAPHQL_ENDPOINT } from "../../graphql/config";
 import { client } from "../../graphql/client";
 import { Input } from "../Input/Input";
+import { SchemaField } from "../SchemaForm/SchemaField";
 import "./FirstBootWizard.css";
-import "../SchemaForm/SchemaForm.css";
 
 interface MarketplaceServer {
   id: string;
@@ -42,12 +36,19 @@ interface WizardPlugin {
   name: string;
   pluginType: string;
   available: boolean;
+  schemaJson?: string;
+  configJson?: string;
 }
 
 const fetchMarketplace = async (): Promise<MarketplaceServer[]> => {
-  const res = await fetch("/marketplace.json");
-  if (!res.ok) throw new Error("Failed to load marketplace");
-  return res.json() as Promise<MarketplaceServer[]>;
+  try {
+    const res = await fetch("/marketplace.json");
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (err) {
+    console.error("Failed to fetch marketplace", err);
+    return [];
+  }
 };
 
 const fetchWizardPlugins = async (): Promise<WizardPlugin[]> => {
@@ -72,6 +73,8 @@ const fetchWizardPlugins = async (): Promise<WizardPlugin[]> => {
       name: (plugin.name as string | undefined) ?? (plugin.id as string),
       pluginType: (plugin.pluginType as string | undefined) ?? "",
       available: plugin.available !== false,
+      schemaJson: plugin.schemaJson as string | undefined,
+      configJson: plugin.configJson as string | undefined,
     }));
 };
 
@@ -86,7 +89,7 @@ function faviconUrl(url: string, homepage?: string): string {
   }
 }
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 
 function graphqlHeaders(): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -94,66 +97,6 @@ function graphqlHeaders(): Record<string, string> {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
 }
-
-function getDefaultFormValues(): Record<string, unknown> {
-  return {
-    agentName: "OpenLobster",
-    provider: "ollama",
-    model: "llama3.2:latest",
-    apiKey: "",
-    baseURL: "",
-    ollamaHost: "http://localhost:11434",
-    ollamaApiKey: "",
-    anthropicApiKey: "",
-    dockerModelRunnerEndpoint: "http://host.docker.internal:12434/engines/v1",
-    capabilities: {
-      browser: false,
-      terminal: false,
-      subagents: true,
-      memory: true,
-      mcp: true,
-      filesystem: true,
-      sessions: true,
-    },
-    pluginDefaultAi: "",
-    pluginDefaultMemory: "",
-    pluginDefaultSecrets: "",
-    pluginDefaultAudio: "",
-    a2aEnabled: true,
-    graphqlBaseUrl: typeof window !== "undefined" ? window.location.origin : "",
-    channelTelegramEnabled: false,
-    channelTelegramToken: "",
-    channelDiscordEnabled: false,
-    channelDiscordToken: "",
-    channelSlackEnabled: false,
-    channelSlackBotToken: "",
-    channelSlackAppToken: "",
-    channelWhatsAppEnabled: false,
-    channelWhatsAppPhoneId: "",
-    channelWhatsAppApiToken: "",
-    channelTwilioEnabled: false,
-    channelTwilioAccountSid: "",
-    channelTwilioAuthToken: "",
-    channelTwilioFromNumber: "",
-  };
-}
-
-const PROVIDERS = [
-  { value: "ollama", labelKey: "wizard.provider.ollama" },
-  { value: "openai", labelKey: "wizard.provider.openai" },
-  { value: "anthropic", labelKey: "wizard.provider.anthropic" },
-  { value: "openrouter", labelKey: "wizard.provider.openrouter" },
-  { value: "docker-model-runner", labelKey: "wizard.provider.docker" },
-  { value: "openai-compatible", labelKey: "wizard.provider.openaiCompatible" },
-] as const;
-
-const CHANNELS = [
-  { key: "telegram", labelKey: "settings.field.channelTelegramEnabled", enabledKey: "channelTelegramEnabled", tokenKey: "channelTelegramToken" },
-  { key: "discord", labelKey: "settings.field.channelDiscordEnabled", enabledKey: "channelDiscordEnabled", tokenKey: "channelDiscordToken" },
-  { key: "slack", labelKey: "settings.field.channelSlackEnabled", enabledKey: "channelSlackEnabled", tokenKey: "channelSlackBotToken", tokenKey2: "channelSlackAppToken" },
-  { key: "whatsapp", labelKey: "settings.field.channelWhatsAppEnabled", enabledKey: "channelWhatsAppEnabled", tokenKey: "channelWhatsAppApiToken", tokenKey2: "channelWhatsAppPhoneId" },
-  { key: "twilio", labelKey: "settings.field.channelTwilioEnabled", enabledKey: "channelTwilioEnabled", tokenKey: "channelTwilioAccountSid", tokenKey2: "channelTwilioAuthToken", tokenKey3: "channelTwilioFromNumber" },
-] as const;
 
 const CAPABILITIES = [
   { key: "browser", icon: "language" },
@@ -178,8 +121,36 @@ export function setWizardCompleted(): void {
   }
 }
 
+function getDefaultFormValues(): Record<string, unknown> {
+  return {
+    agentName: "OpenLobster",
+    model: "llama3.2:latest",
+    capabilities: {
+      browser: false,
+      terminal: false,
+      subagents: true,
+      memory: true,
+      mcp: true,
+      filesystem: true,
+      sessions: true,
+    },
+    pluginDefaultAi: "",
+    pluginDefaultMemory: "",
+    pluginDefaultSecrets: "",
+    pluginDefaultAudio: "",
+    a2aEnabled: true,
+    graphqlBaseUrl: typeof window !== "undefined" ? window.location.origin : "",
+  };
+}
+
+
+
 export interface FirstBootWizardProps {
   onComplete: () => void;
+}
+
+function getValueAtPath(obj: any, path: string): any {
+  return path.split(".").reduce((acc, part) => acc && acc[part], obj);
 }
 
 const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
@@ -194,45 +165,41 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
   const [marketplaceSearch, setMarketplaceSearch] = createSignal("");
   const [marketplaceSelected, setMarketplaceSelected] = createSignal<MarketplaceServer | null>(null);
   const [marketplaceError, setMarketplaceError] = createSignal<string | null>(null);
+
+  const wizardPlugins = createQuery(() => ({
+    queryKey: ["wizardPlugins"],
+    queryFn: fetchWizardPlugins,
+  }));
+
+  const marketplaceServers = createQuery(() => ({
+    queryKey: ["marketplaceServers"],
+    queryFn: fetchMarketplace,
+  }));
+
   const [detailName, setDetailName] = createSignal("");
   const [detailUrl, setDetailUrl] = createSignal("");
 
-  createEffect(() => {
-    const s = marketplaceSelected();
-    if (s) {
-      setDetailName(s.name || s.id || "");
-      setDetailUrl(s.url || "");
-    } else {
-      setDetailName("");
-      setDetailUrl("");
+  onMount(() => {
+    if (marketplaceSelected()) {
+      setDetailName(marketplaceSelected()!.name);
+      setDetailUrl(marketplaceSelected()!.url);
     }
   });
 
-  const [marketplaceServers] = createResource(
-    () => (step() === 5 ? "fetch" : null),
-    () => fetchMarketplace(),
-  );
-
-  const [wizardPlugins] = createResource(
-    () => (step() === 4 ? "fetch" : null),
-    () => fetchWizardPlugins(),
-  );
-
   const marketplaceFiltered = createMemo(() => {
+    const list = marketplaceServers.data ?? [];
     const q = marketplaceSearch().toLowerCase();
-    const data = marketplaceServers() ?? [];
-    if (!q) return data;
-    return data.filter(
+    if (!q) return list;
+    return list.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
-        s.company.toLowerCase().includes(q) ||
         s.description.toLowerCase().includes(q) ||
         (s.category ?? "").toLowerCase().includes(q),
     );
   });
 
   const pluginOptions = createMemo(() => {
-    const sorted = (wizardPlugins() ?? [])
+    const sorted = (wizardPlugins.data ?? [])
       .filter((plugin) => plugin.available && plugin.pluginType)
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -242,6 +209,7 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
       memory: sorted.filter((plugin) => plugin.pluginType === "memory"),
       secrets: sorted.filter((plugin) => plugin.pluginType === "secrets"),
       audio: sorted.filter((plugin) => plugin.pluginType === "audio"),
+      messaging: sorted.filter((plugin) => plugin.pluginType === "messaging"),
     };
   });
 
@@ -257,36 +225,11 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
         setMarketplaceError(res.error);
         return;
       }
-      if (res?.requiresAuth) {
-        setMarketplaceSelected(null);
-        initiateOAuth.mutate({ name: vars.name, url: vars.url });
-      } else if (res?.success !== false) {
-        setMarketplaceSelected(null);
-      }
-      queryClient.invalidateQueries({ queryKey: ["mcpServers"] });
-    },
-    onError: (err) => {
-      setMarketplaceError(err instanceof Error ? err.message : t("settings.saveError"));
-    },
-  }));
-
-  const initiateOAuth = createMutation(() => ({
-    mutationFn: (vars: { name: string; url: string }) =>
-      client.request<{ initiateOAuth: { success: boolean; authUrl?: string; error?: string } }>(
-        INITIATE_OAUTH_MUTATION,
-        vars,
-      ),
-    onSuccess: (data) => {
-      const res = data.initiateOAuth;
-      setMarketplaceError(null);
-      if (res?.error) {
-        setMarketplaceError(res.error);
+      if (res?.requiresAuth && res?.url) {
+        window.open(res.url, "_blank");
         return;
       }
-      if (res?.authUrl) {
-        window.open(res.authUrl, "oauth_popup", "width=600,height=700");
-        setMarketplaceSelected(null);
-      }
+      setMarketplaceSelected(null);
       queryClient.invalidateQueries({ queryKey: ["mcpServers"] });
     },
     onError: (err) => {
@@ -333,149 +276,107 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
         setFormValues({
           ...getDefaultFormValues(),
           agentName: config.agent?.name ?? "OpenLobster",
-          provider: config.agent?.provider ?? "ollama",
           model: config.agent?.model ?? "llama3.2:latest",
-          apiKey: config.agent?.apiKey ?? "",
-          baseURL: config.agent?.baseURL ?? "",
-          ollamaHost: config.agent?.ollamaHost ?? "http://localhost:11434",
-          ollamaApiKey: config.agent?.ollamaApiKey ?? "",
-          anthropicApiKey: config.agent?.anthropicApiKey ?? "",
-          dockerModelRunnerEndpoint: config.agent?.dockerModelRunnerEndpoint ?? "http://host.docker.internal:12434/engines/v1",
-          capabilities: config.capabilities ?? getDefaultFormValues().capabilities,
-          pluginDefaultAi: config.pluginDefaults?.ai ?? "",
-          pluginDefaultMemory: config.pluginDefaults?.memory ?? "",
-          pluginDefaultSecrets: config.pluginDefaults?.secrets ?? "",
-          pluginDefaultAudio: config.pluginDefaults?.audio ?? "",
-          a2aEnabled: config.a2aEnabled ?? true,
-          graphqlBaseUrl: config.graphql?.baseUrl || (typeof window !== "undefined" ? window.location.origin : ""),
-          channelTelegramEnabled: config.channelSecrets?.telegramEnabled ?? false,
-          channelTelegramToken: config.channelSecrets?.telegramToken ?? "",
-          channelDiscordEnabled: config.channelSecrets?.discordEnabled ?? false,
-          channelDiscordToken: config.channelSecrets?.discordToken ?? "",
-          channelSlackEnabled: config.channelSecrets?.slackEnabled ?? false,
-          channelSlackBotToken: config.channelSecrets?.slackBotToken ?? "",
-          channelSlackAppToken: config.channelSecrets?.slackAppToken ?? "",
-          channelWhatsAppEnabled: config.channelSecrets?.whatsAppEnabled ?? false,
-          channelWhatsAppPhoneId: config.channelSecrets?.whatsAppPhoneId ?? "",
-          channelWhatsAppApiToken: config.channelSecrets?.whatsAppApiToken ?? "",
-          channelTwilioEnabled: config.channelSecrets?.twilioEnabled ?? false,
-          channelTwilioAccountSid: config.channelSecrets?.twilioAccountSid ?? "",
-          channelTwilioAuthToken: config.channelSecrets?.twilioAuthToken ?? "",
-          channelTwilioFromNumber: config.channelSecrets?.twilioFromNumber ?? "",
+          pluginDefaultAi: config.plugins?.defaultAi ?? "",
+          pluginDefaultMemory: config.plugins?.defaultMemory ?? "",
+          pluginDefaultSecrets: config.plugins?.defaultSecrets ?? "",
+          pluginDefaultAudio: config.plugins?.defaultAudio ?? "",
+          capabilities: {
+            ...getDefaultFormValues().capabilities as any,
+            ...(config.agent?.capabilities ?? {}),
+          },
+          graphqlBaseUrl: config.agent?.graphqlBaseUrl ?? (typeof window !== "undefined" ? window.location.origin : ""),
         });
       }
-    } catch {
-      // Keep defaults on error
+    } catch (err) {
+      console.error("Failed to load config", err);
     } finally {
       setIsLoading(false);
     }
   });
 
+  const canGoNext = () => {
+    if (step() === 1) return !!formValues().agentName;
+    return true;
+  };
+
+  const goNext = () => {
+    if (canGoNext()) setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
+  };
+
+  const goBack = () => {
+    if (step() === 4 && marketplaceSelected()) {
+      setMarketplaceSelected(null);
+    } else {
+      setStep((s) => Math.max(s - 1, 0));
+    }
+  };
+
+  const handleAddMarketplace = async (server: MarketplaceServer) => {
+    setMarketplaceError(null);
+    connectMcp.mutate({
+      name: detailName() || server.name,
+      transport: server.transport || "sse",
+      url: detailUrl() || server.url,
+    });
+  };
+
   const handleSaveAndFinish = async () => {
-    setSaveError(null);
-    setIsSaving(true);
-    const v = formValues() as Record<string, unknown>;
-    const caps = (v.capabilities ?? {}) as Record<string, boolean>;
     try {
+      setIsSaving(true);
+      setSaveError(null);
+
+      const values = formValues();
+      const enabled = (values.plugins as any)?.enabled || {};
+      const settings = (values.plugins as any)?.settings || {};
+
+      const variables = {
+        input: {
+          agentName: values.agentName,
+          model: values.model,
+          graphqlBaseUrl: values.graphqlBaseUrl,
+          pluginDefaultAi: values.pluginDefaultAi,
+          pluginDefaultMemory: values.pluginDefaultMemory,
+          pluginDefaultSecrets: values.pluginDefaultSecrets,
+          pluginDefaultAudio: values.pluginDefaultAudio,
+          capabilities: values.capabilities,
+          
+          // Messaging channels mapping
+          channelTelegramEnabled: !!enabled["openlobster-messages-telegram"],
+          channelTelegramToken: settings["openlobster-messages-telegram"]?.token || "",
+          
+          channelDiscordEnabled: !!enabled["openlobster-messages-discord"],
+          channelDiscordToken: settings["openlobster-messages-discord"]?.token || "",
+          
+          channelSlackEnabled: !!enabled["openlobster-messages-slack"],
+          channelSlackBotToken: settings["openlobster-messages-slack"]?.botToken || "",
+          channelSlackAppToken: settings["openlobster-messages-slack"]?.appToken || "",
+          
+          wizardCompleted: true,
+        },
+      };
+
       const res = await fetch(GRAPHQL_ENDPOINT, {
         method: "POST",
         headers: graphqlHeaders(),
         body: JSON.stringify({
           query: UPDATE_CONFIG_MUTATION,
-          variables: {
-            input: {
-              agentName: v.agentName,
-              provider: v.provider,
-              model: v.model,
-              apiKey: v.apiKey ?? "",
-              baseURL: v.baseURL ?? "",
-              ollamaHost: v.ollamaHost ?? "",
-              ollamaApiKey: v.ollamaApiKey ?? "",
-              anthropicApiKey: v.anthropicApiKey ?? "",
-              dockerModelRunnerEndpoint: v.dockerModelRunnerEndpoint ?? "",
-              capabilities: caps,
-              pluginDefaultAi: v.pluginDefaultAi ?? "",
-              pluginDefaultMemory: v.pluginDefaultMemory ?? "",
-              pluginDefaultSecrets: v.pluginDefaultSecrets ?? "",
-              pluginDefaultAudio: v.pluginDefaultAudio ?? "",
-              a2aEnabled: v.a2aEnabled ?? true,
-              graphqlBaseUrl: v.graphqlBaseUrl ?? "",
-              wizardCompleted: true,
-              channelTelegramEnabled: v.channelTelegramEnabled ?? false,
-              channelTelegramToken: v.channelTelegramToken ?? "",
-              channelDiscordEnabled: v.channelDiscordEnabled ?? false,
-              channelDiscordToken: v.channelDiscordToken ?? "",
-              channelSlackEnabled: v.channelSlackEnabled ?? false,
-              channelSlackBotToken: v.channelSlackBotToken ?? "",
-              channelSlackAppToken: v.channelSlackAppToken ?? "",
-              channelWhatsAppEnabled: v.channelWhatsAppEnabled ?? false,
-              channelWhatsAppPhoneId: v.channelWhatsAppPhoneId ?? "",
-              channelWhatsAppApiToken: v.channelWhatsAppApiToken ?? "",
-              channelTwilioEnabled: v.channelTwilioEnabled ?? false,
-              channelTwilioAccountSid: v.channelTwilioAccountSid ?? "",
-              channelTwilioAuthToken: v.channelTwilioAuthToken ?? "",
-              channelTwilioFromNumber: v.channelTwilioFromNumber ?? "",
-            },
-          },
+          variables,
         }),
       });
-      if (res.status === 401) {
-        setNeedsAuth(true);
-        return;
-      }
+
       const data = await res.json();
-      if (data?.errors?.length) {
-        setSaveError(data.errors[0]?.message ?? t("settings.saveError"));
+      if (data?.errors) {
+        setSaveError(data.errors[0].message);
         return;
       }
-      void queryClient.invalidateQueries({ queryKey: ["config"] });
-      void queryClient.refetchQueries({ queryKey: ["agent"] });
+
+      setWizardCompleted();
       props.onComplete();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t("settings.saveError"));
+      setSaveError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleMarketplaceAdd = (server: MarketplaceServer) => {
-    setMarketplaceError(null);
-    const name = (detailName() || server.name || server.id || "").trim();
-    const url = (detailUrl() || server.url || "").trim();
-    if (!name) {
-      setMarketplaceError(t("marketplace.errorNameRequired"));
-      return;
-    }
-    if (!url) {
-      setMarketplaceError(t("marketplace.errorUrlRequired"));
-      return;
-    }
-    if (server.oauth) {
-      initiateOAuth.mutate({ name, url });
-    } else {
-      connectMcp.mutate({ name, transport: "http", url });
-    }
-  };
-
-  const canGoNext = createMemo(() => {
-    const v = formValues();
-    if (step() === 1) {
-      const name = (v.agentName as string)?.trim();
-      return !!name;
-    }
-    return true;
-  });
-
-  const goNext = () => {
-    if (step() === 5) setMarketplaceSelected(null);
-    if (step() < TOTAL_STEPS - 1) setStep((s) => s + 1);
-  };
-
-  const goBack = () => {
-    if (step() === 5 && marketplaceSelected()) {
-      setMarketplaceSelected(null);
-    } else if (step() > 0) {
-      setStep((s) => s - 1);
     }
   };
 
@@ -499,7 +400,7 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
         <div class="wizard-content">
           <Show when={isLoading()}>
             <div class="wizard-loading">
-              <span class="material-symbols-outlined wizard-loading-icon">hourglass_empty</span>
+              <span class="material-symbols-outlined wizard-loading-icon spinning">hourglass_empty</span>
               <p>{t("common.loading")}</p>
             </div>
           </Show>
@@ -514,7 +415,7 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
               </div>
             </Show>
 
-            {/* Step 1: Agent name + baseUrl */}
+            {/* Step 1: Identity */}
             <Show when={step() === 1}>
               <div class="wizard-step">
                 <h2>{t("wizard.agentConfig.title")}</h2>
@@ -522,10 +423,11 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                 <div class="wizard-form">
                   <Input
                     label={t("settings.field.agentName")}
+                    hint={t("settings.field.agentNameDesc")}
                     type="text"
                     value={(formValues().agentName as string) ?? ""}
                     onInput={(e) => handleFieldChange("agentName", e.currentTarget.value)}
-                    placeholder="OpenLobster"
+                    placeholder="e.g. agent-01, MyPersonalAgent"
                   />
                   <Input
                     label={t("settings.field.graphqlBaseUrl")}
@@ -539,7 +441,7 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
               </div>
             </Show>
 
-            {/* Step 2: AI Provider */}
+            {/* Step 2: Intelligence - Brain */}
             <Show when={step() === 2}>
               <div class="wizard-step">
                 <h2>{t("wizard.aiProvider.title")}</h2>
@@ -548,197 +450,58 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                   <div class="wizard-field">
                     <label>{t("settings.field.provider")}</label>
                     <select
-                      value={(formValues().provider as string) ?? "ollama"}
-                      onChange={(e) => handleFieldChange("provider", e.currentTarget.value)}
+                      value={(formValues().pluginDefaultAi as string) ?? ""}
+                      onChange={(e) => handleFieldChange("pluginDefaultAi", e.currentTarget.value)}
                     >
-                      <For each={PROVIDERS}>
-                        {(p) => <option value={p.value}>{t(p.labelKey)}</option>}
+                      <option value="">{t("plugins.defaultAuto")}</option>
+                      <For each={pluginOptions().ai}>
+                        {(p) => <option value={p.id}>{p.name}</option>}
                       </For>
                     </select>
                   </div>
-                  <Input
-                    label={t("settings.field.model")}
-                    type="text"
-                    value={(formValues().model as string) ?? ""}
-                    onInput={(e) => handleFieldChange("model", e.currentTarget.value)}
-                    placeholder="llama3.2:latest"
-                  />
-                  <Show when={(formValues().provider as string) === "ollama"}>
-                    <Input
-                      label={t("settings.field.ollamaHost")}
-                      type="text"
-                      value={(formValues().ollamaHost as string) ?? ""}
-                      onInput={(e) => handleFieldChange("ollamaHost", e.currentTarget.value)}
-                      placeholder="http://localhost:11434"
-                    />
-                    <Input
-                      label={t("settings.field.ollamaApiKey")}
-                      hint={t("settings.field.ollamaApiKeyDesc")}
-                      type="password"
-                      value={(formValues().ollamaApiKey as string) ?? ""}
-                      onInput={(e) => handleFieldChange("ollamaApiKey", e.currentTarget.value)}
-                    />
-                  </Show>
-                  <Show when={["openai", "openrouter", "opencode-zen"].includes((formValues().provider as string) ?? "")}>
-                    <Input
-                      label={t("settings.field.apiKey")}
-                      type="password"
-                      value={(formValues().apiKey as string) ?? ""}
-                      onInput={(e) => handleFieldChange("apiKey", e.currentTarget.value)}
-                      placeholder="sk-..."
-                    />
-                  </Show>
-                  <Show when={(formValues().provider as string) === "anthropic"}>
-                    <Input
-                      label={t("settings.field.anthropicApiKey")}
-                      type="password"
-                      value={(formValues().anthropicApiKey as string) ?? ""}
-                      onInput={(e) => handleFieldChange("anthropicApiKey", e.currentTarget.value)}
-                      placeholder="sk-ant-..."
-                    />
-                  </Show>
-                  <Show when={(formValues().provider as string) === "openai-compatible"}>
-                    <Input
-                      label={t("settings.field.baseURL")}
-                      type="text"
-                      value={(formValues().baseURL as string) ?? ""}
-                      onInput={(e) => handleFieldChange("baseURL", e.currentTarget.value)}
-                      placeholder="http://localhost:8000/v1"
-                    />
-                  </Show>
-                  <Show when={(formValues().provider as string) === "docker-model-runner"}>
-                    <Input
-                      label={t("settings.field.dockerModelRunnerEndpoint")}
-                      type="text"
-                      value={(formValues().dockerModelRunnerEndpoint as string) ?? ""}
-                      onInput={(e) => handleFieldChange("dockerModelRunnerEndpoint", e.currentTarget.value)}
-                    />
-                  </Show>
-                </div>
-              </div>
-            </Show>
 
-            {/* Step 3: Channels */}
-            <Show when={step() === 3}>
-              <div class="wizard-step">
-                <h2>{t("wizard.channels.title")}</h2>
-                <p>{t("wizard.channels.description")}</p>
-                <div class="wizard-form wizard-channels">
-                  <For each={CHANNELS}>
-                    {(ch) => {
-                      const enabled = () =>
-                        !!(formValues()[ch.enabledKey] as boolean);
+                  <Show when={formValues().pluginDefaultAi}>
+                    {(selectedId) => {
+                      const plugin = () =>
+                        pluginOptions().ai.find((p) => p.id === selectedId());
+                      const schema = () =>
+                        plugin()?.schemaJson ? JSON.parse(plugin()!.schemaJson!) : null;
                       return (
-                        <div class="wizard-channel-row">
-                          <div class="wizard-channel-toggle-row">
-                            <label class="toggle-switch">
-                              <input
-                                type="checkbox"
-                                checked={enabled()}
-                                onChange={(e) =>
-                                  handleFieldChange(ch.enabledKey, e.currentTarget.checked)
-                                }
-                              />
-                              <span class="toggle-slider" />
-                            </label>
-                            <span class="wizard-channel-label">{t(ch.labelKey)}</span>
+                        <Show when={schema()}>
+                          <div class="wizard-plugin-dynamic-fields">
+                            <For each={Object.entries(schema().properties || {})}>
+                              {([key, prop]) => (
+                                <SchemaField
+                                  field={`plugins.settings.${selectedId()}.${key}`}
+                                  schema={prop as any}
+                                  values={getValueAtPath(formValues(), `plugins.settings.${selectedId()}`) || {}}
+                                  onChange={handleFieldChange}
+                                />
+                              )}
+                            </For>
                           </div>
-                          <Show when={enabled()}>
-                            <Input
-                              type="password"
-                              placeholder={t(`wizard.channel.${ch.key}.placeholder`)}
-                              hint={t(`wizard.channel.${ch.key}.hint`)}
-                              value={(formValues()[ch.tokenKey] as string) ?? ""}
-                              onInput={(e) =>
-                                handleFieldChange(ch.tokenKey, e.currentTarget.value)
-                              }
-                            />
-                          </Show>
-                        </div>
+                        </Show>
                       );
                     }}
-                  </For>
+                  </Show>
+                  <Show when={!formValues().pluginDefaultAi}>
+                    <Input
+                      label={t("settings.field.model")}
+                      type="text"
+                      value={(formValues().model as string) ?? ""}
+                      onInput={(e) => handleFieldChange("model", e.currentTarget.value)}
+                      placeholder="llama3.2:latest"
+                    />
+                  </Show>
                 </div>
               </div>
             </Show>
 
-            {/* Step 4: Capabilities + plugin defaults */}
-            <Show when={step() === 4}>
+            {/* Step 3: Skills - Capabilities */}
+            <Show when={step() === 3}>
               <div class="wizard-step">
                 <h2>{t("wizard.capabilities.title")}</h2>
                 <p>{t("wizard.capabilities.description")}</p>
-
-                <div class="wizard-plugin-defaults">
-                  <div class="wizard-plugin-grid">
-                    <div class="wizard-field">
-                      <label>{t("plugins.defaultAiLabel")}</label>
-                      <select
-                        value={(formValues().pluginDefaultAi as string) ?? ""}
-                        onChange={(e) => handleFieldChange("pluginDefaultAi", e.currentTarget.value)}
-                      >
-                        <option value="">{t("plugins.defaultAuto")}</option>
-                        <For each={pluginOptions().ai}>
-                          {(plugin) => <option value={plugin.id}>{plugin.name}</option>}
-                        </For>
-                      </select>
-                    </div>
-                    <div class="wizard-field">
-                      <label>{t("plugins.defaultMemoryLabel")}</label>
-                      <select
-                        value={(formValues().pluginDefaultMemory as string) ?? ""}
-                        onChange={(e) => handleFieldChange("pluginDefaultMemory", e.currentTarget.value)}
-                      >
-                        <option value="">{t("plugins.defaultAuto")}</option>
-                        <For each={pluginOptions().memory}>
-                          {(plugin) => <option value={plugin.id}>{plugin.name}</option>}
-                        </For>
-                      </select>
-                    </div>
-                    <div class="wizard-field">
-                      <label>{t("plugins.defaultSecretsLabel")}</label>
-                      <select
-                        value={(formValues().pluginDefaultSecrets as string) ?? ""}
-                        onChange={(e) => handleFieldChange("pluginDefaultSecrets", e.currentTarget.value)}
-                      >
-                        <option value="">{t("plugins.defaultAuto")}</option>
-                        <For each={pluginOptions().secrets}>
-                          {(plugin) => <option value={plugin.id}>{plugin.name}</option>}
-                        </For>
-                      </select>
-                    </div>
-                    <div class="wizard-field">
-                      <label>{t("plugins.defaultAudioLabel")}</label>
-                      <select
-                        value={(formValues().pluginDefaultAudio as string) ?? ""}
-                        onChange={(e) => handleFieldChange("pluginDefaultAudio", e.currentTarget.value)}
-                      >
-                        <option value="">{t("plugins.defaultAuto")}</option>
-                        <For each={pluginOptions().audio}>
-                          {(plugin) => <option value={plugin.id}>{plugin.name}</option>}
-                        </For>
-                      </select>
-                    </div>
-                  </div>
-                  <Show when={wizardPlugins.loading}>
-                    <p class="wizard-hint">{t("plugins.loading")}</p>
-                  </Show>
-                </div>
-
-                <div class="wizard-channel-row wizard-channel-row--inline">
-                  <div class="wizard-channel-toggle-row">
-                    <label class="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(formValues().a2aEnabled)}
-                        onChange={(e) => handleFieldChange("a2aEnabled", e.currentTarget.checked)}
-                      />
-                      <span class="toggle-slider" />
-                    </label>
-                    <span class="wizard-channel-label">{t("settings.field.a2aEnabled")}</span>
-                  </div>
-                  <p class="wizard-toggle-description">{t("settings.field.a2aEnabledDesc")}</p>
-                </div>
-
                 <div class="wizard-capabilities">
                   <For each={CAPABILITIES}>
                     {(cap) => {
@@ -755,7 +518,7 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                             }
                           />
                           <span class="material-symbols-outlined wizard-cap-icon">{cap.icon}</span>
-                          <span>{t(`mcps.cap.${cap.key}`)}</span>
+                          <span class="wizard-cap-label">{t(`mcps.cap.${cap.key}`)}</span>
                         </label>
                       );
                     }}
@@ -764,8 +527,8 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
               </div>
             </Show>
 
-            {/* Step 5: Marketplace MCP (skippable) — contenido inline, sin modal */}
-            <Show when={step() === 5}>
+            {/* Step 4: Tools - Marketplace */}
+            <Show when={step() === 4}>
               <div class="wizard-step wizard-step--marketplace">
                 <Show
                   when={marketplaceSelected()}
@@ -790,51 +553,34 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                       <div class="wizard-marketplace-body">
                         <Show when={marketplaceServers.loading}>
                           <div class="wizard-marketplace-loading">
-                            <span class="material-symbols-outlined">rotate_right</span>
+                            <span class="material-symbols-outlined spinning">hourglass_empty</span>
                             <p>{t("marketplace.loading")}</p>
                           </div>
                         </Show>
-                        <Show when={marketplaceServers.error}>
-                          <div class="wizard-marketplace-loading">
-                            <span class="material-symbols-outlined">error</span>
-                            <p>{t("marketplace.error")}</p>
+                        <Show when={!marketplaceServers.loading}>
+                          <div class="wizard-marketplace-grid">
+                            <For each={marketplaceFiltered()}>
+                              {(server) => (
+                                <button
+                                  class="wizard-marketplace-card"
+                                  onClick={() => setMarketplaceSelected(server)}
+                                >
+                                  <div class="wizard-marketplace-card__icon">
+                                    <img src={faviconUrl(server.url, server.homepage)} alt="" />
+                                  </div>
+                                  <div class="wizard-marketplace-card__body">
+                                    <span class="wizard-marketplace-card__name">{server.name}</span>
+                                    <span class="wizard-marketplace-card__company">{server.company}</span>
+                                    <p class="wizard-marketplace-card__desc">{server.description}</p>
+                                  </div>
+                                  <span class="material-symbols-outlined wizard-marketplace-card__chevron">
+                                    chevron_right
+                                  </span>
+                                </button>
+                              )}
+                            </For>
                           </div>
                         </Show>
-                        <Show when={!marketplaceServers.loading && !marketplaceServers.error && marketplaceFiltered().length === 0}>
-                          <div class="wizard-marketplace-loading">
-                            <span class="material-symbols-outlined">search_off</span>
-                            <p>{t("marketplace.noResults")}</p>
-                          </div>
-                        </Show>
-                        <div class="wizard-marketplace-grid">
-                          <For each={marketplaceFiltered()}>
-                            {(server) => (
-                              <button
-                                class="wizard-marketplace-card"
-                                onClick={() => setMarketplaceSelected(server)}
-                              >
-                                <div class="wizard-marketplace-card__icon">
-                                  <img
-                                    src={faviconUrl(server.url, server.homepage)}
-                                    alt=""
-                                    onError={(e) => {
-                                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                                      const fb = e.currentTarget.nextElementSibling as HTMLElement | null;
-                                      if (fb) fb.style.display = "";
-                                    }}
-                                  />
-                                  <span class="material-symbols-outlined" style={{"display":"none"}}>extension</span>
-                                </div>
-                                <div class="wizard-marketplace-card__body">
-                                  <span class="wizard-marketplace-card__name">{server.name}</span>
-                                  <span class="wizard-marketplace-card__company">{server.company}</span>
-                                  <p class="wizard-marketplace-card__desc">{server.description}</p>
-                                </div>
-                                <span class="material-symbols-outlined wizard-marketplace-card__chevron">chevron_right</span>
-                              </button>
-                            )}
-                          </For>
-                        </div>
                       </div>
                     </>
                   }
@@ -847,16 +593,7 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                       </button>
                       <div class="wizard-marketplace-detail__hero">
                         <div class="wizard-marketplace-detail__icon">
-                          <img
-                            src={faviconUrl(server.url, server.homepage)}
-                            alt=""
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = "none";
-                              const fb = e.currentTarget.nextElementSibling as HTMLElement | null;
-                              if (fb) fb.style.display = "";
-                            }}
-                          />
-                          <span class="material-symbols-outlined" style={{"display":"none"}}>extension</span>
+                          <img src={faviconUrl(server.url, server.homepage)} alt="" />
                         </div>
                         <div>
                           <h3 class="wizard-marketplace-detail__name">{server.name}</h3>
@@ -867,29 +604,29 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                       <div class="wizard-form wizard-marketplace-detail__form">
                         <Input
                           label={t("marketplace.name")}
-                          type="text"
+                          hint={t("mcps.serverNamePlaceholder")}
                           value={detailName()}
                           onInput={(e) => setDetailName(e.currentTarget.value)}
-                          placeholder={server.name || server.id}
+                          placeholder={server.name}
                         />
                         <Input
                           label={t("marketplace.endpoint")}
-                          type="url"
-                          value={detailUrl() || server.url}
+                          hint={t("mcps.serverUrlPlaceholder")}
+                          value={detailUrl()}
                           onInput={(e) => setDetailUrl(e.currentTarget.value)}
-                          placeholder="https://..."
+                          placeholder={server.url}
                         />
                       </div>
                       <Show when={marketplaceError()}>
-                        <p class="wizard-error wizard-marketplace-error">{marketplaceError()}</p>
+                        <p class="wizard-error">{marketplaceError()}</p>
                       </Show>
                       <button
                         class="wizard-btn wizard-btn-primary"
-                        onClick={() => handleMarketplaceAdd(server)}
-                        disabled={connectMcp.isPending || initiateOAuth.isPending}
+                        onClick={() => handleAddMarketplace(server)}
+                        disabled={connectMcp.isPending}
                       >
                         <span class="material-symbols-outlined">add_circle</span>
-                        {connectMcp.isPending || initiateOAuth.isPending
+                        {connectMcp.isPending
                           ? t("common.loading")
                           : t("marketplace.connect")}
                       </button>
@@ -899,8 +636,136 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
               </div>
             </Show>
 
-            {/* Step 6: All done */}
+            {/* Step 5: Infrastructure - Knowledge */}
+            <Show when={step() === 5}>
+              <div class="wizard-step">
+                <h2>{t("wizard.knowledge.title")}</h2>
+                <p>{t("wizard.knowledge.description")}</p>
+                <div class="wizard-form">
+                  <div class="wizard-field">
+                    <label>{t("plugins.defaultMemoryLabel")}</label>
+                    <select
+                      value={(formValues().pluginDefaultMemory as string) ?? ""}
+                      onChange={(e) => handleFieldChange("pluginDefaultMemory", e.currentTarget.value)}
+                    >
+                      <option value="">{t("plugins.defaultAuto")}</option>
+                      <For each={pluginOptions().memory}>
+                        {(p) => <option value={p.id}>{p.name}</option>}
+                      </For>
+                    </select>
+                  </div>
+                  <Show when={formValues().pluginDefaultMemory}>
+                    {(id) => {
+                      const p = () => pluginOptions().memory.find((plug) => plug.id === id());
+                      const schema = () => (p()?.schemaJson ? JSON.parse(p()!.schemaJson!) : null);
+                      return (
+                        <Show when={schema()}>
+                          <div class="wizard-plugin-dynamic-fields">
+                            <For each={Object.entries(schema().properties || {})}>
+                              {([k, v]) => (
+                                <SchemaField
+                                  field={`plugins.settings.${id()}.${k}`}
+                                  schema={v as any}
+                                  values={getValueAtPath(formValues(), `plugins.settings.${id()}`) || {}}
+                                  onChange={handleFieldChange}
+                                />
+                              )}
+                            </For>
+                          </div>
+                        </Show>
+                      );
+                    }}
+                  </Show>
+
+                  <div class="wizard-field">
+                    <label>{t("plugins.defaultSecretsLabel")}</label>
+                    <select
+                      value={(formValues().pluginDefaultSecrets as string) ?? ""}
+                      onChange={(e) => handleFieldChange("pluginDefaultSecrets", e.currentTarget.value)}
+                    >
+                      <option value="">{t("plugins.defaultAuto")}</option>
+                      <For each={pluginOptions().secrets}>
+                        {(p) => <option value={p.id}>{p.name}</option>}
+                      </For>
+                    </select>
+                  </div>
+                  <Show when={formValues().pluginDefaultSecrets}>
+                    {(id) => {
+                      const p = () => pluginOptions().secrets.find((plug) => plug.id === id());
+                      const schema = () => (p()?.schemaJson ? JSON.parse(p()!.schemaJson!) : null);
+                      return (
+                        <Show when={schema()}>
+                          <div class="wizard-plugin-dynamic-fields">
+                            <For each={Object.entries(schema().properties || {})}>
+                              {([k, v]) => (
+                                <SchemaField
+                                  field={`plugins.settings.${id()}.${k}`}
+                                  schema={v as any}
+                                  values={getValueAtPath(formValues(), `plugins.settings.${id()}`) || {}}
+                                  onChange={handleFieldChange}
+                                />
+                              )}
+                            </For>
+                          </div>
+                        </Show>
+                      );
+                    }}
+                  </Show>
+                </div>
+              </div>
+            </Show>
+
+            {/* Step 6: Connectivity - Messaging Plugins */}
             <Show when={step() === 6}>
+              <div class="wizard-step">
+                <h2>{t("wizard.connectivity.title")}</h2>
+                <p>{t("wizard.connectivity.description")}</p>
+                <div class="wizard-form wizard-channels">
+                  <For each={pluginOptions().messaging}>
+                    {(p) => {
+                      const enabledKey = `plugins.enabled.${p.id}`;
+                      const enabled = () => !!getValueAtPath(formValues(), enabledKey);
+                      const schema = () => (p.schemaJson ? JSON.parse(p.schemaJson) : null);
+
+                      return (
+                        <div class="wizard-channel-row">
+                          <div class="wizard-channel-toggle-row">
+                            <label class="toggle-switch">
+                              <input
+                                type="checkbox"
+                                checked={enabled()}
+                                onChange={(e) =>
+                                  handleFieldChange(enabledKey, e.currentTarget.checked)
+                                }
+                              />
+                              <span class="toggle-slider" />
+                            </label>
+                            <span class="wizard-channel-label">{p.name}</span>
+                          </div>
+                          <Show when={enabled() && schema()}>
+                            <div class="wizard-plugin-dynamic-fields">
+                              <For each={Object.entries(schema().properties || {})}>
+                                {([k, v]) => (
+                                  <SchemaField
+                                    field={`plugins.settings.${p.id}.${k}`}
+                                    schema={v as any}
+                                    values={getValueAtPath(formValues(), `plugins.settings.${p.id}`) || {}}
+                                    onChange={handleFieldChange}
+                                  />
+                                )}
+                              </For>
+                            </div>
+                          </Show>
+                        </div>
+                      );
+                    }}
+                  </For>
+                </div>
+              </div>
+            </Show>
+
+            {/* Step 7: Finalize */}
+            <Show when={step() === 7}>
               <div class="wizard-step wizard-step--done">
                 <span class="material-symbols-outlined wizard-done-icon">check_circle</span>
                 <h2>{t("wizard.done.title")}</h2>
@@ -914,18 +779,18 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
         </div>
 
         <div class="wizard-actions">
-          <Show when={(step() > 0 && step() < 6) || (step() === 5 && marketplaceSelected())}>
+          <Show when={(step() > 0 && step() < 7) || (step() === 4 && marketplaceSelected())}>
             <button class="wizard-btn wizard-btn-secondary" onClick={goBack}>
-              {step() === 5 && marketplaceSelected() ? t("marketplace.back") : t("wizard.back")}
+              {step() === 4 && marketplaceSelected() ? t("marketplace.back") : t("wizard.back")}
             </button>
           </Show>
           <div class="wizard-actions-right">
-            <Show when={step() === 5 && !marketplaceSelected()}>
+            <Show when={step() === 4 && !marketplaceSelected()}>
               <button class="wizard-btn wizard-btn-secondary" onClick={goNext}>
                 {t("wizard.skip")}
               </button>
             </Show>
-            <Show when={step() < 6 && !(step() === 5 && marketplaceSelected())}>
+            <Show when={step() < 7 && !(step() === 4 && marketplaceSelected())}>
               <button
                 class="wizard-btn wizard-btn-primary"
                 onClick={goNext}
@@ -934,7 +799,7 @@ const FirstBootWizard: Component<FirstBootWizardProps> = (props) => {
                 {t("wizard.next")}
               </button>
             </Show>
-            <Show when={step() === 6}>
+            <Show when={step() === 7}>
               <button
                 class="wizard-btn wizard-btn-primary"
                 onClick={handleSaveAndFinish}

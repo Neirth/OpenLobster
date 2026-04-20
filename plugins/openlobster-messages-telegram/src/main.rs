@@ -90,9 +90,9 @@ struct TypingInput {
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-messages-telegram";
+const PLUGIN_ID: &str = "telegram";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "Telegram messaging plugin for OpenLobster";
+const PLUGIN_DESC: &str = "Telegram messaging plugin for OpenLobster via bot API";
 const PLUGIN_TYPE: &str = "messaging";
 
 fn metadata_schema() -> Value {
@@ -101,24 +101,10 @@ fn metadata_schema() -> Value {
         "properties": {
             "bot_token": {
                 "type": "string",
+                "format": "password",
                 "title": "Bot Token",
-                "description": "Telegram bot token from @BotFather"
-            },
-            "api_id": {
-                "type": "string",
-                "title": "API ID",
-                "description": "Telegram API ID from my.telegram.org"
-            },
-            "api_hash": {
-                "type": "string",
-                "title": "API Hash",
-                "description": "Telegram API Hash from my.telegram.org"
-            },
-            "session_name": {
-                "type": "string",
-                "title": "Session Name",
-                "default": "openlobster",
-                "description": "Name for the Telegram session"
+                "description": "Telegram bot token from @BotFather",
+                "placeholder": "123456789:ABCdefG..."
             }
         },
         "required": ["bot_token"]
@@ -127,6 +113,7 @@ fn metadata_schema() -> Value {
 
 fn metadata_properties() -> Value {
     serde_json::json!({
+        "inbound_mode": "polling",
         "HasVoiceMessage": true, "HasCallStream": false,
         "HasTextStream": true, "HasMediaSupport": true
     })
@@ -503,9 +490,13 @@ struct TelegramPlugin;
 impl Plugin for TelegramPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "Telegram",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["inbound_mode", "capabilities", "resolve_channel_id",
                           "send", "start", "configure", "typing"],
         }

@@ -10,9 +10,9 @@ import { SchemaField } from "../../components/SchemaForm/SchemaField";
 import {
   CONFIG_QUERY,
   SYSTEM_FILES_QUERY,
-} from "@/ui/graphql/queries";
-import { WRITE_SYSTEM_FILE_MUTATION } from "@/ui/graphql/mutations";
-import { GRAPHQL_ENDPOINT } from "../../graphql/client";
+  WRITE_SYSTEM_FILE_MUTATION,
+} from "../../ui/graphql";
+import { GRAPHQL_ENDPOINT } from "../../graphql/config";
 import { effectiveTheme, setTheme } from "../../stores/themeStore";
 import AppShell from "../../components/AppShell";
 import PluginsSection from "../../components/PluginsSection/PluginsSection";
@@ -72,14 +72,9 @@ function getDefaultFormValues(): Record<string, unknown> {
     secretsFilePath: "./data/secrets",
     secretsOpenbaoURL: "",
     secretsOpenbaoToken: "",
-    pluginDefaultAi: "",
-    pluginDefaultMemory: "",
-    pluginDefaultSecrets: "",
-    pluginDefaultAudio: "",
     schedulerEnabled: true,
     schedulerMemoryEnabled: true,
     schedulerMemoryInterval: "4h",
-    a2aEnabled: true,
     channelTelegramEnabled: false,
     channelTelegramToken: "",
     channelDiscordEnabled: false,
@@ -94,6 +89,7 @@ function getDefaultFormValues(): Record<string, unknown> {
     channelSlackEnabled: false,
     channelSlackBotToken: "",
     channelSlackAppToken: "",
+    a2aEnabled: true,
   };
 }
 
@@ -220,10 +216,7 @@ const SettingsView: Component = () => {
             config.graphql?.enabled !== undefined
               ? config.graphql.enabled
               : true,
-          webEnabled:
-            config.webEnabled !== undefined
-              ? config.webEnabled
-              : true,
+          webEnabled: config.webEnabled ?? true,
           graphqlPort: config.graphql?.port || 8080,
           graphqlHost: config.graphql?.host || "127.0.0.1",
           graphqlBaseUrl: config.graphql?.baseUrl || "",
@@ -233,14 +226,9 @@ const SettingsView: Component = () => {
           secretsFilePath: config.secrets?.file?.path || "./data/secrets",
           secretsOpenbaoURL: config.secrets?.openbao?.url || "",
           secretsOpenbaoToken: config.secrets?.openbao?.token || "",
-          pluginDefaultAi: config.pluginDefaults?.ai || "",
-          pluginDefaultMemory: config.pluginDefaults?.memory || "",
-          pluginDefaultSecrets: config.pluginDefaults?.secrets || "",
-          pluginDefaultAudio: config.pluginDefaults?.audio || "",
           schedulerEnabled: config.scheduler?.enabled ?? true,
           schedulerMemoryEnabled: config.scheduler?.memoryEnabled ?? true,
           schedulerMemoryInterval: config.scheduler?.memoryInterval ?? "4h",
-          a2aEnabled: config.a2aEnabled ?? true,
           channelTelegramEnabled:
             config.channelSecrets?.telegramEnabled ?? false,
           channelTelegramToken: config.channelSecrets?.telegramToken || "",
@@ -260,6 +248,7 @@ const SettingsView: Component = () => {
           channelSlackAppToken: config.channelSecrets?.slackAppToken || "",
           channelTwilioFromNumber:
             config.channelSecrets?.twilioFromNumber || "",
+          a2aEnabled: config.a2aEnabled ?? true,
         });
       }
     } catch (error) {
@@ -370,11 +359,6 @@ const SettingsView: Component = () => {
               secretsFilePath: v.secretsFilePath,
               secretsOpenbaoURL: v.secretsOpenbaoURL,
               secretsOpenbaoToken: v.secretsOpenbaoToken,
-              pluginDefaultAi: v.pluginDefaultAi,
-              pluginDefaultMemory: v.pluginDefaultMemory,
-              pluginDefaultSecrets: v.pluginDefaultSecrets,
-              pluginDefaultAudio: v.pluginDefaultAudio,
-              a2aEnabled: v.a2aEnabled,
               schedulerEnabled: v.schedulerEnabled,
               schedulerMemoryEnabled: v.schedulerMemoryEnabled,
               schedulerMemoryInterval: v.schedulerMemoryInterval,
@@ -392,6 +376,7 @@ const SettingsView: Component = () => {
               channelSlackEnabled: v.channelSlackEnabled,
               channelSlackBotToken: v.channelSlackBotToken,
               channelSlackAppToken: v.channelSlackAppToken,
+              a2aEnabled: v.a2aEnabled,
             },
           },
         }),
@@ -487,7 +472,7 @@ const SettingsView: Component = () => {
         </div>
       </Show>
       <Show when={!isLoading()}>
-      <div class="settings-view">
+        <div class="settings-view">
         <div class="settings-header">
           <h1>{t("settings.title")}</h1>
           <div class="settings-actions">
@@ -552,7 +537,7 @@ const SettingsView: Component = () => {
           {/* Render each configuration group */}
           <For each={configGroups}>
             {(group) => (
-              <section class="settings-section" id={`settings-group-${group.id}`}>
+              <section class="settings-section">
                 <h2 class="section-title">{t(`settings.group.${group.id}` as "settings.group.general")}</h2>
                 <div class="settings-list">
                   <For each={group.fields}>
@@ -577,46 +562,9 @@ const SettingsView: Component = () => {
         </Show>
 
         {/* Plugins */}
-        <PluginsSection
-          defaultAiPluginId={(formValues().pluginDefaultAi as string | undefined) ?? ""}
-          defaultMemoryPluginId={(formValues().pluginDefaultMemory as string | undefined) ?? ""}
-          defaultSecretsPluginId={(formValues().pluginDefaultSecrets as string | undefined) ?? ""}
-          defaultAudioPluginId={(formValues().pluginDefaultAudio as string | undefined) ?? ""}
-          messagingChannelsEnabled={{
-            telegram: Boolean(formValues().channelTelegramEnabled),
-            discord: Boolean(formValues().channelDiscordEnabled),
-            slack: Boolean(formValues().channelSlackEnabled),
-            whatsapp: Boolean(formValues().channelWhatsAppEnabled),
-            twilio: Boolean(formValues().channelTwilioEnabled),
-          }}
-          onMessagingChannelChange={(channelType, enabled) => {
-            switch (channelType) {
-              case "telegram":
-                handleFieldChange("channelTelegramEnabled", enabled);
-                break;
-              case "discord":
-                handleFieldChange("channelDiscordEnabled", enabled);
-                break;
-              case "slack":
-                handleFieldChange("channelSlackEnabled", enabled);
-                break;
-              case "whatsapp":
-                handleFieldChange("channelWhatsAppEnabled", enabled);
-                break;
-              case "twilio":
-                handleFieldChange("channelTwilioEnabled", enabled);
-                break;
-              default:
-                break;
-            }
-          }}
-          onDefaultsChange={(next) => {
-            handleFieldChange("pluginDefaultAi", next.ai);
-            handleFieldChange("pluginDefaultMemory", next.memory);
-            handleFieldChange("pluginDefaultSecrets", next.secrets);
-            handleFieldChange("pluginDefaultAudio", next.audio);
-          }}
-        />
+        <Show when={!isLoading()}>
+          <PluginsSection />
+        </Show>
 
         {/* Workspace Files Editor */}
         <section class="settings-section workspace-editor settings-section--with-gap">

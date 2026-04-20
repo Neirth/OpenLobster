@@ -16,12 +16,12 @@ const Input: Component<InputProps> = (props) => {
   return (
     <div class="input-wrapper">
       {label && <label class="input-label">{label}</label>}
+      {hint && <span class="input-hint">{hint}</span>}
       <input
         class={`input ${error ? 'input-error' : ''} ${className || ''}`}
         {...rest}
       />
       {error && <span class="input-error-text">{error}</span>}
-      {hint && <span class="input-hint">{hint}</span>}
     </div>
   );
 };

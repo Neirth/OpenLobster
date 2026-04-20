@@ -7,9 +7,10 @@ import {
   createSubscriptionManager,
   type PairingRequestEvent,
 } from "@/ui/hooks";
-import { client, GRAPHQL_ENDPOINT } from "../../graphql/client";
+import { client } from "../../graphql/client";
+import { GRAPHQL_ENDPOINT } from "../../graphql/config";
 import { useWsConnection } from "../../stores/wsStore";
-import { needsAuth, getStoredToken, syncNeedsAuthFromSessionStorage } from "../../stores/authStore";
+import { needsAuth, getStoredToken, syncNeedsAuthFromStorage } from "../../stores/authStore";
 import { pendingPairingsQueue, setPendingPairingsQueue, setOpenPairingRequestHandler } from "../../stores/pairingStore";
 import AccessTokenModal from "../AccessTokenModal/AccessTokenModal";
 import PairingModal from "../PairingModal/PairingModal";
@@ -83,7 +84,7 @@ const AuthModals: Component<AuthModalsProps> = (props) => {
   };
 
   onMount(() => {
-    syncNeedsAuthFromSessionStorage();
+    syncNeedsAuthFromStorage();
 
     // Register the handler so Header can open the modal for a specific request.
     setOpenPairingRequestHandler((req) => setPairingRequest(req));

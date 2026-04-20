@@ -52,7 +52,7 @@
 use async_trait::async_trait;
 
 use crate::io::write_line;
-use crate::protocol::{CallParams, CallResponse, PluginInfo, RpcIncoming, RpcResponse};
+use crate::protocol::{CallResponse, PluginInfo, RpcIncoming, RpcResponse};
 use crate::rpc;
 use crate::validation::validate_schema;
 
@@ -174,7 +174,7 @@ pub async fn run<P: Plugin>(mut plugin: P) {
                 );
                 break;
             }
-            other if info.exports.contains(&other.to_string()) => {
+            other if info.exports.contains(&other) => {
                 let resp = plugin.call(other, incoming.params).await;
                 let val = serde_json::to_value(&resp)
                     .unwrap_or(serde_json::Value::Null);
