@@ -13,5 +13,6 @@ type MemoryBackendType string
 
 const (
 	MemoryFile  MemoryBackendType = "file"
+	MemoryGML   MemoryBackendType = "gml"
 	MemoryNeo4j MemoryBackendType = "neo4j"
 )

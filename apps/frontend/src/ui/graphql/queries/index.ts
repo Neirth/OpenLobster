@@ -340,3 +340,14 @@ export const PLUGINS_QUERY = /* GraphQL */ `
     }
   }
 `;
+
+export const MARKETPLACE_QUERY = /* GraphQL */ `
+  query GetMarketplace {
+    marketplace {
+      name
+      description
+      url
+      category
+    }
+  }
+`;

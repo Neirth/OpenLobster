@@ -105,9 +105,9 @@ func (c *Config) Validate() error {
 
 	// Memory backend: validate required fields per backend type.
 	switch c.Memory.Backend {
-	case models.MemoryFile:
+	case models.MemoryFile, models.MemoryGML:
 		if c.Memory.File.Path == "" {
-			errs = append(errs, "memory.file.path is required when memory.backend is \"file\"")
+			errs = append(errs, "memory.file.path is required when memory.backend is \"file\" or \"gml\"")
 		}
 	case models.MemoryNeo4j:
 		if c.Memory.Neo4j.URI == "" {
@@ -632,9 +632,9 @@ func bootstrapEncryptedConfig(path string) error {
 	v.SetDefault("agent.capabilities.sessions", true)
 	v.SetDefault("wizard.completed", false)
 	v.SetDefault("plugins.defaults", map[string]string{
-		"ai":      "",
-		"memory":  "",
-		"secrets": "",
+		"ai":      "openlobster-ai-ollama",
+		"memory":  "openlobster-memory-gml",
+		"secrets": "openlobster-secrets-json",
 		"audio":   "",
 	})
 	v.SetDefault("plugins.enabled", map[string]bool{})

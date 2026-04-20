@@ -3,11 +3,13 @@
 /* ── Page layout ─────────────────────────────────────────────── */
 
 .mcps-view {
-  /* inherits padding from app-shell__content */
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
   flex: 1;
+  height: 100%;
+  overflow: hidden;
+  padding-top: 24px;
 }
 
 /* ── Page header ─────────────────────────────────────────────── */
@@ -489,6 +491,7 @@
   flex-direction: column;
   gap: 0;
   overflow: hidden;
+  height: 100%;
 }
 
 .permissions-user-select {
@@ -822,6 +825,7 @@
 .builtin-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 1fr;
   gap: 16px;
 }
 

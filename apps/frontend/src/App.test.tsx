@@ -77,10 +77,14 @@ vi.mock("./stores/themeStore", () => ({
   setSystemTheme: mockSetSystemTheme,
 }));
 
-vi.mock("./graphql/client", () => ({
+vi.mock("./graphql/config", () => ({
   GRAPHQL_ENDPOINT: "/graphql",
+}));
+
+vi.mock("./graphql/client", () => ({
   client: {},
 }));
+
 
 // CSS imports — vite-plugin-solid handles these, but mock for safety
 vi.mock("@/ui/styles/tokens.css", () => ({}));

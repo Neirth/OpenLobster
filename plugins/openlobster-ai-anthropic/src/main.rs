@@ -23,7 +23,7 @@ use serde_json::Value;
 // Plugin constants
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-ai-anthropic";
+const PLUGIN_ID: &str = "anthropic";
 const PLUGIN_VERSION: &str = "0.1.0";
 const PLUGIN_DESC: &str = "Anthropic Claude AI provider plugin for OpenLobster";
 const PLUGIN_TYPE: &str = "ai";
@@ -96,19 +96,22 @@ fn metadata_schema() -> Value {
             "api_key": {
                 "type": "string",
                 "title": "API Key",
-                "description": "Anthropic API key from console.anthropic.com"
+                "description": "Anthropic API key from console.anthropic.com",
+                "placeholder": "sk-ant-api03-..."
             },
             "base_url": {
                 "type": "string",
                 "title": "Base URL",
+                "description": "Anthropic API base URL (override for proxies)",
                 "default": "https://api.anthropic.com",
-                "description": "Anthropic API base URL (override for proxies)"
+                "placeholder": "https://api.anthropic.com"
             },
             "model": {
                 "type": "string",
                 "title": "Model",
+                "description": "Default Claude model used when the request omits model",
                 "default": "claude-sonnet-4-5",
-                "description": "Default Claude model used when the request omits model"
+                "placeholder": "claude-sonnet-4-5"
             }
         },
         "required": ["api_key"]
@@ -222,7 +225,10 @@ async fn chat(input: Option<Value>) -> CallResponse {
             "assistant" => {
                 let mut blocks: Vec<ContentBlock> = Vec::new();
                 if !m.content.is_empty() {
-                    blocks.push(ContentBlock::text(m.content.clone()));
+                    blocks.push(ContentBlock::Text {
+                        text: m.content.clone(),
+                        cache_control: None,
+                    });
                 }
                 if let Some(tcs) = &m.tool_calls {
                     for tc in tcs {
@@ -232,10 +238,16 @@ async fn chat(input: Option<Value>) -> CallResponse {
                             id: tc.id.clone(),
                             name: encode_tool_name(&tc.function.name),
                             input,
+                            cache_control: None,
                         });
                     }
                 }
-                if blocks.is_empty() { blocks.push(ContentBlock::text(String::new())); }
+                if blocks.is_empty() {
+                    blocks.push(ContentBlock::Text {
+                        text: String::new(),
+                        cache_control: None,
+                    });
+                }
                 messages.push(Message { role: Role::Assistant, content: blocks });
             }
             "tool" => {
@@ -245,13 +257,17 @@ async fn chat(input: Option<Value>) -> CallResponse {
                     content: vec![ContentBlock::ToolResult {
                         tool_use_id, is_error: None,
                         content: ToolResultContent::Text(m.content.clone()),
+                        cache_control: None,
                     }],
                 });
             }
             _ => {
                 messages.push(Message {
                     role: Role::User,
-                    content: vec![ContentBlock::text(m.content.clone())],
+                    content: vec![ContentBlock::Text {
+                        text: m.content.clone(),
+                        cache_control: None,
+                    }],
                 });
             }
         }
@@ -265,7 +281,7 @@ async fn chat(input: Option<Value>) -> CallResponse {
             let description = func.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
             let input_schema = func.get("parameters").cloned()
                 .unwrap_or_else(|| serde_json::json!({"type":"object","properties":{}}));
-            Some(Tool { name: encode_tool_name(name), description, input_schema })
+            Some(Tool { name: encode_tool_name(name), description, input_schema, cache_control: None })
         }).collect(),
         None => Vec::new(),
     };
@@ -294,6 +310,7 @@ async fn chat(input: Option<Value>) -> CallResponse {
                 Some(StopReason::EndTurn) | Some(StopReason::StopSequence) | None => "stop",
                 Some(StopReason::MaxTokens) => "length",
                 Some(StopReason::ToolUse) => "tool_use",
+                _ => "stop",
             }.to_string();
 
             let mut content = String::new();
@@ -301,8 +318,8 @@ async fn chat(input: Option<Value>) -> CallResponse {
 
             for block in resp.content {
                 match block {
-                    ContentBlock::Text { text } => content.push_str(&text),
-                    ContentBlock::ToolUse { id, name, input } => {
+                    ContentBlock::Text { text, .. } => content.push_str(&text),
+                    ContentBlock::ToolUse { id, name, input, .. } => {
                         tool_calls.push(ToolCallMsg {
                             id,
                             r#type: "function".to_string(),
@@ -349,7 +366,7 @@ impl Plugin for AnthropicPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
             id: PLUGIN_ID,
-            name: PLUGIN_ID,
+            name: "Anthropic",
             version: PLUGIN_VERSION,
             description: PLUGIN_DESC,
             plugin_type: PLUGIN_TYPE,
@@ -363,8 +380,6 @@ impl Plugin for AnthropicPlugin {
         match function {
             "configure"    => CONFIG.configure(input),
             "chat"         => chat(input).await,
-            "chat_with_audio" => chat_with_audio(input).await,
-            "chat_to_audio"   => chat_to_audio(input).await,
             other          => CallResponse::err(format!("unknown function: {}", other)),
         }
     }

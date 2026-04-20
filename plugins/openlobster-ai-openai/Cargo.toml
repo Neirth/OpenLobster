@@ -1,5 +1,5 @@
 [package]
-name = "openlobster-ai-openai-rust"
+name = "openlobster-ai-openai"
 version = "0.1.0"
 edition = "2021"
 

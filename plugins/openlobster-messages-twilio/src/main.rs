@@ -87,9 +87,9 @@ struct TypingInput {
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-messages-twilio";
+const PLUGIN_ID: &str = "twilio";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "Twilio messaging plugin for OpenLobster";
+const PLUGIN_DESC: &str = "Twilio SMS/MMS messaging plugin for OpenLobster";
 const PLUGIN_TYPE: &str = "messaging";
 
 fn metadata_schema() -> Value {
@@ -99,22 +99,27 @@ fn metadata_schema() -> Value {
             "account_sid": {
                 "type": "string",
                 "title": "Account SID",
-                "description": "Twilio Account SID from console.twilio.com"
+                "description": "Your unique Twilio Account SID from the Console",
+                "placeholder": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
             },
             "auth_token": {
                 "type": "string",
+                "format": "password",
                 "title": "Auth Token",
-                "description": "Twilio Auth Token from console.twilio.com"
+                "description": "The secret Auth Token associated with your Account SID",
+                "placeholder": "Enter your Auth Token"
             },
             "from_number": {
                 "type": "string",
                 "title": "From Number",
-                "description": "Twilio phone number to send messages from"
+                "description": "A purchased Twilio phone number (in E.164 format)",
+                "placeholder": "+15550001234"
             },
             "messaging_service_sid": {
                 "type": "string",
-                "title": "Messaging Service SID (optional)",
-                "description": "Twilio Messaging Service SID for coordinated messaging"
+                "title": "Messaging Service SID (Optional)",
+                "description": "Optional CID for Twilio Messaging Services features",
+                "placeholder": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
             }
         },
         "required": ["account_sid", "auth_token", "from_number"]
@@ -123,6 +128,7 @@ fn metadata_schema() -> Value {
 
 fn metadata_properties() -> Value {
     serde_json::json!({
+        "inbound_mode": "webhook",
         "HasVoiceMessage": true, "HasCallStream": true,
         "HasTextStream": true, "HasMediaSupport": true
     })
@@ -130,7 +136,7 @@ fn metadata_properties() -> Value {
 
 fn get_metadata() -> CallResponse {
     CallResponse::ok(serde_json::json!({
-        "id": PLUGIN_ID, "name": PLUGIN_ID, "version": PLUGIN_VERSION,
+        "id": PLUGIN_ID, "name": "Twilio", "version": PLUGIN_VERSION,
         "description": PLUGIN_DESC, "type": PLUGIN_TYPE,
         "schema": metadata_schema(), "properties": metadata_properties()
     }))
@@ -469,9 +475,13 @@ struct TwilioPlugin;
 impl Plugin for TwilioPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "Twilio",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["inbound_mode", "capabilities", "resolve_channel_id",
                           "send", "start", "configure", "get_metadata", "handle_webhook", "typing"],
         }

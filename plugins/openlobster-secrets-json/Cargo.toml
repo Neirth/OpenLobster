@@ -1,5 +1,5 @@
 [package]
-name = "openlobster-secrets-json-rust"
+name = "openlobster-secrets-json"
 version = "0.1.0"
 edition = "2021"
 

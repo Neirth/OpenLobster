@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 const mockNeedsAuth = vi.hoisted(() => vi.fn(() => false));
 const mockSetNeedsAuth = vi.hoisted(() => vi.fn());
 const mockGetStoredToken = vi.hoisted(() => vi.fn((): string | null => null));
-const mockSyncNeedsAuthFromSessionStorage = vi.hoisted(() => vi.fn());
+const mockSyncNeedsAuthFromStorage = vi.hoisted(() => vi.fn());
 const mockSetOpenPairingRequestHandler = vi.hoisted(() => vi.fn());
 const mockClientRequest = vi.hoisted(() => vi.fn(() => Promise.resolve({})));
 const mockSubscribe = vi.hoisted(() => vi.fn(() => ({ disconnect: vi.fn() })));
@@ -25,7 +25,7 @@ vi.mock("../../stores/authStore", () => ({
   needsAuth: mockNeedsAuth,
   setNeedsAuth: mockSetNeedsAuth,
   getStoredToken: mockGetStoredToken,
-  syncNeedsAuthFromSessionStorage: mockSyncNeedsAuthFromSessionStorage,
+  syncNeedsAuthFromStorage: mockSyncNeedsAuthFromStorage,
 }));
 
 vi.mock("../../stores/wsStore", () => ({
@@ -47,6 +47,9 @@ vi.mock("@/ui/hooks", () => ({
 
 vi.mock("../../graphql/client", () => ({
   client: { request: mockClientRequest },
+}));
+
+vi.mock("../../graphql/config", () => ({
   GRAPHQL_ENDPOINT: "/graphql",
 }));
 
@@ -150,10 +153,11 @@ describe("AuthModals Component", () => {
     expect(mockSetOpenPairingRequestHandler).toHaveBeenCalled();
   });
 
-  it("hydrates auth state from sessionStorage on mount", () => {
+  it("hydrates auth state from localStorage on mount", () => {
     renderAuthModals();
-    expect(mockSyncNeedsAuthFromSessionStorage).toHaveBeenCalled();
+    expect(mockSyncNeedsAuthFromStorage).toHaveBeenCalled();
   });
+
 
   it("calls client.request to probe the backend on mount", () => {
     renderAuthModals();

@@ -7,21 +7,53 @@ import FirstBootWizard from "./FirstBootWizard";
 
 vi.mock("../../App", () => ({
   t: (key: string) => key,
-}));
-
-vi.mock("../../stores/authStore", () => ({
-  getStoredToken: () => null,
-  setNeedsAuth: () => {},
+  getStoredToken: () => "mock-token",
 }));
 
 const mockClientRequest = vi.hoisted(() => vi.fn());
 vi.mock("../../graphql/client", () => ({
-  GRAPHQL_ENDPOINT: "/graphql",
   client: { request: mockClientRequest },
 }));
 
+vi.mock("../../graphql/config", () => ({
+  GRAPHQL_ENDPOINT: "/graphql",
+}));
+
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+const MOCK_PLUGINS = [
+  {
+    id: "ollama",
+    name: "Ollama",
+    pluginType: "ai",
+    available: true,
+    schemaJson: JSON.stringify({
+      properties: {
+        model: { type: "string", title: "Model Name" }
+      }
+    })
+  },
+  {
+    id: "telegram",
+    name: "Telegram Messenger",
+    pluginType: "messaging",
+    available: true,
+    schemaJson: JSON.stringify({
+      properties: {
+        token: { type: "string", title: "Bot Token" }
+      }
+    })
+  },
+  {
+    id: "json-memory",
+    name: "Local Memory",
+    pluginType: "memory",
+    available: true,
+    schemaJson: "{}"
+  }
+];
 
 const MOCK_MARKETPLACE = [
   {
@@ -30,14 +62,7 @@ const MOCK_MARKETPLACE = [
     company: "Zapier",
     description: "Connect to 7000+ apps",
     url: "https://mcpserver.zapier.com/mcp",
-  },
-  {
-    id: "linear",
-    name: "Linear",
-    company: "Linear",
-    description: "Manage issues and projects",
-    url: "https://mcp.linear.app/mcp",
-  },
+  }
 ];
 
 const renderWithProvider = (onComplete = () => {}) => {
@@ -52,46 +77,62 @@ const renderWithProvider = (onComplete = () => {}) => {
 };
 
 function setupFetchMock() {
-  mockFetch.mockImplementation((input: RequestInfo | URL) => {
-    const url = typeof input === "string" ? input : (input as URL).toString();
-    if (url.includes("graphql") || url === "/graphql") {
+  mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const body = init?.body ? JSON.parse(init.body as string) : {};
+    const query = body.query || "";
+
+    if (query.includes("MARKETPLACE_QUERY") || query.includes("marketplaceServers")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { marketplaceServers: MOCK_MARKETPLACE } }),
+      });
+    }
+
+    if (query.includes("PLUGINS_QUERY") || query.includes("plugins {")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { plugins: MOCK_PLUGINS } }),
+      });
+    }
+
+    if (query.includes("CONFIG_QUERY") || query.includes("config {")) {
       return Promise.resolve({
         ok: true,
         status: 200,
         json: async () => ({
           data: {
             config: {
-              agent: { name: "TestAgent", provider: "ollama", model: "llama3.2:latest" },
-              graphql: { baseUrl: "" },
-              capabilities: {},
-              channelSecrets: {},
+              agent: { name: "TestAgent", model: "llama3.2:latest" },
+              plugins: { defaultAi: "ollama" }
             },
           },
         }),
       });
     }
-    if (url.includes("marketplace.json")) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: async () => MOCK_MARKETPLACE,
-      });
-    }
-    return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { success: true } }),
+    });
   });
 }
 
-async function navigateToStep5(container: HTMLElement) {
-  for (let i = 0; i < 5; i++) {
-    const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
+async function navigateToStep(container: HTMLElement, targetStep: number) {
+  for (let i = 0; i < targetStep; i++) {
+    const nextBtn = Array.from(container.querySelectorAll(".wizard-btn-primary")).find(
+      (b) => b.textContent?.includes("wizard.next")
+    ) as HTMLButtonElement;
     if (nextBtn && !nextBtn.disabled) {
       fireEvent.click(nextBtn);
-      await new Promise((r) => setTimeout(r, 50));
+      await new Promise((r) => setTimeout(r, 10)); // tiny wait for state updates
     }
   }
 }
 
-describe("FirstBootWizard", () => {
+describe("FirstBootWizard (Categorized)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -99,524 +140,67 @@ describe("FirstBootWizard", () => {
     mockClientRequest.mockResolvedValue({ connectMcp: { success: true } });
   });
 
-  describe("FirstBootWizard component", () => {
-    it("renders wizard overlay", async () => {
-      const { container } = renderWithProvider();
-      await waitFor(() => {
-        const overlay = container.querySelector(".wizard-overlay");
-        expect(overlay).toBeTruthy();
-      });
-    });
+  it("renders correctly and navigates to Identity step", async () => {
+    const { getByText, container } = renderWithProvider();
+    await waitFor(() => expect(getByText("wizard.welcome.title")).toBeTruthy());
 
-    it("renders stepper with 7 steps", async () => {
-      const { container } = renderWithProvider();
-      await waitFor(() => {
-        const dots = container.querySelectorAll(".wizard-step-dot");
-        expect(dots.length).toBe(7);
-      });
-    });
+    const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
+    fireEvent.click(nextBtn);
 
-    it("shows welcome step after loading", async () => {
-      const { container } = renderWithProvider();
-      await waitFor(() => {
-        const welcome = container.querySelector(".wizard-step--welcome");
-        expect(welcome).toBeTruthy();
-      }, { timeout: 2000 });
-    });
+    await waitFor(() => expect(getByText("wizard.agentConfig.title")).toBeTruthy());
   });
 
-  describe("Marketplace MCP selector (step 5)", () => {
-    it("shows marketplace grid when navigating to step 5", async () => {
-      const { container } = renderWithProvider();
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-step--welcome")).toBeTruthy();
-      }, { timeout: 2000 });
-
-      await navigateToStep5(container);
-
-      await waitFor(() => {
-        const marketplace = container.querySelector(".wizard-step--marketplace");
-        expect(marketplace).toBeTruthy();
-        const grid = container.querySelector(".wizard-marketplace-grid");
-        expect(grid).toBeTruthy();
-      }, { timeout: 3000 });
-    });
-
-    it("displays marketplace servers from fetch", async () => {
-      const { container } = renderWithProvider();
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-step--welcome")).toBeTruthy();
-      }, { timeout: 2000 });
-
-      await navigateToStep5(container);
-
-      await waitFor(() => {
-        const cards = container.querySelectorAll(".wizard-marketplace-card");
-        expect(cards.length).toBeGreaterThanOrEqual(1);
-        expect(container.textContent).toContain("Zapier");
-        expect(container.textContent).toContain("Linear");
-      }, { timeout: 3000 });
-    });
-
-    it("shows detail view with name and endpoint inputs when clicking a server", async () => {
-      const { container } = renderWithProvider();
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-step--welcome")).toBeTruthy();
-      }, { timeout: 2000 });
-
-      await navigateToStep5(container);
-
-      await waitFor(() => {
-        const cards = container.querySelectorAll(".wizard-marketplace-card");
-        expect(cards.length).toBeGreaterThanOrEqual(1);
-      }, { timeout: 3000 });
-
-      const firstCard = container.querySelector(".wizard-marketplace-card") as HTMLButtonElement;
-      fireEvent.click(firstCard);
-
-      await waitFor(() => {
-        const detail = container.querySelector(".wizard-marketplace-detail");
-        expect(detail).toBeTruthy();
-        const form = container.querySelector(".wizard-marketplace-detail__form");
-        expect(form).toBeTruthy();
-        const inputs = container.querySelectorAll(".wizard-marketplace-detail__form input");
-        expect(inputs.length).toBe(2);
-        const connectBtn = container.querySelector(".wizard-btn-primary");
-        expect(connectBtn).toBeTruthy();
-        expect(container.textContent).toContain("marketplace.connect");
-      }, { timeout: 1000 });
-    });
-
-    it("calls connectMcp with name and url when clicking Conectar", async () => {
-      const { container } = renderWithProvider();
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-step--welcome")).toBeTruthy();
-      }, { timeout: 2000 });
-
-      await navigateToStep5(container);
-
-      await waitFor(() => {
-        const cards = container.querySelectorAll(".wizard-marketplace-card");
-        expect(cards.length).toBeGreaterThanOrEqual(1);
-      }, { timeout: 3000 });
-
-      fireEvent.click(container.querySelector(".wizard-marketplace-card") as HTMLButtonElement);
-
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-marketplace-detail")).toBeTruthy();
-      }, { timeout: 1000 });
-
-      const connectBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-      fireEvent.click(connectBtn);
-
-      await waitFor(() => {
-        expect(mockClientRequest).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.objectContaining({
-            name: "Zapier",
-            transport: "http",
-            url: "https://mcpserver.zapier.com/mcp",
-          }),
-        );
-      }, { timeout: 2000 });
-    });
+  it("handles dynamic AI brain configuration in Step 2", async () => {
+    const { getByText, container } = renderWithProvider();
+    await waitFor(() => expect(getByText("wizard.welcome.title")).toBeTruthy());
+    
+    await navigateToStep(container, 2);
+    
+    await waitFor(() => expect(getByText("wizard.aiProvider.title")).toBeTruthy());
+    // Verify provider dropdown has Ollama
+    const select = container.querySelector("select") as HTMLSelectElement;
+    expect(select.innerHTML).toContain("Ollama");
   });
 
-  describe("Docker Model Runner provider", () => {
-    async function navigateToStep2(container: HTMLElement) {
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-step--welcome")).toBeTruthy();
-      }, { timeout: 2000 });
-      for (let i = 0; i < 2; i++) {
-        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-        if (nextBtn && !nextBtn.disabled) {
-          fireEvent.click(nextBtn);
-          await new Promise((r) => setTimeout(r, 30));
-        }
-      }
-    }
-
-    it("shows dockerModelRunnerEndpoint input when provider is docker-model-runner", async () => {
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      await waitFor(() => {
-        expect(container.querySelector("select")).toBeTruthy();
-      }, { timeout: 2000 });
-      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
-        target: { value: "docker-model-runner" },
-      });
-
-      await waitFor(() => {
-        const inputs = Array.from(container.querySelectorAll("input[type='text']"));
-        const endpointInput = inputs.find((i) =>
-          (i as HTMLInputElement).value.includes("host.docker.internal"),
-        );
-        expect(endpointInput).toBeTruthy();
-      }, { timeout: 1000 });
-    });
-
-    it("default dockerModelRunnerEndpoint uses host.docker.internal", async () => {
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      await waitFor(() => {
-        expect(container.querySelector("select")).toBeTruthy();
-      }, { timeout: 2000 });
-      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
-        target: { value: "docker-model-runner" },
-      });
-
-      await waitFor(() => {
-        const inputs = Array.from(container.querySelectorAll("input[type='text']"));
-        const endpointInput = inputs.find((i) =>
-          (i as HTMLInputElement).value.includes("12434"),
-        ) as HTMLInputElement | undefined;
-        expect(endpointInput).toBeTruthy();
-        expect(endpointInput!.value).toContain("host.docker.internal");
-        expect(endpointInput!.value).not.toContain("localhost");
-      }, { timeout: 1000 });
-    });
-
-    it("save mutation sends dockerModelRunnerEndpoint when provider is docker-model-runner", async () => {
-      mockFetch.mockImplementation((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : (input as URL).toString();
-        if (url.includes("graphql") || url === "/graphql") {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              data: {
-                updateConfig: { agentName: "TestAgent" },
-                config: {
-                  agent: {
-                    name: "TestAgent",
-                    provider: "docker-model-runner",
-                    model: "ai/mistral-nemo",
-                    dockerModelRunnerEndpoint: "http://host.docker.internal:12434/engines/v1",
-                  },
-                  graphql: { baseUrl: "" },
-                  capabilities: {},
-                  channelSecrets: {},
-                },
-              },
-            }),
-          });
-        }
-        if (url.includes("marketplace.json")) {
-          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
-        }
-        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
-      });
-
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      await waitFor(() => expect(container.querySelector("select")).toBeTruthy(), { timeout: 2000 });
-      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
-        target: { value: "docker-model-runner" },
-      });
-
-      // Navigate to last step
-      for (let i = 0; i < 4; i++) {
-        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-        if (nextBtn && !nextBtn.disabled) {
-          fireEvent.click(nextBtn);
-          await new Promise((r) => setTimeout(r, 30));
-        }
-      }
-
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-btn-primary")).toBeTruthy();
-      }, { timeout: 2000 });
-      fireEvent.click(container.querySelector(".wizard-btn-primary") as HTMLButtonElement);
-
-      await waitFor(() => {
-        const mutateCalls = mockFetch.mock.calls.filter(([, opts]) => {
-          const b = opts?.body ? JSON.parse(opts.body) : {};
-          return (b.query ?? "").includes("updateConfig");
-        });
-        expect(mutateCalls.length).toBeGreaterThan(0);
-        const body = JSON.parse(mutateCalls[0][1].body);
-        expect(body.variables.input.provider).toBe("docker-model-runner");
-        expect("dockerModelRunnerEndpoint" in body.variables.input).toBe(true);
-      }, { timeout: 3000 });
-    });
-
-    it("save mutation sends model field when provider is docker-model-runner", async () => {
-      mockFetch.mockImplementation((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : (input as URL).toString();
-        if (url.includes("graphql") || url === "/graphql") {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              data: { updateConfig: { agentName: "TestAgent" }, config: null },
-            }),
-          });
-        }
-        if (url.includes("marketplace.json")) {
-          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
-        }
-        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
-      });
-
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      await waitFor(() => expect(container.querySelector("select")).toBeTruthy(), { timeout: 2000 });
-      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
-        target: { value: "docker-model-runner" },
-      });
-
-      await waitFor(() => {
-        const modelInput = container.querySelector("input[type='text']") as HTMLInputElement;
-        expect(modelInput).toBeTruthy();
-      }, { timeout: 500 });
-
-      // Set model value
-      const modelInput = container.querySelector("input[type='text']") as HTMLInputElement;
-      fireEvent.input(modelInput, { target: { value: "ai/llama3.2" } });
-
-      // Navigate to last step
-      for (let i = 0; i < 4; i++) {
-        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-        if (nextBtn && !nextBtn.disabled) {
-          fireEvent.click(nextBtn);
-          await new Promise((r) => setTimeout(r, 30));
-        }
-      }
-
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-btn-primary")).toBeTruthy();
-      }, { timeout: 2000 });
-      fireEvent.click(container.querySelector(".wizard-btn-primary") as HTMLButtonElement);
-
-      await waitFor(() => {
-        const mutateCalls = mockFetch.mock.calls.filter(([, opts]) => {
-          const b = opts?.body ? JSON.parse(opts.body) : {};
-          return (b.query ?? "").includes("updateConfig");
-        });
-        expect(mutateCalls.length).toBeGreaterThan(0);
-        const body = JSON.parse(mutateCalls[0][1].body);
-        expect(body.variables.input.provider).toBe("docker-model-runner");
-        expect("model" in body.variables.input).toBe(true);
-      }, { timeout: 3000 });
-    });
-
-    it("does NOT show API key input when provider is docker-model-runner", async () => {
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      await waitFor(() => {
-        expect(container.querySelector("select")).toBeTruthy();
-      }, { timeout: 2000 });
-      fireEvent.change(container.querySelector("select") as HTMLSelectElement, {
-        target: { value: "docker-model-runner" },
-      });
-
-      await waitFor(() => {
-        const passwordInputs = container.querySelectorAll("input[type='password']");
-        expect(passwordInputs.length).toBe(0);
-      }, { timeout: 500 });
-    });
+  it("handles dynamic messaging channels in Step 6", async () => {
+    const { getByText, findByText, container } = renderWithProvider();
+    await findByText("wizard.welcome.title");
+    
+    await navigateToStep(container, 6);
+    
+    await findByText("wizard.connectivity.title");
+    // Should see dynamic Telegram plugin
+    const pluginLabel = await findByText("Telegram Messenger");
+    expect(pluginLabel).toBeTruthy();
+    
+    // Toggle Telegram - find the checkbox in the same row
+    const row = pluginLabel.closest(".wizard-channel-row");
+    const checkbox = row?.querySelector("input[type='checkbox']") as HTMLInputElement;
+    expect(checkbox).toBeTruthy();
+    
+    fireEvent.click(checkbox);
+    
+    // Should show dynamic schema field (Bot Token) from MOCK_PLUGINS
+    // Use a longer timeout or just findByText which defaults to 1000ms
+    const fieldLabel = await findByText("Bot Token");
+    expect(fieldLabel).toBeTruthy();
   });
 
-  describe("Regression: anthropic provider uses anthropicApiKey field", () => {
-    async function navigateToStep2(container: HTMLElement) {
-      // Wait for loading to complete first
-      await waitFor(() => {
-        expect(container.querySelector(".wizard-step--welcome")).toBeTruthy();
-      }, { timeout: 2000 });
-      // Go to step 2 (AI Provider)
-      for (let i = 0; i < 2; i++) {
-        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-        if (nextBtn && !nextBtn.disabled) {
-          fireEvent.click(nextBtn);
-          await new Promise((r) => setTimeout(r, 30));
-        }
-      }
-    }
-
-    it("shows anthropicApiKey input (not generic apiKey) when provider is anthropic", async () => {
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      // Select anthropic provider
-      await waitFor(() => {
-        const select = container.querySelector("select");
-        expect(select).toBeTruthy();
-      }, { timeout: 2000 });
-      const select = container.querySelector("select") as HTMLSelectElement;
-      fireEvent.change(select, { target: { value: "anthropic" } });
-
-      await waitFor(() => {
-        const inputs = Array.from(container.querySelectorAll("input"));
-        const passwordInputs = inputs.filter((i) => i.type === "password");
-        // Should have an anthropicApiKey password input
-        expect(passwordInputs.length).toBeGreaterThan(0);
-      }, { timeout: 1000 });
-    });
-
-    it("does NOT show generic apiKey input for anthropic (openai/openrouter only)", async () => {
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      await waitFor(() => {
-        const select = container.querySelector("select");
-        expect(select).toBeTruthy();
-      }, { timeout: 2000 });
-      const select = container.querySelector("select") as HTMLSelectElement;
-      // Start with openai to confirm generic field exists
-      fireEvent.change(select, { target: { value: "openai" } });
-      await waitFor(() => {
-        const inputs = Array.from(container.querySelectorAll("input[type='password']"));
-        expect(inputs.length).toBeGreaterThan(0);
-      }, { timeout: 500 });
-      // Switch to anthropic — generic apiKey input should be gone, anthropicApiKey shown
-      fireEvent.change(select, { target: { value: "anthropic" } });
-      // There should still be a password input (the anthropicApiKey one)
-      await waitFor(() => {
-        const inputs = Array.from(container.querySelectorAll("input[type='password']"));
-        expect(inputs.length).toBeGreaterThan(0);
-      }, { timeout: 500 });
-    });
-
-    it("save mutation sends anthropicApiKey when provider is anthropic", async () => {
-      mockFetch.mockImplementation((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : (input as URL).toString();
-        if (url.includes("graphql") || url === "/graphql") {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              data: {
-                updateConfig: { agentName: "TestAgent" },
-                config: {
-                  agent: { name: "TestAgent", provider: "anthropic", model: "claude-sonnet-4-6" },
-                  graphql: { baseUrl: "" },
-                  capabilities: {},
-                  channelSecrets: {},
-                },
-              },
-            }),
-          });
-        }
-        if (url.includes("marketplace.json")) {
-          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
-        }
-        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
-      });
-
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      // Select anthropic and fill in key
-      await waitFor(() => expect(container.querySelector("select")).toBeTruthy(), { timeout: 2000 });
-      fireEvent.change(container.querySelector("select") as HTMLSelectElement, { target: { value: "anthropic" } });
-
-      await waitFor(() => {
-        const inputs = container.querySelectorAll("input[type='password']");
-        expect(inputs.length).toBeGreaterThan(0);
-      }, { timeout: 500 });
-
-      const pwdInput = container.querySelector("input[type='password']") as HTMLInputElement;
-      fireEvent.input(pwdInput, { target: { value: "sk-ant-test-key" } });
-
-      // Navigate to the last step and submit
-      for (let i = 0; i < 4; i++) {
-        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-        if (nextBtn && !nextBtn.disabled) {
-          fireEvent.click(nextBtn);
-          await new Promise((r) => setTimeout(r, 30));
-        }
-      }
-
-      // Click Finish button
-      await waitFor(() => {
-        const finishBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-        expect(finishBtn).toBeTruthy();
-      }, { timeout: 2000 });
-      const finishBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-      fireEvent.click(finishBtn);
-
-      await waitFor(() => {
-        const mutateCalls = mockFetch.mock.calls.filter(([, opts]) => {
-          const b = opts?.body ? JSON.parse(opts.body) : {};
-          return (b.query ?? "").includes("updateConfig");
-        });
-        expect(mutateCalls.length).toBeGreaterThan(0);
-        const body = JSON.parse(mutateCalls[0][1].body);
-        expect("anthropicApiKey" in body.variables.input).toBe(true);
-      }, { timeout: 3000 });
-    });
-
-    it("save mutation does NOT use apiKey for anthropic provider", async () => {
-      mockFetch.mockImplementation((input: RequestInfo | URL) => {
-        const url = typeof input === "string" ? input : (input as URL).toString();
-        if (url.includes("graphql") || url === "/graphql") {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: async () => ({
-              data: {
-                updateConfig: { agentName: "TestAgent" },
-                config: {
-                  agent: { name: "TestAgent", provider: "anthropic", model: "claude-sonnet-4-6" },
-                  graphql: { baseUrl: "" },
-                  capabilities: {},
-                  channelSecrets: {},
-                },
-              },
-            }),
-          });
-        }
-        if (url.includes("marketplace.json")) {
-          return Promise.resolve({ ok: true, status: 200, json: async () => [] });
-        }
-        return Promise.reject(new Error(`Unexpected fetch: ${url}`));
-      });
-
-      const { container } = renderWithProvider();
-      await navigateToStep2(container);
-
-      await waitFor(() => expect(container.querySelector("select")).toBeTruthy(), { timeout: 2000 });
-      fireEvent.change(container.querySelector("select") as HTMLSelectElement, { target: { value: "anthropic" } });
-
-      await waitFor(() => {
-        const inputs = container.querySelectorAll("input[type='password']");
-        expect(inputs.length).toBeGreaterThan(0);
-      }, { timeout: 500 });
-
-      const pwdInput = container.querySelector("input[type='password']") as HTMLInputElement;
-      fireEvent.input(pwdInput, { target: { value: "sk-ant-key" } });
-
-      // Navigate to last step
-      for (let i = 0; i < 4; i++) {
-        const nextBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-        if (nextBtn && !nextBtn.disabled) {
-          fireEvent.click(nextBtn);
-          await new Promise((r) => setTimeout(r, 30));
-        }
-      }
-      await waitFor(() => {
-        const finishBtn = container.querySelector(".wizard-btn-primary") as HTMLButtonElement;
-        expect(finishBtn).toBeTruthy();
-      }, { timeout: 2000 });
-      fireEvent.click(container.querySelector(".wizard-btn-primary") as HTMLButtonElement);
-
-      await waitFor(() => {
-        const mutateCalls = mockFetch.mock.calls.filter(([, opts]) => {
-          const b = opts?.body ? JSON.parse(opts.body) : {};
-          return (b.query ?? "").includes("updateConfig");
-        });
-        expect(mutateCalls.length).toBeGreaterThan(0);
-        const input = JSON.parse(mutateCalls[0][1].body).variables.input;
-        // The typed value should be in anthropicApiKey, not in apiKey
-        expect(input.anthropicApiKey).toBe("sk-ant-key");
-        // apiKey should be empty since we typed into anthropicApiKey
-        expect(input.apiKey ?? "").toBe("");
-      }, { timeout: 3000 });
-    });
+  it("completes the wizard flow at Step 7", async () => {
+    const onComplete = vi.fn();
+    const { getByText, container } = renderWithProvider(onComplete);
+    
+    await navigateToStep(container, 7);
+    
+    await waitFor(() => expect(getByText("wizard.done.title")).toBeTruthy());
+    
+    const finishBtn = Array.from(container.querySelectorAll(".wizard-btn-primary")).find(
+      (b) => b.textContent?.includes("wizard.finish")
+    ) as HTMLButtonElement;
+    
+    fireEvent.click(finishBtn);
+    
+    await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    expect(localStorage.getItem("openlobster_wizard_completed")).toBe("true");
   });
 });

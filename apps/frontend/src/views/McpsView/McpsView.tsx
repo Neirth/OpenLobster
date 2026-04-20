@@ -377,7 +377,7 @@ const McpsView: Component = () => {
   const managedServer = () => servers.data?.find(s => s.name === manageServerId());
 
   return (
-    <AppShell activeTab="mcps">
+    <AppShell activeTab="mcps" fullHeight={true} noScroll={true}>
       <div class="mcps-view">
         {/* Section tabs */}
         <div class="mcps-section-tabs">

@@ -15,7 +15,8 @@ vi.mock('@/ui/graphql', () => ({
 }));
 
 // Import after mocks are in place
-import { client, GRAPHQL_ENDPOINT } from './client';
+import { client } from './client';
+import { GRAPHQL_ENDPOINT } from './config';
 
 describe('GraphQL Client', () => {
   beforeEach(() => {

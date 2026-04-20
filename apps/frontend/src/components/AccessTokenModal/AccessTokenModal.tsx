@@ -3,7 +3,7 @@
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
 import { t, recheckConfig } from "../../App";
-import { saveToken } from "../../stores/authStore";
+import { saveToken, validateTokenOnServer } from "../../stores/authStore";
 import "./AccessTokenModal.css";
 
 /**
@@ -12,29 +12,44 @@ import "./AccessTokenModal.css";
  * Shown when the backend returns 401. The backdrop is solid black (not
  * translucent) so the rest of the UI is completely hidden. The user must
  * enter the correct token before they can continue. The token is persisted
- * in sessionStorage and cleared on tab close.
+ * in localStorage and remains until cleared.
  */
 const AccessTokenModal: Component = () => {
   const [token, setToken] = createSignal("");
-  const [error, setError] = createSignal(false);
+  const [errorStatus, setErrorStatus] = createSignal<"none" | "empty" | "invalid">("none");
+  const [isLoading, setIsLoading] = createSignal(false);
 
-  const handleSubmit = (e: Event) => {
+  const handleSubmit = async (e: Event) => {
     e.preventDefault();
     const value = token().trim();
+    
     if (!value) {
-      setError(true);
+      setErrorStatus("empty");
       return;
     }
-    saveToken(value);
-    setToken("");
-    setError(false);
-    void recheckConfig();
+
+    setIsLoading(true);
+    try {
+      const isValid = await validateTokenOnServer(value);
+
+      if (isValid) {
+        saveToken(value);
+        setToken("");
+        setErrorStatus("none");
+        void recheckConfig();
+      } else {
+        setErrorStatus("invalid");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleInput = (e: Event) => {
     setToken((e.target as HTMLInputElement).value);
-    if (error()) setError(false);
+    if (errorStatus() !== "none") setErrorStatus("none");
   };
+
 
   return (
     <div class="access-token-overlay">
@@ -56,23 +71,36 @@ const AccessTokenModal: Component = () => {
           <div class="access-token-field">
             <input
               type="password"
-              class={`access-token-input${error() ? " access-token-input--error" : ""}`}
+              class={`access-token-input${errorStatus() !== "none" ? " access-token-input--error" : ""}`}
               placeholder={t("accessToken.placeholder")}
               value={token()}
               onInput={handleInput}
               autocomplete="off"
               autofocus
+              disabled={isLoading()}
             />
-            <Show when={error()}>
-              <span class="access-token-error">{t("accessToken.errorEmpty")}</span>
+            <Show when={errorStatus() !== "none"}>
+              <span class="access-token-error">
+                {errorStatus() === "empty" ? t("accessToken.errorEmpty") : t("accessToken.errorInvalid")}
+              </span>
             </Show>
           </div>
 
-          <button type="submit" class="access-token-submit">
-            <span class="material-symbols-outlined">arrow_forward</span>
-            {t("accessToken.unlock")}
+          <button 
+            type="submit" 
+            class={`access-token-submit${isLoading() ? " access-token-submit--loading" : ""}`}
+            disabled={isLoading()}
+          >
+            <Show 
+              when={!isLoading()} 
+              fallback={<span class="access-token-spinner" />}
+            >
+              <span class="material-symbols-outlined">arrow_forward</span>
+              {t("accessToken.unlock")}
+            </Show>
           </button>
         </form>
+
       </div>
     </div>
   );

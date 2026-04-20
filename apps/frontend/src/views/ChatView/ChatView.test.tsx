@@ -29,32 +29,36 @@ vi.mock("@/ui/graphql/mutations", () => ({
 }));
 
 vi.mock("../../graphql/client", () => ({
-  GRAPHQL_ENDPOINT: "/graphql",
   client: {
     request: vi.fn((_query: any, vars: any) => {
       if (vars && vars.conversationId) {
         // initial page (no 'before') returns PAGE_SIZE items to ensure hasMore=true
-            if (!vars.before) {
-              const msgs = Array.from({ length: 50 }).map((_, i) => ({
-                id: `m${i}`,
-                conversationId: vars.conversationId,
-                role: i % 2 === 0 ? 'user' : 'assistant',
-                // include per-message sender names to simulate group messages
-                senderName: i % 3 === 0 ? 'Alice' : i % 3 === 1 ? 'Bob' : undefined,
-                content: i === 0 ? 'Hey there' : `msg${i}`,
-                createdAt: new Date(Date.now() - (50 - i) * 1000).toISOString(),
-              }));
-              return Promise.resolve({ messages: msgs });
-            }
-        // subsequent page when 'before' provided returns fewer items
-        return Promise.resolve({ messages: [
-          { id: 'older1', conversationId: vars.conversationId, role: 'user', content: 'Older', createdAt: new Date(Date.now() - 100000).toISOString() },
-        ] });
-      }
-      return Promise.resolve({});
-    }),
-  },
-}));
+             if (!vars.before) {
+               const msgs = Array.from({ length: 50 }).map((_, i) => ({
+                 id: `m${i}`,
+                 conversationId: vars.conversationId,
+                 role: i % 2 === 0 ? 'user' : 'assistant',
+                 // include per-message sender names to simulate group messages
+                 senderName: i % 3 === 0 ? 'Alice' : i % 3 === 1 ? 'Bob' : undefined,
+                 content: i === 0 ? 'Hey there' : `msg${i}`,
+                 createdAt: new Date(Date.now() - (50 - i) * 1000).toISOString(),
+               }));
+               return Promise.resolve({ messages: msgs });
+             }
+         // subsequent page when 'before' provided returns fewer items
+         return Promise.resolve({ messages: [
+           { id: 'older1', conversationId: vars.conversationId, role: 'user', content: 'Older', createdAt: new Date(Date.now() - 100000).toISOString() },
+         ] });
+       }
+       return Promise.resolve({});
+     }),
+   },
+ }));
+ 
+ vi.mock("../../graphql/config", () => ({
+   GRAPHQL_ENDPOINT: "/graphql",
+ }));
+
 
 import { client } from "../../graphql/client";
 

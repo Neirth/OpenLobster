@@ -1,5 +1,5 @@
 [package]
-name = "openlobster-messages-twilio-rust"
+name = "openlobster-messages-twilio"
 version = "0.1.0"
 edition = "2021"
 

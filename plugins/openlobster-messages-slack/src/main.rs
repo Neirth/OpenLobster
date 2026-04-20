@@ -103,9 +103,9 @@ struct InboundMessage {
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "openlobster-messages-slack";
+const PLUGIN_ID: &str = "slack";
 const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "Slack messaging plugin for OpenLobster";
+const PLUGIN_DESC: &str = "Slack messaging plugin for OpenLobster via Socket Mode";
 const PLUGIN_TYPE: &str = "messaging";
 
 fn metadata_schema() -> Value {
@@ -114,18 +114,17 @@ fn metadata_schema() -> Value {
         "properties": {
             "bot_token": {
                 "type": "string",
+                "format": "password",
                 "title": "Bot Token",
-                "description": "Slack bot token (xoxb-...) with chat:write and channels:read scopes"
+                "description": "Slack bot token (xoxb-...) with chat:write and channels:read scopes",
+                "placeholder": "xoxb-your-bot-token"
             },
             "app_token": {
                 "type": "string",
+                "format": "password",
                 "title": "App Token",
-                "description": "Slack app token (xapp-...) for Socket Mode"
-            },
-            "signing_secret": {
-                "type": "string",
-                "title": "Signing Secret",
-                "description": "Slack signing secret for verifying event requests"
+                "description": "Slack app-level token (xapp-...) for Socket Mode",
+                "placeholder": "xapp-your-app-token"
             }
         },
         "required": ["bot_token"]
@@ -134,6 +133,7 @@ fn metadata_schema() -> Value {
 
 fn metadata_properties() -> Value {
     serde_json::json!({
+        "inbound_mode": "gateway",
         "HasVoiceMessage": true, "HasCallStream": true,
         "HasTextStream": true, "HasMediaSupport": true
     })
@@ -535,9 +535,13 @@ struct SlackPlugin;
 impl Plugin for SlackPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID, name: PLUGIN_ID, version: PLUGIN_VERSION,
-            description: PLUGIN_DESC, plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(), properties: metadata_properties(),
+            id: PLUGIN_ID,
+            name: "Slack",
+            version: PLUGIN_VERSION,
+            description: PLUGIN_DESC,
+            plugin_type: PLUGIN_TYPE,
+            schema: metadata_schema(),
+            properties: metadata_properties(),
             exports: vec!["inbound_mode", "capabilities", "resolve_channel_id",
                           "send", "start", "configure", "typing"],
         }

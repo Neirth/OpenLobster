@@ -22,9 +22,13 @@ COPY . /build
 WORKDIR /build
 
 # Build everything via the root Makefile
-# Use TARGETARCH to select the correct static target
+# Use TARGETARCH (populated by buildx) or detect from uname
 ARG TARGETARCH
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
+RUN if [ -z "$TARGETARCH" ]; then \
+        ARCH=$(uname -m); \
+        if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then TARGETARCH="arm64"; else TARGETARCH="amd64"; fi; \
+    fi && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
         rustup target add aarch64-unknown-linux-musl && \
         export CARGO_BUILD_TARGET=aarch64-unknown-linux-musl && \
         TARGET=linux-arm64; \
@@ -38,7 +42,7 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
     make build-prod TARGET=$TARGET IS_CROSS=0
 
 # Generate the folders with proper permissions
-RUN mkdir -p /app/{bin,config,data,logs,.ollama} && \
+RUN mkdir -p /app/{bin,config,data,logs,workspace,.ollama} && \
     chown -R nonroot:nonroot /app && \
     chmod -R 755 /app
 
@@ -47,10 +51,10 @@ RUN cp /build/dist/openlobster /app/bin/openlobster
 #########################################################################
 # Final stage: Distroless
 #########################################################################
-FROM dhi.io/static:20250419 AS runtime
+FROM gcr.io/distroless/static-debian12 AS runtime
 
 # Copy assets and binary
-COPY --from=backend-build /app /app
+COPY --chown=65532:65532 --from=backend-build /app /app
 WORKDIR /app
 
 ENV HOME=/app
@@ -58,8 +62,7 @@ USER nonroot
 
 EXPOSE 8080
 
-ENTRYPOINT ["/app/bin/openlobster"]
-CMD ["serve", "--data-dir", "/app"]
+ENTRYPOINT ["/app/bin/openlobster", "serve", "--data-dir", "/app"]
 
 LABEL maintainer="neirth <7413024+Neirth@users.noreply.github.com>" \
     org.opencontainers.image.title="OpenLobster (Distroless)"

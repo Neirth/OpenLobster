@@ -21,7 +21,8 @@ import BrowserCheck from "./components/BrowserCheck";
 import MobileBlocker from "./components/MobileBlocker";
 import OAuthCallbackError from "./components/OAuthCallbackError/OAuthCallbackError";
 import FirstBootWizard from "./components/FirstBootWizard";
-import { GRAPHQL_ENDPOINT } from "./graphql/client";
+import { GRAPHQL_ENDPOINT } from "./graphql/config";
+
 import { getStoredToken } from "./stores/authStore";
 import { effectiveTheme, setSystemTheme } from "./stores/themeStore";
 import "@/ui/styles/tokens.css";
@@ -74,7 +75,7 @@ const [locale, setLocale] = createSignal<Locale>(detectBrowserLocale());
 // The getter passed to translator is called in a reactive context by the library.
 // eslint-disable-next-line solid/reactivity
 export const t = translator(() => dicts[locale()], resolveTemplate);
-export { locale, setLocale };
+export { locale, setLocale, getStoredToken };
 
 const App: ParentComponent = (props) => {
   const location = useLocation();

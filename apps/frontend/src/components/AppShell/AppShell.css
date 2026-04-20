@@ -17,6 +17,10 @@
   flex-direction: column;
 }
 
+.app-shell__main--no-scroll {
+  overflow: hidden !important;
+}
+
 /* Centered content container — max-w-5xl ~896px, generous padding */
 .app-shell__content {
   max-width: 896px;

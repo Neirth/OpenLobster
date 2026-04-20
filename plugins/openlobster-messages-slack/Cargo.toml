@@ -1,5 +1,5 @@
 [package]
-name = "openlobster-messages-slack-rust"
+name = "openlobster-messages-slack"
 version = "0.1.0"
 edition = "2021"
 

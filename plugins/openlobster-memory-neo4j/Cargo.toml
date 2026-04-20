@@ -1,5 +1,5 @@
 [package]
-name = "openlobster-memory-neo4j-rust"
+name = "openlobster-memory-neo4j"
 version = "0.1.0"
 edition = "2021"
 

@@ -3,9 +3,14 @@
 import { render } from "solid-js/web";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { initTheme } from "./stores/themeStore";
+import { setupMockGraphql } from "./graphql/mock";
 import Root from "./App";
 
 initTheme();
+
+if (import.meta.env.DEV) {
+  setupMockGraphql();
+}
 
 const root = document.getElementById("app");
 

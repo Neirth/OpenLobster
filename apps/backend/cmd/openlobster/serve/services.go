@@ -562,27 +562,35 @@ func configuredDefaultPluginID(pluginType string, a *App) string {
 }
 
 func selectProviderPluginID(plugins []ports.PluginPort, pluginType, backend, preferredPluginID string, pluginSettings map[string]map[string]interface{}) string {
+	bestID := ""
+	bestScore := -1001 // Threshold for mandatory fallback
+
+	// Pass 1: Mandatory Default Check
 	if preferredPluginID != "" {
 		for _, p := range plugins {
-			if p.Type() == pluginType && p.ID() == preferredPluginID {
-				return preferredPluginID
+			if p.Type() == pluginType && (p.ID() == preferredPluginID || p.Name() == preferredPluginID) {
+				return p.ID()
 			}
 		}
 	}
 
-	bestID := ""
-	bestScore := -1
-
+	// Pass 2: Scoring / Fallback
 	for _, p := range plugins {
 		if p.Type() != pluginType {
 			continue
 		}
 
-		score := 1
+		// Initial fallback: take the first one seen of this type
+		if bestID == "" {
+			bestID = p.ID()
+			bestScore = -1000
+		}
+
+		score := 0
 		cfg := pluginSettings[p.ID()]
 		schema, err := p.Schema()
 		if err == nil {
-			score += scoreConfigAgainstSchema(schema, cfg, backend)
+			score = scoreConfigAgainstSchema(schema, cfg, backend)
 		}
 
 		if score > bestScore {
