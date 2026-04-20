@@ -29,20 +29,20 @@
     "graphql": "^16.13.2",
     "graphql-request": "^7.4.0",
     "parse-prometheus-text-format": "^1.1.1",
-    "solid-js": "^1.9.11"
+    "solid-js": "^1.9.12"
   },
   "peerDependencies": {
     "@tanstack/solid-query": "^5.0.0"
   },
   "devDependencies": {
-    "graphql-ws": "^6.0.7",
-    "@turbo/gen": "^2.8.20",
+    "graphql-ws": "^6.0.8",
+    "@turbo/gen": "^2.9.6",
     "@types/eslint": "^9.6.1",
-    "@types/node": "^25.5.0",
-    "@vitest/coverage-v8": "^4.1.1",
-    "eslint": "^10.1.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.2",
-    "vitest": "^4.1.1"
+    "@types/node": "^25.6.0",
+    "@vitest/coverage-v8": "^4.1.4",
+    "eslint": "^10.2.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.9",
+    "vitest": "^4.1.4"
   }
 }
