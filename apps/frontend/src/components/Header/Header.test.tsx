@@ -5,7 +5,7 @@ vi.mock('@solidjs/router', () => ({
   A: (props: any) => <a {...props} />,
 }));
 
-vi.mock('@/ui/hooks', () => ({
+vi.mock('@/hooks', () => ({
   useAgent: (_client?: any) => ({ data: { name: 'AgentX', version: '1.2.3' } }),
 }));
 

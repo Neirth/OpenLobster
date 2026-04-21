@@ -14,13 +14,13 @@ vi.mock("../../components/AppShell/AppShell", () => ({
   default: (props: any) => <div class="app-shell" {...props} />,
 }));
 
-vi.mock("../../graphql/client", () => ({ client: { request: vi.fn().mockResolvedValue({}) } }));
+vi.mock("../../graphql/config", () => ({ client: { request: vi.fn().mockResolvedValue({}) } }));
 
 vi.mock("../../components/MarketplaceModal", () => ({
   default: (_props: any) => null,
 }));
 
-import { renderWithQueryClient } from "../../test-utils";
+import { renderWithQueryClient } from "@/test-utils";
 import McpsView from "./McpsView";
 
 describe("McpsView Component", () => {

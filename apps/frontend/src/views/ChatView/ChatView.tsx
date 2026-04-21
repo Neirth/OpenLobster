@@ -10,16 +10,16 @@
 import type { Component } from 'solid-js';
 import { createSignal, For, Show, Suspense } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
-import { useConversations, useSubscriptions } from '@/ui/hooks';
-import { SEND_MESSAGE_MUTATION, DELETE_USER_MUTATION, DELETE_GROUP_MUTATION } from '@/ui/graphql/mutations';
-import type { Message } from '@/ui/types';
-import { t } from '../../App';
-import { client } from '../../graphql/client';
-import { GRAPHQL_ENDPOINT } from '../../graphql/config';
-import AppShell from '../../components/AppShell';
-import MessageThread from '../../components/MessageThread/MessageThread';
-import ContextMenu from '../../components/ContextMenu/ContextMenu';
-import { formatChatTime } from '../../utils/formatChatTime';
+import { useConversations, useSubscriptions } from '@/hooks';
+import { SEND_MESSAGE_MUTATION, DELETE_USER_MUTATION, DELETE_GROUP_MUTATION } from '@/graphql/mutations';
+import type { Message } from '@/types';
+import { t } from '@/App';
+import { client } from '@/graphql/config';
+import { GRAPHQL_ENDPOINT } from '@/graphql/constants';
+import AppShell from '@/components/AppShell';
+import MessageThread from '@/components/MessageThread/MessageThread';
+import ContextMenu from '@/components/ContextMenu/ContextMenu';
+import { formatChatTime } from '@/utils/formatChatTime';
 import './ChatView.css';
 
 const QUICK_EMOJIS = ['😀', '😂', '🔥', '✅', '🙏', '👍', '🎉', '🤖'];

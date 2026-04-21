@@ -11,8 +11,8 @@
 
 import type { Component } from "solid-js";
 import { For, Show, Suspense, createSignal, onMount, onCleanup } from "solid-js";
-import { t } from "../../App";
-import { getStoredToken } from "../../stores/authStore";
+import { t } from "@/App";
+import { getStoredToken } from "@/stores/authStore";
 import {
   useMetrics,
   useLogs,
@@ -21,9 +21,9 @@ import {
   useMcpServers,
   useAgent,
   useConfig,
-} from "@/ui/hooks";
-import { client } from "../../graphql/client";
-import AppShell from "../../components/AppShell";
+} from "@/hooks";
+import { client } from "@/graphql/config";
+import AppShell from "@/components/AppShell";
 import "./DashboardView.css";
 
 /**

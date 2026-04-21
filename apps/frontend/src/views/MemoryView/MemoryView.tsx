@@ -14,15 +14,15 @@
 import type { Component } from 'solid-js';
 import { For, Index, createMemo, createSignal, Show } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
-import { useMemory } from '@/ui/hooks';
-import type { MemoryNode } from '@/ui/types';
-import { UPDATE_MEMORY_NODE_MUTATION, DELETE_MEMORY_NODE_MUTATION, DELETE_RELATION_MUTATION } from '@/ui/graphql/mutations';
-import { client } from '../../graphql/client';
-import AppShell from '../../components/AppShell';
-import Modal from '../../components/Modal';
-import ContextMenu from '../../components/ContextMenu/ContextMenu';
-import { t } from '../../App';
-import GraphVisualization from '../../components/GraphVisualization';
+import { useMemory } from '@/hooks';
+import type { MemoryNode } from '@/types';
+import { UPDATE_MEMORY_NODE_MUTATION, DELETE_MEMORY_NODE_MUTATION, DELETE_RELATION_MUTATION } from '@/graphql/mutations';
+import { client } from '@/graphql/config';
+import AppShell from '@/components/AppShell';
+import Modal from '@/components/Modal';
+import ContextMenu from '@/components/ContextMenu/ContextMenu';
+import { t } from '@/App';
+import GraphVisualization from '@/components/GraphVisualization';
 import './MemoryView.css';
 
 /**

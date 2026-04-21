@@ -5,17 +5,22 @@ on:
     branches: [ master, 'feature/**', 'fix/**', 'refactor/**', 'chore/**' ]
     paths:
       - 'apps/frontend/**'
+      - 'schema/**'
       - '.github/workflows/tests.frontend-ci.yaml'
   pull_request:
     branches: [ master ]
     paths:
       - 'apps/frontend/**'
+      - 'schema/**'
       - '.github/workflows/tests.frontend-ci.yaml'
 
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -31,17 +36,24 @@ jobs:
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: make -C apps/frontend install
+        run: pnpm install --frozen-lockfile
+
+      - name: GraphQL Codegen
+        run: pnpm exec graphql-codegen --config codegen.ts
+        working-directory: .
 
       - name: Typecheck
-        run: pnpm --dir apps/frontend typecheck
+        run: pnpm typecheck
 
       - name: Run ESLint
-        run: pnpm --dir apps/frontend lint
+        run: pnpm lint
 
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -57,13 +69,17 @@ jobs:
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: make -C apps/frontend install
+        run: pnpm install --frozen-lockfile
+
+      - name: GraphQL Codegen
+        run: pnpm exec graphql-codegen --config codegen.ts
+        working-directory: .
 
       - name: Run unit tests with coverage
-        run: pnpm --dir apps/frontend test:coverage
+        run: pnpm test:coverage
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
           path: apps/frontend/coverage/
@@ -72,6 +88,9 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -87,16 +106,19 @@ jobs:
           cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: make -C apps/frontend install
+        run: pnpm install --frozen-lockfile
+
+      - name: GraphQL Codegen
+        run: pnpm codegen
 
       - name: Install Playwright browsers
-        run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: pnpm --dir apps/frontend test:e2e
+        run: pnpm test:e2e
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report

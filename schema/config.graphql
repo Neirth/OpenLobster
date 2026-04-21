@@ -140,10 +140,14 @@ type AppConfig {
 }
 
 type UpdateConfigResult {
-  agentName:    String
-  systemPrompt: String
-  provider:     String
-  channels:     [ChannelConfig!]
+  agentName:            String
+  systemPrompt:         String
+  provider:              String
+  pluginDefaultAi:      String
+  pluginDefaultMemory:  String
+  pluginDefaultSecrets: String
+  pluginDefaultAudio:   String
+  channels:              [ChannelConfig!]
 }
 
 input UpdateConfigInput {

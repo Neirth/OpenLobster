@@ -7,7 +7,7 @@
 
 import { onMount, onCleanup, createEffect, createSignal, Show } from 'solid-js';
 import type { Core } from 'cytoscape';
-import type { MemoryNode, MemoryEdge } from '@/ui';
+import type { MemoryNode, MemoryEdge } from '@/types';
 import './GraphVisualization.css';
 
 interface GraphVisualizationProps {

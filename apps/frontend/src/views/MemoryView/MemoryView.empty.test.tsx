@@ -20,7 +20,7 @@ vi.mock("../../components/AppShell/AppShell", () => ({
   default: (props: any) => <div class="app-shell" {...props} />,
 }));
 
-vi.mock("../../graphql/client", () => ({
+vi.mock("../../graphql/config", () => ({
   client: { request: vi.fn(() => Promise.resolve({})) },
 }));
 
@@ -37,12 +37,12 @@ vi.mock("@tanstack/solid-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
-vi.mock("@/ui/graphql/mutations", () => ({
+vi.mock("@/graphql/mutations", () => ({
   UPDATE_MEMORY_NODE_MUTATION: "UPDATE_MEMORY_NODE_MUTATION",
   DELETE_MEMORY_NODE_MUTATION: "DELETE_MEMORY_NODE_MUTATION",
 }));
 
-vi.mock("@/ui/hooks", () => ({
+vi.mock("@/hooks", () => ({
   useMemory: () => ({
     data: { nodes: [], edges: [] },
     isLoading: false,

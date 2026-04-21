@@ -1,7 +1,7 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 
 import type { Component, JSX } from "solid-js";
-import { t } from "../../App";
+import { t } from "@/App";
 import "./BrowserCheck.css";
 import { checkBrowserFeatures } from "./checkBrowserFeatures";
 

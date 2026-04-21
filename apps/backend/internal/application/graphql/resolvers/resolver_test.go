@@ -535,9 +535,12 @@ func TestMutationResolver_ApprovePairing_DenyPairing(t *testing.T) {
 }
 
 func TestMutationResolver_AddTask_CompleteTask(t *testing.T) {
-	cmdSvc := svcdashboard.NewCommandService(&mockTaskRepo{}, nil, nil)
+	repo := &mockTaskRepo{}
+	cmdSvc := svcdashboard.NewCommandService(repo, nil, nil)
+	querySvc := svcdashboard.NewQueryService(repo, nil, nil, nil, nil)
 	deps := newTestDeps(nil)
 	deps.CommandSvc = cmdSvc
+	deps.QuerySvc = querySvc
 	r := NewResolver(deps)
 
 	task, err := r.Mutation().AddTask(context.Background(), "prompt", nil)
@@ -901,9 +904,12 @@ func TestMutationResolver_RemoveTask(t *testing.T) {
 }
 
 func TestMutationResolver_UpdateTask(t *testing.T) {
-	commandSvc := svcdashboard.NewCommandService(&mockTaskRepo{}, nil, nil)
+	repo := &mockTaskRepo{tasks: []models.Task{{ID: "task1", Prompt: "old"}}}
+	cmdSvc := svcdashboard.NewCommandService(repo, nil, nil)
+	querySvc := svcdashboard.NewQueryService(repo, nil, nil, nil, nil)
 	deps := newTestDeps(nil)
-	deps.CommandSvc = commandSvc
+	deps.CommandSvc = cmdSvc
+	deps.QuerySvc = querySvc
 	r := NewResolver(deps)
 
 	schedule := "* * * * *"
@@ -913,9 +919,12 @@ func TestMutationResolver_UpdateTask(t *testing.T) {
 }
 
 func TestMutationResolver_ToggleTask(t *testing.T) {
-	commandSvc := svcdashboard.NewCommandService(&mockTaskRepo{}, nil, nil)
+	repo := &mockTaskRepo{tasks: []models.Task{{ID: "task1", Enabled: true}}}
+	cmdSvc := svcdashboard.NewCommandService(repo, nil, nil)
+	querySvc := svcdashboard.NewQueryService(repo, nil, nil, nil, nil)
 	deps := newTestDeps(nil)
-	deps.CommandSvc = commandSvc
+	deps.CommandSvc = cmdSvc
+	deps.QuerySvc = querySvc
 	r := NewResolver(deps)
 
 	result, err := r.Mutation().ToggleTask(context.Background(), "task1", false)
@@ -1333,18 +1342,51 @@ func (m *mockTaskRepo) GetPending(ctx context.Context) ([]models.Task, error) {
 func (m *mockTaskRepo) ListAll(ctx context.Context) ([]models.Task, error) {
 	return m.tasks, m.err
 }
-func (m *mockTaskRepo) Add(ctx context.Context, t *models.Task) error { return m.err }
+func (m *mockTaskRepo) Add(ctx context.Context, t *models.Task) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.tasks = append(m.tasks, *t)
+	return nil
+}
 func (m *mockTaskRepo) MarkDone(ctx context.Context, id string) error { return m.err }
 func (m *mockTaskRepo) Delete(ctx context.Context, id string) error   { return m.err }
 func (m *mockTaskRepo) Update(ctx context.Context, t *models.Task) error {
-	return m.err
+	if m.err != nil {
+		return m.err
+	}
+	for i, task := range m.tasks {
+		if task.ID == t.ID {
+			m.tasks[i] = *t
+			return nil
+		}
+	}
+	return nil
 }
 func (m *mockTaskRepo) SetEnabled(ctx context.Context, id string, enabled bool) error {
-	return m.err
+	if m.err != nil {
+		return m.err
+	}
+	for i, task := range m.tasks {
+		if task.ID == id {
+			m.tasks[i].Enabled = enabled
+			return nil
+		}
+	}
+	return nil
 }
 
 func (m *mockTaskRepo) SetStatus(ctx context.Context, id, status string) error {
-	return m.err
+	if m.err != nil {
+		return m.err
+	}
+	for i, task := range m.tasks {
+		if task.ID == id {
+			m.tasks[i].Status = status
+			return nil
+		}
+	}
+	return nil
 }
 
 type mockMCPServerRepo struct {

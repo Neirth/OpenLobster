@@ -3,7 +3,7 @@
 /**
  * Mock hooks for testing and E2E preview.
  *
- * Drop-in replacement for @/ui/hooks — same exports, same
+ * Drop-in replacement for @/hooks — same exports, same
  * signatures (client argument accepted but ignored). Swap the import at
  * the bundler alias level to use these instead of the real GraphQL hooks.
  *
@@ -25,7 +25,7 @@ import type {
   Skill,
   AppConfig,
   SystemFile,
-} from "@/ui/types";
+} from "@/types";
 
 export interface PairingRequestEvent {
   requestID: string;

@@ -11,10 +11,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/mark3labs/mcp-go v0.46.0
+	github.com/neirth/openlobster/utils/schema_contract v0.0.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
-	github.com/neirth/openlobster/utils/schema_contract v0.0.0
 	github.com/stretchr/testify v1.11.1
 	github.com/toon-format/toon-go v0.0.0-20251202084852-7ca0e27c4e8c
 	github.com/vektah/gqlparser/v2 v2.5.32

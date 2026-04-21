@@ -2,7 +2,7 @@
 
 import type { Component, JSX, ParentProps } from "solid-js";
 import { Show } from "solid-js";
-import { t } from "../../App";
+import { t } from "@/App";
 import "./Modal.css";
 
 export interface ModalProps extends ParentProps {

@@ -3,8 +3,8 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { waitFor } from "@solidjs/testing-library";
-import { configGroups, configSchema } from "../../schemas/config.schema";
-import { CONFIG_QUERY } from "@/ui/graphql/queries";
+import { configGroups, configSchema } from "@/schemas/config.schema";
+import { CONFIG_QUERY } from "@/graphql/queries";
 
 // Mock Router first
 vi.mock("@solidjs/router", () => ({
@@ -18,12 +18,9 @@ vi.mock("../../components/AppShell/AppShell", () => ({
 }));
 
 // Mock GraphQL client
-vi.mock("../../graphql/client", () => ({
-  client: {},
-}));
-
 vi.mock("../../graphql/config", () => ({
   GRAPHQL_ENDPOINT: "http://127.0.0.1:8080/graphql",
+  client: {},
 }));
 
 
@@ -81,7 +78,7 @@ beforeEach(() => {
   global.fetch = mockFetch;
 });
 
-import { renderWithQueryClient } from "../../test-utils";
+import { renderWithQueryClient } from "@/test-utils";
 import SettingsView from "./SettingsView";
 
 describe("SettingsView Component", () => {

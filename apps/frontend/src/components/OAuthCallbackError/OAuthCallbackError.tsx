@@ -8,7 +8,7 @@
 
 import type { Component } from "solid-js";
 import { onMount } from "solid-js";
-import { t } from "../../App";
+import { t } from "@/App";
 import "./OAuthCallbackError.css";
 
 interface OAuthCallbackErrorProps {

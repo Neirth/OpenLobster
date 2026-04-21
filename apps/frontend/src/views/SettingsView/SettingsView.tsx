@@ -3,19 +3,21 @@
 import type { Component } from "solid-js";
 import { createSignal, For, Show, onMount } from "solid-js";
 import { useQueryClient } from "@tanstack/solid-query";
-import { t } from "../../App";
-import { getStoredToken, setNeedsAuth } from "../../stores/authStore";
-import { configSchema, configGroups } from "../../schemas/config.schema";
-import { SchemaField } from "../../components/SchemaForm/SchemaField";
+import { t } from "@/App";
+import { getStoredToken, setNeedsAuth } from "@/stores/authStore";
+import { configSchema, configGroups } from "@/schemas/config.schema";
+import { SchemaField } from "@/components/SchemaForm/SchemaField";
 import {
   CONFIG_QUERY,
   SYSTEM_FILES_QUERY,
+} from "@/graphql/queries";
+import {
   WRITE_SYSTEM_FILE_MUTATION,
-} from "../../ui/graphql";
-import { GRAPHQL_ENDPOINT } from "../../graphql/config";
-import { effectiveTheme, setTheme } from "../../stores/themeStore";
-import AppShell from "../../components/AppShell";
-import PluginsSection from "../../components/PluginsSection/PluginsSection";
+} from "@/graphql/mutations";
+import { GRAPHQL_ENDPOINT } from "@/graphql/constants";
+import { effectiveTheme, setTheme } from "@/stores/themeStore";
+import AppShell from "@/components/AppShell";
+import PluginsSection from "@/components/PluginsSection/PluginsSection";
 import "./SettingsView.css";
 
 /**

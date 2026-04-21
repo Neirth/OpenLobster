@@ -41,16 +41,13 @@ vi.mock("../../stores/pairingStore", () => ({
   setOpenPairingRequestHandler: mockSetOpenPairingRequestHandler,
 }));
 
-vi.mock("@/ui/hooks", () => ({
+vi.mock("@/hooks", () => ({
   createSubscriptionManager: mockCreateSubscriptionManager,
-}));
-
-vi.mock("../../graphql/client", () => ({
-  client: { request: mockClientRequest },
 }));
 
 vi.mock("../../graphql/config", () => ({
   GRAPHQL_ENDPOINT: "/graphql",
+  client: { request: mockClientRequest },
 }));
 
 vi.mock("../AccessTokenModal/AccessTokenModal", () => ({
