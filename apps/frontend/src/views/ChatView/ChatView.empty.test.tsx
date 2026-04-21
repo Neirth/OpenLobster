@@ -18,16 +18,16 @@ vi.mock("@tanstack/solid-query", () => ({
   }),
 }));
 
-vi.mock("@/ui/graphql/mutations", () => ({
+vi.mock("@/graphql/mutations", () => ({
   SEND_MESSAGE_MUTATION: "SEND_MESSAGE_MUTATION",
   DELETE_USER_MUTATION: "DELETE_USER_MUTATION",
 }));
 
-vi.mock("@/ui/graphql/queries", () => ({
+vi.mock("@/graphql/queries", () => ({
   MESSAGES_QUERY: "MESSAGES_QUERY",
 }));
 
-vi.mock("@/ui/hooks", () => ({
+vi.mock("@/hooks", () => ({
   useConversations: () => ({ data: [], isLoading: false, error: null }),
   useSubscriptions: () => ({
     isConnected: () => false,
@@ -38,12 +38,9 @@ vi.mock("@/ui/hooks", () => ({
   useConfig: () => ({ data: undefined, isLoading: false }),
 }));
 
-vi.mock("../../graphql/client", () => ({
-  client: { request: vi.fn(() => Promise.resolve({})) },
-}));
-
 vi.mock("../../graphql/config", () => ({
   GRAPHQL_ENDPOINT: "/graphql",
+  client: { request: vi.fn(() => Promise.resolve({})) },
 }));
 
 

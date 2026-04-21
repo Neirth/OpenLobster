@@ -583,10 +583,14 @@ type ComplexityRoot struct {
 	}
 
 	UpdateConfigResult struct {
-		AgentName    func(childComplexity int) int
-		Channels     func(childComplexity int) int
-		Provider     func(childComplexity int) int
-		SystemPrompt func(childComplexity int) int
+		AgentName            func(childComplexity int) int
+		Channels             func(childComplexity int) int
+		PluginDefaultAi      func(childComplexity int) int
+		PluginDefaultAudio   func(childComplexity int) int
+		PluginDefaultMemory  func(childComplexity int) int
+		PluginDefaultSecrets func(childComplexity int) int
+		Provider             func(childComplexity int) int
+		SystemPrompt         func(childComplexity int) int
 	}
 
 	User struct {
@@ -3138,6 +3142,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.UpdateConfigResult.Channels(childComplexity), true
+	case "UpdateConfigResult.pluginDefaultAi":
+		if e.ComplexityRoot.UpdateConfigResult.PluginDefaultAi == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateConfigResult.PluginDefaultAi(childComplexity), true
+	case "UpdateConfigResult.pluginDefaultAudio":
+		if e.ComplexityRoot.UpdateConfigResult.PluginDefaultAudio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateConfigResult.PluginDefaultAudio(childComplexity), true
+	case "UpdateConfigResult.pluginDefaultMemory":
+		if e.ComplexityRoot.UpdateConfigResult.PluginDefaultMemory == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateConfigResult.PluginDefaultMemory(childComplexity), true
+	case "UpdateConfigResult.pluginDefaultSecrets":
+		if e.ComplexityRoot.UpdateConfigResult.PluginDefaultSecrets == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UpdateConfigResult.PluginDefaultSecrets(childComplexity), true
 	case "UpdateConfigResult.provider":
 		if e.ComplexityRoot.UpdateConfigResult.Provider == nil {
 			break
@@ -3560,10 +3588,14 @@ type AppConfig {
 }
 
 type UpdateConfigResult {
-  agentName:    String
-  systemPrompt: String
-  provider:     String
-  channels:     [ChannelConfig!]
+  agentName:            String
+  systemPrompt:         String
+  provider:              String
+  pluginDefaultAi:      String
+  pluginDefaultMemory:  String
+  pluginDefaultSecrets: String
+  pluginDefaultAudio:   String
+  channels:              [ChannelConfig!]
 }
 
 input UpdateConfigInput {
@@ -10822,6 +10854,14 @@ func (ec *executionContext) fieldContext_Mutation_updateConfig(ctx context.Conte
 				return ec.fieldContext_UpdateConfigResult_systemPrompt(ctx, field)
 			case "provider":
 				return ec.fieldContext_UpdateConfigResult_provider(ctx, field)
+			case "pluginDefaultAi":
+				return ec.fieldContext_UpdateConfigResult_pluginDefaultAi(ctx, field)
+			case "pluginDefaultMemory":
+				return ec.fieldContext_UpdateConfigResult_pluginDefaultMemory(ctx, field)
+			case "pluginDefaultSecrets":
+				return ec.fieldContext_UpdateConfigResult_pluginDefaultSecrets(ctx, field)
+			case "pluginDefaultAudio":
+				return ec.fieldContext_UpdateConfigResult_pluginDefaultAudio(ctx, field)
 			case "channels":
 				return ec.fieldContext_UpdateConfigResult_channels(ctx, field)
 			}
@@ -16962,6 +17002,122 @@ func (ec *executionContext) fieldContext_UpdateConfigResult_provider(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _UpdateConfigResult_pluginDefaultAi(ctx context.Context, field graphql.CollectedField, obj *UpdateConfigResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpdateConfigResult_pluginDefaultAi,
+		func(ctx context.Context) (any, error) {
+			return obj.PluginDefaultAi, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpdateConfigResult_pluginDefaultAi(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpdateConfigResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UpdateConfigResult_pluginDefaultMemory(ctx context.Context, field graphql.CollectedField, obj *UpdateConfigResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpdateConfigResult_pluginDefaultMemory,
+		func(ctx context.Context) (any, error) {
+			return obj.PluginDefaultMemory, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpdateConfigResult_pluginDefaultMemory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpdateConfigResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UpdateConfigResult_pluginDefaultSecrets(ctx context.Context, field graphql.CollectedField, obj *UpdateConfigResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpdateConfigResult_pluginDefaultSecrets,
+		func(ctx context.Context) (any, error) {
+			return obj.PluginDefaultSecrets, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpdateConfigResult_pluginDefaultSecrets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpdateConfigResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UpdateConfigResult_pluginDefaultAudio(ctx context.Context, field graphql.CollectedField, obj *UpdateConfigResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpdateConfigResult_pluginDefaultAudio,
+		func(ctx context.Context) (any, error) {
+			return obj.PluginDefaultAudio, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpdateConfigResult_pluginDefaultAudio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpdateConfigResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _UpdateConfigResult_channels(ctx context.Context, field graphql.CollectedField, obj *UpdateConfigResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -18670,6 +18826,10 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 func (ec *executionContext) unmarshalInputCapabilitiesInput(ctx context.Context, obj any) (CapabilitiesInput, error) {
 	var it CapabilitiesInput
+	if obj == nil {
+		return it, nil
+	}
+
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
@@ -18738,6 +18898,10 @@ func (ec *executionContext) unmarshalInputCapabilitiesInput(ctx context.Context,
 
 func (ec *executionContext) unmarshalInputUpdateConfigInput(ctx context.Context, obj any) (UpdateConfigInput, error) {
 	var it UpdateConfigInput
+	if obj == nil {
+		return it, nil
+	}
+
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
@@ -22982,6 +23146,14 @@ func (ec *executionContext) _UpdateConfigResult(ctx context.Context, sel ast.Sel
 			out.Values[i] = ec._UpdateConfigResult_systemPrompt(ctx, field, obj)
 		case "provider":
 			out.Values[i] = ec._UpdateConfigResult_provider(ctx, field, obj)
+		case "pluginDefaultAi":
+			out.Values[i] = ec._UpdateConfigResult_pluginDefaultAi(ctx, field, obj)
+		case "pluginDefaultMemory":
+			out.Values[i] = ec._UpdateConfigResult_pluginDefaultMemory(ctx, field, obj)
+		case "pluginDefaultSecrets":
+			out.Values[i] = ec._UpdateConfigResult_pluginDefaultSecrets(ctx, field, obj)
+		case "pluginDefaultAudio":
+			out.Values[i] = ec._UpdateConfigResult_pluginDefaultAudio(ctx, field, obj)
 		case "channels":
 			out.Values[i] = ec._UpdateConfigResult_channels(ctx, field, obj)
 		default:

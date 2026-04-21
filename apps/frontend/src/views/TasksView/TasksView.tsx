@@ -4,13 +4,13 @@ import type { Component } from 'solid-js';
 import { For, Show, createEffect } from 'solid-js';
 import { createSignal } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
-import { useTasks } from '@/ui/hooks';
-import type { Task } from '@/ui/types';
-import { ADD_TASK_MUTATION, REMOVE_TASK_MUTATION, TOGGLE_TASK_MUTATION, UPDATE_TASK_MUTATION } from '@/ui/graphql/mutations';
-import { client } from '../../graphql/client';
-import AppShell from '../../components/AppShell';
-import Modal from '../../components/Modal';
-import { t } from '../../App';
+import { useTasks } from '@/hooks';
+import type { Task } from '@/types';
+import { ADD_TASK_MUTATION, REMOVE_TASK_MUTATION, TOGGLE_TASK_MUTATION, UPDATE_TASK_MUTATION } from '@/graphql/mutations';
+import { client } from '@/graphql/config';
+import AppShell from '@/components/AppShell';
+import Modal from '@/components/Modal';
+import { t } from '@/App';
 import './TasksView.css';
 
 const localDateTimeValueFromSchedule = (schedule: string): string => {

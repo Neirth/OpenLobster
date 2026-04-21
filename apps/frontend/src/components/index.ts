@@ -8,7 +8,6 @@ export { default as Modal } from './Modal';
 export { default as AuthModals } from './AuthModals';
 export { default as AccessTokenModal } from './AccessTokenModal';
 export { default as PairingModal } from './PairingModal';
-export { default as FirstBootWizard } from './FirstBootWizard';
 export { default as BrowserCheck } from './BrowserCheck';
 export { default as MobileBlocker } from './MobileBlocker';
 export { default as MarketplaceModal } from './MarketplaceModal';

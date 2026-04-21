@@ -15,7 +15,7 @@ vi.mock("../../components/AppShell/AppShell", () => ({
   default: (props: any) => <div class="app-shell" {...props} />,
 }));
 
-vi.mock("../../graphql/client", () => ({
+vi.mock("../../graphql/config", () => ({
   client: { request: vi.fn(() => Promise.resolve({})) },
 }));
 

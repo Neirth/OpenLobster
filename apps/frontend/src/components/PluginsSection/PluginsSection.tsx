@@ -2,14 +2,20 @@
 
 import type { Component } from "solid-js";
 import { createSignal, For, Show, onMount } from "solid-js";
-import { t } from "../../App";
-import { getStoredToken } from "../../stores/authStore";
-import { GRAPHQL_ENDPOINT } from "../../graphql/config";
+import { t } from "@/App";
+import { getStoredToken } from "@/stores/authStore";
+import { GRAPHQL_ENDPOINT } from "@/graphql/constants";
 import {
   PLUGINS_QUERY,
+} from "@/graphql/queries";
+import {
   RELOAD_PLUGINS_MUTATION,
   UPDATE_PLUGIN_CONFIG_MUTATION,
-} from "../../ui/graphql";
+  UPDATE_CONFIG_MUTATION,
+} from "@/graphql/mutations";
+import {
+  CONFIG_QUERY,
+} from "@/graphql/queries";
 import "./PluginsSection.css";
 
 interface Plugin {
@@ -44,6 +50,8 @@ const PluginsSection: Component = () => {
   const [expandedPlugin, setExpandedPlugin] = createSignal<string | null>(null);
   const [configValues, setConfigValues] = createSignal<Record<string, Record<string, string>>>({});
   const [savingPlugin, setSavingPlugin] = createSignal<string | null>(null);
+  const [pluginDefaults, setPluginDefaults] = createSignal<{ai?: string, memory?: string, secrets?: string, audio?: string}>({});
+  const [settingDefault, setSettingDefault] = createSignal<string | null>(null);
 
   const showMessage = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
@@ -52,19 +60,40 @@ const PluginsSection: Component = () => {
 
   const loadPlugins = async () => {
     try {
-      const res = await fetch(GRAPHQL_ENDPOINT, {
-        method: "POST",
-        headers: graphqlHeaders(),
-        body: JSON.stringify({ query: PLUGINS_QUERY }),
-      });
-      const data = await res.json();
-      if (data.errors) {
-        showMessage("error", data.errors[0]?.message ?? "Failed to load plugins");
-        return;
+      // Fetch plugins and config defaults in parallel
+      const [pluginsRes, configRes] = await Promise.all([
+        fetch(GRAPHQL_ENDPOINT, {
+          method: "POST",
+          headers: graphqlHeaders(),
+          body: JSON.stringify({ query: PLUGINS_QUERY }),
+        }),
+        fetch(GRAPHQL_ENDPOINT, {
+          method: "POST",
+          headers: graphqlHeaders(),
+          body: JSON.stringify({ query: CONFIG_QUERY }),
+        })
+      ]);
+
+      const pluginsData = await pluginsRes.json();
+      const configData = await configRes.json();
+
+      if (pluginsData.errors) {
+        showMessage("error", pluginsData.errors[0]?.message ?? "Failed to load plugins");
+      } else {
+        setPlugins(pluginsData.data?.plugins ?? []);
       }
-      setPlugins(data.data?.plugins ?? []);
+
+      if (!configData.errors && configData.data?.config) {
+        const defaults = configData.data.config.pluginDefaults;
+        setPluginDefaults({
+          ai: defaults.ai,
+          memory: defaults.memory,
+          secrets: defaults.secrets,
+          audio: defaults.audio,
+        });
+      }
     } catch (e) {
-      showMessage("error", e instanceof Error ? e.message : "Failed to load plugins");
+      showMessage("error", e instanceof Error ? e.message : "Failed to load requirements");
     } finally {
       setLoading(false);
     }
@@ -131,6 +160,47 @@ const PluginsSection: Component = () => {
       showMessage("error", e instanceof Error ? e.message : "Save failed");
     } finally {
       setSavingPlugin(null);
+    }
+  };
+
+  const handleSetDefault = async (pluginId: string, type: string) => {
+    setSettingDefault(pluginId);
+    const fieldMapping: Record<string, string> = {
+      ai: "pluginDefaultAi",
+      memory: "pluginDefaultMemory",
+      secrets: "pluginDefaultSecrets",
+      audio: "pluginDefaultAudio",
+    };
+    const field = fieldMapping[type];
+    if (!field) return; // Not a category that supports defaults
+
+    try {
+      const res = await fetch(GRAPHQL_ENDPOINT, {
+        method: "POST",
+        headers: graphqlHeaders(),
+        body: JSON.stringify({
+          query: UPDATE_CONFIG_MUTATION,
+          variables: { input: { [field]: pluginId } },
+        }),
+      });
+      const data = await res.json();
+      if (data.errors) {
+        showMessage("error", data.errors[0]?.message ?? "Failed to set default");
+        return;
+      }
+      
+      const newDefaults = data.data.updateConfig;
+      setPluginDefaults({
+        ai: newDefaults.pluginDefaultAi,
+        memory: newDefaults.pluginDefaultMemory,
+        secrets: newDefaults.pluginDefaultSecrets,
+        audio: newDefaults.pluginDefaultAudio,
+      });
+      showMessage("success", t("plugins.defaultSaved"));
+    } catch (e) {
+      showMessage("error", e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setSettingDefault(null);
     }
   };
 
@@ -225,6 +295,16 @@ const PluginsSection: Component = () => {
                       <span class="plugin-card__desc">{plugin.description}</span>
                     </div>
                     <div class="plugin-card__status">
+                      <Show when={
+                        (plugin.pluginType === "ai" && pluginDefaults().ai === plugin.id) ||
+                        (plugin.pluginType === "memory" && pluginDefaults().memory === plugin.id) ||
+                        (plugin.pluginType === "secrets" && pluginDefaults().secrets === plugin.id) ||
+                        (plugin.pluginType === "audio" && pluginDefaults().audio === plugin.id)
+                      }>
+                        <span class="plugin-card__badge plugin-card__badge--default">
+                          {t("plugins.defaultBadge")}
+                        </span>
+                      </Show>
                       <span
                         class="plugin-card__badge"
                         classList={{ "plugin-card__badge--active": plugin.enabled }}
@@ -265,11 +345,25 @@ const PluginsSection: Component = () => {
                         )}
                       </For>
                       <div class="plugin-card__footer">
+                        <Show when={
+                          ["ai", "memory", "secrets", "audio"].includes(plugin.pluginType) && 
+                          pluginDefaults()[plugin.pluginType as keyof ReturnType<typeof pluginDefaults>] !== plugin.id
+                        }>
+                          <button
+                            class="save-btn save-btn--secondary"
+                            onClick={() => handleSetDefault(plugin.id, plugin.pluginType)}
+                            disabled={settingDefault() === plugin.id}
+                          >
+                            <span class="material-symbols-outlined" aria-hidden={true}>bookmark</span>
+                            {settingDefault() === plugin.id ? t("settings.saving") : t("plugins.setDefault")}
+                          </button>
+                        </Show>
                         <button
                           class="save-btn"
                           onClick={() => handleSaveConfig(plugin.id)}
                           disabled={isSaving()}
                         >
+                          <span class="material-symbols-outlined" aria-hidden={true}>save</span>
                           {isSaving() ? t("settings.saving") : t("common.save")}
                         </button>
                       </div>

@@ -1,7 +1,7 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 
 import type { Component } from "solid-js";
-import { t } from "../../App";
+import { t } from "@/App";
 import "./ErrorView.css";
 
 interface ErrorViewProps {

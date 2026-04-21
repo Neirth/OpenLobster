@@ -100,10 +100,25 @@ func BuildConfigSnapshot(cfg *config.Config, providerNameFn func(*config.Config)
 			SlackAppToken:    cfg.Channels.Slack.AppToken,
 		},
 		PluginDefaults: &PluginDefaultsSnapshot{
-			AI:      cfg.Plugins.Defaults["ai"],
-			Memory:  cfg.Plugins.Defaults["memory"],
-			Secrets: cfg.Plugins.Defaults["secrets"],
-			Audio:   cfg.Plugins.Defaults["audio"],
+			AI: func() string {
+				if cfg.Plugins.Defaults["ai"] != "" {
+					return cfg.Plugins.Defaults["ai"]
+				}
+				return "ollama"
+			}(),
+			Memory: func() string {
+				if cfg.Plugins.Defaults["memory"] != "" {
+					return cfg.Plugins.Defaults["memory"]
+				}
+				return "gml"
+			}(),
+			Secrets: func() string {
+				if cfg.Plugins.Defaults["secrets"] != "" {
+					return cfg.Plugins.Defaults["secrets"]
+				}
+				return "secrets-json"
+			}(),
+			Audio: cfg.Plugins.Defaults["audio"],
 		},
 		WebEnabled:      cfg.Web.Enabled,
 		A2aEnabled:      cfg.A2A.Enabled,

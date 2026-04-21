@@ -1,7 +1,7 @@
 // Test to verify POST requests are being sent to GraphQL endpoint.
 // Call from browser console; uses stored token when available so requests are authenticated.
 
-import { getStoredToken } from "../stores/authStore";
+import { getStoredToken } from "@/stores/authStore";
 
 async function testGraphQLMutation() {
   const query = `

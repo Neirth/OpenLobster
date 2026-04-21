@@ -2,7 +2,7 @@
 
 import type { Component, JSX } from "solid-js";
 import { createSignal, onMount, Show } from "solid-js";
-import { t } from "../../App";
+import { t } from "@/App";
 import "./MobileBlocker.css";
 
 /**

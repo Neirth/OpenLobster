@@ -1,9 +1,9 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 
 import { createMemo, Show, For, type Component } from "solid-js";
-import { t } from "../../App";
-import type { SchemaProperty } from "../../schemas/config.schema";
-import { getSchemaFieldI18nKey } from "../../schemas/config.schema";
+import { t } from "@/App";
+import type { SchemaProperty } from "@/schemas/config.schema";
+import { getSchemaFieldI18nKey } from "@/schemas/config.schema";
 import "./SchemaForm.css";
 
 /** Primitive value types used in configuration form fields. */
@@ -163,7 +163,17 @@ export const SchemaField: Component<SchemaFormProps> = (props) => {
   const displayTitle = () => {
     const key = titleKey();
     const translated = t(key);
-    return translated !== key ? translated : props.schema.title;
+    if (translated !== key) return translated;
+    if (props.schema.title) return props.schema.title;
+
+    // Fallback: format camelCase or snake_case key to Human Readable
+    const parts = props.field.split(".");
+    const lastPart = parts[parts.length - 1];
+    return lastPart
+      .replace(/([A-Z])/g, " $1")
+      .replace(/_/g, " ")
+      .replace(/^./, (str) => str.toUpperCase())
+      .trim();
   };
   const displayDescription = () => {
     const key = descKey();

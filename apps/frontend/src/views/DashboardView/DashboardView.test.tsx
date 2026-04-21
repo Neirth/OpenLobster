@@ -14,7 +14,7 @@ vi.mock("../../components/AppShell/AppShell", () => ({
   default: (props: any) => <div class="app-shell" {...props} />,
 }));
 
-vi.mock("../../graphql/client", () => ({ client: {} }));
+vi.mock("../../graphql/config", () => ({ client: {} }));
 
 beforeEach(() => {
   vi.stubGlobal(

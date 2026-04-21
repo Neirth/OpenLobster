@@ -1,11 +1,10 @@
-// Copyright (c) OpenLobster contributors. See LICENSE for details.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@solidjs/testing-library';
-import App from '../src/App';
+import App, { setConfigLoaded, setShowWizard } from '@/App';
 
 // Mock locale files
-vi.mock('../src/locales/en.json', () => ({
+vi.mock('@/locales/en.json', () => ({
   default: {
     'dashboard.title': 'Dashboard',
     'chat.title': 'Chat',
@@ -14,7 +13,7 @@ vi.mock('../src/locales/en.json', () => ({
   },
 }));
 
-vi.mock('../src/locales/es.json', () => ({
+vi.mock('@/locales/es.json', () => ({
   default: {
     'dashboard.title': 'Panel',
     'chat.title': 'Chat',
@@ -25,45 +24,65 @@ vi.mock('../src/locales/es.json', () => ({
 
 // Mock Router before importing App
 vi.mock('@solidjs/router', () => ({
-  Router: (props: any) => <div class="router-mock">{props.children}</div>,
+  Router: (props: any) => {
+    const Root = props.root;
+    if (Root) {
+      return (
+        <div class="router-mock">
+          <Root children={props.children} />
+        </div>
+      );
+    }
+    return <div class="router-mock">{props.children}</div>;
+  },
   Route: () => null,
+  useLocation: () => ({ pathname: '/' }),
 }));
 
 // Mock AppShell
-vi.mock('../src/components/AppShell/AppShell', () => ({
+vi.mock('@/components/AppShell/AppShell', () => ({
   default: () => <div class="app-shell" />,
 }));
 
 // Mock views
-vi.mock('../src/views/ChatView/ChatView', () => ({
+vi.mock('@/views/ChatView/ChatView', () => ({
   default: () => <div>Chat</div>,
 }));
 
-vi.mock('../src/views/DashboardView/DashboardView', () => ({
+vi.mock('@/views/DashboardView/DashboardView', () => ({
   default: () => <div>Dashboard</div>,
 }));
 
-vi.mock('../src/views/TasksView/TasksView', () => ({
+vi.mock('@/views/TasksView/TasksView', () => ({
   default: () => <div>Tasks</div>,
 }));
 
-vi.mock('../src/views/MemoryView/MemoryView', () => ({
+vi.mock('@/views/MemoryView/MemoryView', () => ({
   default: () => <div>Memory</div>,
 }));
 
-vi.mock('../src/views/McpsView/McpsView', () => ({
+vi.mock('@/views/McpsView/McpsView', () => ({
   default: () => <div>MCPs</div>,
 }));
 
-vi.mock('../src/views/SkillsView/SkillsView', () => ({
+vi.mock('@/views/SkillsView/SkillsView', () => ({
   default: () => <div>Skills</div>,
 }));
 
-vi.mock('../src/views/SettingsView/SettingsView', () => ({
+vi.mock('@/views/SettingsView/SettingsView', () => ({
   default: () => <div>Settings</div>,
 }));
 
-vi.mock('../src/components/FirstBootWizard/FirstBootWizard', () => ({
+vi.mock('@/graphql/config', () => ({
+  GRAPHQL_ENDPOINT: '/graphql',
+  client: { request: vi.fn() },
+}));
+
+vi.mock('@/components/AuthModals', () => ({
+  default: (props: { children: any }) => <div class="auth-modals-mock">{props.children}</div>,
+}));
+
+vi.mock('@/views/WizardView/WizardView', () => ({
   default: (props: { onComplete: () => void }) => (
     <div class="first-boot-wizard-mock">
       <button onClick={props.onComplete}>Complete</button>
@@ -80,6 +99,9 @@ describe('App Component', () => {
       json: async () => ({ data: { config: { wizardCompleted: true } } }),
     });
     global.fetch = mockFetch;
+    // Reset global state to ensure tests are isolated
+    setConfigLoaded(false);
+    setShowWizard(false);
   });
 
   it('renders without crashing', () => {
@@ -87,16 +109,20 @@ describe('App Component', () => {
     expect(container).toBeTruthy();
   });
 
-  it('renders with Router', () => {
+  it('renders with Router', async () => {
     const { container } = render(() => <App />);
-    const routerDiv = container.querySelector('.router-mock');
-    expect(routerDiv).toBeTruthy();
+    await vi.waitFor(() => {
+      const routerDiv = container.querySelector('.router-mock');
+      expect(routerDiv).toBeTruthy();
+    });
   });
 
-  it('includes Router mock', () => {
+  it('includes Router mock', async () => {
     const { container } = render(() => <App />);
-    const routerDiv = container.querySelector('.router-mock');
-    expect(routerDiv).toBeTruthy();
+    await vi.waitFor(() => {
+      const routerDiv = container.querySelector('.router-mock');
+      expect(routerDiv).toBeTruthy();
+    });
   });
 
   it('shows FirstBootWizard when wizard not completed (first boot)', async () => {
