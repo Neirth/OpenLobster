@@ -178,6 +178,14 @@
   color: var(--color-success, #4caf50);
   background: rgba(76,175,80,0.08);
 }
+.plugin-card__badge--default {
+  border-color: var(--color-warning, #ffc107);
+  color: var(--color-warning, #ffc107);
+  background: rgba(255,193,7,0.08);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 
 .plugin-card__chevron {
   font-size: 1.25rem;
@@ -220,8 +228,20 @@
 .plugin-card__footer {
   display: flex;
   justify-content: flex-end;
-  padding-top: 0.5rem;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--color-border, rgba(255,255,255,0.07));
+}
+
+.save-btn--secondary {
+  background: none;
+  border: 1px solid var(--color-border, rgba(255,255,255,0.15));
+  color: var(--color-text-secondary, #888);
+}
+
+.save-btn--secondary:hover {
+  background: var(--color-hover, rgba(255,255,255,0.05));
+  border-color: var(--color-text-secondary, #888);
 }
 
 /* ── Input style (reuse existing .settings-input if defined) ───────────────────*/

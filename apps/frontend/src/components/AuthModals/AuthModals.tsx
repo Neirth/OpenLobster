@@ -2,16 +2,16 @@
 
 import type { Component, JSX } from "solid-js";
 import { createSignal, onMount, onCleanup, Show } from "solid-js";
-import { t } from "../../App";
+import { t } from "@/App";
 import {
   createSubscriptionManager,
   type PairingRequestEvent,
-} from "@/ui/hooks";
-import { client } from "../../graphql/client";
-import { GRAPHQL_ENDPOINT } from "../../graphql/config";
-import { useWsConnection } from "../../stores/wsStore";
-import { needsAuth, getStoredToken, syncNeedsAuthFromStorage } from "../../stores/authStore";
-import { pendingPairingsQueue, setPendingPairingsQueue, setOpenPairingRequestHandler } from "../../stores/pairingStore";
+} from "@/hooks";
+import { client } from "@/graphql/config";
+import { GRAPHQL_ENDPOINT } from "@/graphql/constants";
+import { useWsConnection } from "@/stores/wsStore";
+import { needsAuth, getStoredToken, syncNeedsAuthFromStorage } from "@/stores/authStore";
+import { pendingPairingsQueue, setPendingPairingsQueue, setOpenPairingRequestHandler } from "@/stores/pairingStore";
 import AccessTokenModal from "../AccessTokenModal/AccessTokenModal";
 import PairingModal from "../PairingModal/PairingModal";
 

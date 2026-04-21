@@ -13,7 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "codegen": "graphql-codegen --config codegen.ts"
+    "codegen": "graphql-codegen --config ../../codegen.ts"
   },
   "dependencies": {
     "@solid-primitives/i18n": "^2.2.1",

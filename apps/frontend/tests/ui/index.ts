@@ -10,11 +10,11 @@
  * Configured in vitest.config.ts:
  *   alias: { '@/ui': uiTestsSrc }
  *
- * This allows tests to import from '@/ui/hooks' and receive
+ * This allows tests to import from '@/hooks' and receive
  * mock implementations automatically.
  */
 
-export * from "@/ui/types";
-export * from "@/ui/theme";
+export * from "../../src/types/index.js";
+export * from "./theme/index.js";
 export * from "./hooks/index.js";
 export * from "./graphql/mutations/index.js";

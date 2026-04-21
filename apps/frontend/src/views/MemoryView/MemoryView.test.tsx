@@ -20,7 +20,7 @@ vi.mock("../../components/AppShell/AppShell", () => ({
   default: (props: any) => <div class="app-shell" {...props} />,
 }));
 
-vi.mock("../../graphql/client", () => ({
+vi.mock("../../graphql/config", () => ({
   client: { request: vi.fn(() => Promise.resolve({})) },
 }));
 
@@ -33,7 +33,7 @@ vi.mock("../../components/GraphVisualization", () => ({
   default: () => <div class="graph-visualization-mock" />,
 }));
 
-vi.mock("@/ui/hooks", () => ({
+vi.mock("@/hooks", () => ({
   useMemory: () => ({
     data: mockMemoryData,
     isLoading: false,
@@ -42,7 +42,7 @@ vi.mock("@/ui/hooks", () => ({
   }),
 }));
 
-import { renderWithQueryClient } from "../../test-utils";
+import { renderWithQueryClient } from "@/test-utils";
 import MemoryView from "./MemoryView";
 
 describe("MemoryView Component", () => {

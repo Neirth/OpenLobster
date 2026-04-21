@@ -9,7 +9,7 @@
 
 import type { Component, JSX } from "solid-js";
 import Header, { type TabId } from "../Header/Header";
-import { client } from "../../graphql/client";
+import { client } from "@/graphql/config";
 import "./AppShell.css";
 
 interface AppShellProps {

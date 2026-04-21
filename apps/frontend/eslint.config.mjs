@@ -86,7 +86,7 @@ const vitestGlobals = {
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', '.turbo/**'],
+    ignores: ['dist/**', 'node_modules/**', '.turbo/**', 'src/graphql/generated.ts'],
   },
   {
     files: ['src/**/*.{ts,tsx}'],

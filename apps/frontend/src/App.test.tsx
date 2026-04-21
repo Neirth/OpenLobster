@@ -21,24 +21,24 @@ vi.mock("@solidjs/router", () => ({
     return <div class="router">{renderRoot()}</div>;
   },
   Route: (_props: any) => null,
-  useLocation: () => ({ pathname: "/" }),
   useNavigate: () => vi.fn(),
   A: (props: any) => <a {...props} />,
+  useLocation: () => ({ pathname: "/" }),
 }));
 
-vi.mock("./components/AuthModals", () => ({
+vi.mock("@/components/AuthModals", () => ({
   default: (props: any) => <div class="auth-modals-mock">{props.children}</div>,
 }));
 
-vi.mock("./components/BrowserCheck", () => ({
+vi.mock("@/components/BrowserCheck", () => ({
   default: (props: any) => <div class="browser-check-mock">{props.children}</div>,
 }));
 
-vi.mock("./components/MobileBlocker", () => ({
+vi.mock("@/components/MobileBlocker", () => ({
   default: (props: any) => <div class="mobile-blocker-mock">{props.children}</div>,
 }));
 
-vi.mock("./components/OAuthCallbackError/OAuthCallbackError", () => ({
+vi.mock("@/components/OAuthCallbackError/OAuthCallbackError", () => ({
   default: (props: any) => {
     // Envolver props.onClose en una función para cumplir con la reactividad
     const handleClose = () => props.onClose && props.onClose();
@@ -51,7 +51,7 @@ vi.mock("./components/OAuthCallbackError/OAuthCallbackError", () => ({
   },
 }));
 
-vi.mock("./components/FirstBootWizard", () => ({
+vi.mock("@/views/WizardView/WizardView", () => ({
   default: (props: any) => {
     // Envolver props.onComplete en una función para cumplir con la reactividad
     const handleComplete = () => props.onComplete && props.onComplete();
@@ -64,7 +64,7 @@ vi.mock("./components/FirstBootWizard", () => ({
 }));
 
 const mockGetStoredToken = vi.hoisted(() => vi.fn(() => null as string | null));
-vi.mock("./stores/authStore", () => ({
+vi.mock("@/stores/authStore", () => ({
   getStoredToken: mockGetStoredToken,
   needsAuth: () => false,
   setNeedsAuth: vi.fn(),
@@ -72,34 +72,34 @@ vi.mock("./stores/authStore", () => ({
 
 const mockEffectiveTheme = vi.hoisted(() => vi.fn(() => "dark" as "dark" | "light"));
 const mockSetSystemTheme = vi.hoisted(() => vi.fn());
-vi.mock("./stores/themeStore", () => ({
+vi.mock("@/stores/themeStore", () => ({
   effectiveTheme: mockEffectiveTheme,
   setSystemTheme: mockSetSystemTheme,
 }));
 
-vi.mock("./graphql/config", () => ({
+vi.mock("@/graphql/config", () => ({
   GRAPHQL_ENDPOINT: "/graphql",
 }));
 
-vi.mock("./graphql/client", () => ({
+vi.mock("@/graphql/client", () => ({
   client: {},
 }));
 
 
 // CSS imports — vite-plugin-solid handles these, but mock for safety
-vi.mock("@/ui/styles/tokens.css", () => ({}));
-vi.mock("@/ui/styles/reset.css", () => ({}));
+vi.mock("@/styles/tokens.css", () => ({}));
+vi.mock("@/styles/reset.css", () => ({}));
 vi.mock("./styles/global.css", () => ({}));
 
 // Lazy view mocks
-vi.mock("./views/ChatView/ChatView", () => ({ default: () => <div class="chat-view" /> }));
-vi.mock("./views/DashboardView/DashboardView", () => ({ default: () => <div class="dashboard-view" /> }));
-vi.mock("./views/TasksView/TasksView", () => ({ default: () => <div class="tasks-view" /> }));
-vi.mock("./views/MemoryView/MemoryView", () => ({ default: () => <div class="memory-view" /> }));
-vi.mock("./views/McpsView/McpsView", () => ({ default: () => <div class="mcps-view" /> }));
-vi.mock("./views/SkillsView/SkillsView", () => ({ default: () => <div class="skills-view" /> }));
-vi.mock("./views/SettingsView/SettingsView", () => ({ default: () => <div class="settings-view" /> }));
-vi.mock("./views/ErrorView/ErrorView", () => ({ Error404: () => <div class="error-view" /> }));
+vi.mock("@/views/ChatView/ChatView", () => ({ default: () => <div class="chat-view" /> }));
+vi.mock("@/views/DashboardView/DashboardView", () => ({ default: () => <div class="dashboard-view" /> }));
+vi.mock("@/views/TasksView/TasksView", () => ({ default: () => <div class="tasks-view" /> }));
+vi.mock("@/views/MemoryView/MemoryView", () => ({ default: () => <div class="memory-view" /> }));
+vi.mock("@/views/McpsView/McpsView", () => ({ default: () => <div class="mcps-view" /> }));
+vi.mock("@/views/SkillsView/SkillsView", () => ({ default: () => <div class="skills-view" /> }));
+vi.mock("@/views/SettingsView/SettingsView", () => ({ default: () => <div class="settings-view" /> }));
+vi.mock("@/views/ErrorView/ErrorView", () => ({ Error404: () => <div class="error-view" /> }));
 
 // Import after mocks
 import Root, { recheckConfig, configLoaded, showWizard, setConfigLoaded, setShowWizard, t, locale, setLocale } from "./App";
@@ -325,11 +325,13 @@ describe("Root Component", () => {
     expect(container.querySelector(".router")).toBeTruthy();
   });
 
-  it("renders FirstBootWizard when showWizard is true and configLoaded", () => {
+  it("renders FirstBootWizard when showWizard is true and configLoaded", async () => {
     setConfigLoaded(true);
     setShowWizard(true);
     const { container } = renderRoot();
-    expect(container.querySelector(".first-boot-wizard-mock")).toBeTruthy();
+    await vi.waitFor(() => {
+      expect(container.querySelector(".first-boot-wizard-mock")).toBeTruthy();
+    });
   });
 
   it("clicking wizard complete button hides wizard", () => {
@@ -467,7 +469,7 @@ describe("Root Component", () => {
     vi.restoreAllMocks();
   });
 
-  it("calls queryClient.invalidateQueries when location.pathname is present", () => {
+  it("calls queryClient.invalidateQueries when location.pathname is present", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     qc.invalidateQueries = vi.fn();
     render(() => (
@@ -475,7 +477,9 @@ describe("Root Component", () => {
         <Root />
       </QueryClientProvider>
     ));
-    expect(qc.invalidateQueries).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(qc.invalidateQueries).toHaveBeenCalled();
+    });
   });
 
   it("does not throw when QueryClientProvider is absent", () => {

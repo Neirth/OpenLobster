@@ -2,8 +2,8 @@
 
 import type { Component } from "solid-js";
 import { createSignal, Show } from "solid-js";
-import { t, recheckConfig } from "../../App";
-import { saveToken, validateTokenOnServer } from "../../stores/authStore";
+import { t, recheckConfig } from "@/App";
+import { saveToken, validateTokenOnServer } from "@/stores/authStore";
 import "./AccessTokenModal.css";
 
 /**

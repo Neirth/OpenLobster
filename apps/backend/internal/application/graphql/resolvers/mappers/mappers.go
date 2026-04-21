@@ -473,6 +473,20 @@ func AppConfigSnapshotToUpdateConfigResult(cfg *dto.AppConfigSnapshot) *generate
 			res.Channels = append(res.Channels, chCfg)
 		}
 	}
+	if cfg.PluginDefaults != nil {
+		if cfg.PluginDefaults.AI != "" {
+			res.PluginDefaultAi = StrPtr(cfg.PluginDefaults.AI)
+		}
+		if cfg.PluginDefaults.Memory != "" {
+			res.PluginDefaultMemory = StrPtr(cfg.PluginDefaults.Memory)
+		}
+		if cfg.PluginDefaults.Secrets != "" {
+			res.PluginDefaultSecrets = StrPtr(cfg.PluginDefaults.Secrets)
+		}
+		if cfg.PluginDefaults.Audio != "" {
+			res.PluginDefaultAudio = StrPtr(cfg.PluginDefaults.Audio)
+		}
+	}
 	return res
 }
 

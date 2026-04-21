@@ -15,9 +15,9 @@ vi.mock('../../components/AppShell/AppShell', () => ({ default: (props: any) => 
 
 vi.mock('../../components/GraphVisualization', () => ({ default: () => <div class="graph-visualization-mock" /> }));
 
-vi.mock('@/ui/hooks', () => ({ useMemory: () => ({ data: mockMemoryData, isLoading: false, error: null, refetch: vi.fn() }) }));
+vi.mock('@/hooks', () => ({ useMemory: () => ({ data: mockMemoryData, isLoading: false, error: null, refetch: vi.fn() }) }));
 
-vi.mock('../../graphql/client', () => ({ client: { request: vi.fn((mutation: any, vars: any) => {
+vi.mock('../../graphql/config', () => ({ client: { request: vi.fn((mutation: any, vars: any) => {
   if (mutation && mutation.includes('update')) {
     return Promise.resolve({ updateMemoryNode: { id: vars.id, label: vars.label, type: vars.type, properties: JSON.parse(vars.properties || '{}') } });
   }
@@ -43,9 +43,9 @@ vi.mock('@tanstack/solid-query', async (importOriginal) => {
   } as any;
 });
 
-import { renderWithQueryClient } from '../../test-utils';
+import { renderWithQueryClient } from '@/test-utils';
 import MemoryView from './MemoryView';
-import { client } from '../../graphql/client';
+import { client } from '@/graphql/config';
 
 describe('MemoryView mutation flows', () => {
   beforeEach(() => {

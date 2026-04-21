@@ -1,0 +1,7 @@
+{
+  "name": "openlobster",
+  "private": true,
+  "scripts": {
+    "codegen": "pnpm --dir apps/frontend exec graphql-codegen --config $(pwd)/codegen.ts"
+  }
+}

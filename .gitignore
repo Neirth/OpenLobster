@@ -290,5 +290,7 @@ $RECYCLE.BIN/
 *.lnk
 
 */assets/*
+apps/backend/cmd/openlobster/public/assets/*
+apps/backend/internal/infrastructure/plugin/embedded_binaries
 
 # End of https://www.toptal.com/developers/gitignore/api/node,visualstudiocode,linux,macos,windows,go,react,rust

@@ -8,6 +8,7 @@ export default defineConfig({
     dedupe: ["graphql", "solid-js", "@solidjs/router", "@tanstack/solid-query"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@/ui": path.resolve(__dirname, "./src"),
     },
   },
   build: {

@@ -1,60 +1,44 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 
 /**
- * Singleton GraphQL client for the web frontend.
+ * Factory for the shared GraphQL client used by both frontends.
  *
- * Requests go to the same host as the app (base domain). In dev, Vite proxies
- * /graphql to the backend; in production, the reverse proxy does the same.
- * Override with VITE_GRAPHQL_ENDPOINT when needed.
+ * The web frontend calls createGraphqlClient('/graphql') so the Vite proxy
+ * forwards requests to the backend at :8080.
  *
- * The client reads the access token from sessionStorage on every request
- * so that token changes are picked up immediately. When the backend returns
- * a 401, `needsAuth` is set to true and the AccessTokenModal is shown.
+ * The terminal frontend calls createGraphqlClient(process.env.GRAPHQL_URL)
+ * which defaults to 'http://localhost:8080/graphql'.
  *
- * @module graphql/client
+ * @param url      - Full GraphQL endpoint URL
+ * @param getToken - Optional callback that returns the current bearer token.
+ *                   Called on every request so token changes are picked up
+ *                   without recreating the client.
+ * @returns Configured GraphQLClient instance
  */
 
-import { GRAPHQL_ENDPOINT } from './config';
-import { createGraphqlClient } from '@/ui/graphql';
-import { getStoredToken, setNeedsAuth } from '../stores/authStore';
+import { GraphQLClient } from 'graphql-request';
 
+export function createGraphqlClient(
+  url: string,
+  getToken?: () => string | null,
+): GraphQLClient {
+  // Ensure the URL is absolute for the internal URL constructor used by graphql-request
+  let finalUrl = url;
+  if (url.startsWith("/") && typeof window !== "undefined") {
+    finalUrl = window.location.origin + url;
+  }
 
-const _client = createGraphqlClient(GRAPHQL_ENDPOINT, getStoredToken);
-
-// Wrap request() to surface 401 errors as the auth modal trigger.
-// Be defensive: in test environments the mocked factory may return an object
-// without a function on `request` at module evaluation time. Guard the bind
-// to avoid a runtime TypeError.
-
-
-export const client = new Proxy(_client, {
-  get(target, prop, receiver) {
-    if (prop === 'request') {
-      return async (...args: unknown[]) => {
-        let fn = (target as { request?: (...args: unknown[]) => Promise<unknown> }).request;
-        if (typeof fn !== 'function') {
-          try {
-            const real = createGraphqlClient(GRAPHQL_ENDPOINT, getStoredToken);
-            try { Object.assign(target as object, real); } catch {
-              // Ignore property assignment errors (likely in test mocks)
-            }
-            fn = (target as { request?: (...args: unknown[]) => Promise<unknown> }).request;
-          } catch {
-            throw new Error('GraphQL client has no request method');
-          }
-        }
-        try {
-          return await fn!.apply(target, args);
-        } catch (err: unknown) {
-          const status = (err as { response?: { status?: number } })?.response?.status;
-          if (status === 401) {
-            setNeedsAuth(true);
-          }
-          throw err;
-        }
+  return new GraphQLClient(finalUrl, {
+    method: 'POST',
+    headers: () => {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
       };
-    }
-    // Forward other properties directly.
-    return Reflect.get(target, prop, receiver);
-  },
-});
+      const token = getToken?.();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      return headers;
+    },
+  });
+}

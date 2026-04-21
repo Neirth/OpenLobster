@@ -3,14 +3,9 @@
 import { render } from "solid-js/web";
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import { initTheme } from "./stores/themeStore";
-import { setupMockGraphql } from "./graphql/mock";
 import Root from "./App";
 
 initTheme();
-
-if (import.meta.env.DEV) {
-  setupMockGraphql();
-}
 
 const root = document.getElementById("app");
 
@@ -23,13 +18,20 @@ if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 0,
+      gcTime: 1000 * 60 * 5, // 5 minutes
       refetchOnMount: "always",
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      retry: 1,
+      retry: false,
     },
   },
 });
+
+if (typeof window !== "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).queryClient = queryClient;
+}
 
 render(
   () => (

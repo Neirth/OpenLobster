@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+ 
 
 // Mock router and query client to avoid importing runtime JSX modules
 vi.mock('@solidjs/router', () => ({
@@ -7,9 +8,21 @@ vi.mock('@solidjs/router', () => ({
   useLocation: () => ({ pathname: '/' }),
 }));
 
-vi.mock('@tanstack/solid-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: () => {} }),
-}));
+vi.mock("@tanstack/solid-query", () => {
+  const _cache = new Map<string, any>();
+  return {
+    createQuery: (fn: any) => {
+      const options = fn();
+      return { data: options.initialData ?? [], isLoading: false, ...options };
+    },
+    createMutation: () => ({ mutate: vi.fn(), isPending: false }),
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
+      setQueryData: (key: any, value: any) => _cache.set(JSON.stringify(key), value),
+      getQueryData: (key: any) => _cache.get(JSON.stringify(key)),
+    }),
+  };
+});
 
 // These tests import the module after stubbing globals to exercise
 // the module-level `detectBrowserLocale` behavior and the exported
@@ -29,7 +42,7 @@ describe('App locale and recheckConfig', () => {
       value: { language: 'zh-CN' },
     });
 
-    const mod = await import('./App');
+    const mod = await import('@/App');
     // exported `locale` is a signal getter
     const { locale } = mod as any;
     expect(locale()).toBe('zh');
@@ -41,7 +54,7 @@ describe('App locale and recheckConfig', () => {
       value: { language: 'es-ES' },
     });
 
-    const mod = await import('./App');
+    const mod = await import('@/App');
     const { locale } = mod as any;
     expect(locale()).toBe('es');
   });
@@ -52,7 +65,7 @@ describe('App locale and recheckConfig', () => {
       value: { language: 'fr-FR' },
     });
 
-    const mod = await import('./App');
+    const mod = await import('@/App');
     const { locale } = mod as any;
     expect(locale()).toBe('en');
   });
@@ -64,7 +77,7 @@ describe('App locale and recheckConfig', () => {
       value: undefined,
     });
 
-    const mod = await import('./App');
+    const mod = await import('@/App');
     const { locale } = mod as any;
     expect(locale()).toBe('en');
   });
@@ -73,7 +86,7 @@ describe('App locale and recheckConfig', () => {
     // Ensure fetch throws
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('network'))));
 
-    const mod = await import('./App');
+    const mod = await import('@/App');
     const { recheckConfig, setShowWizard, configLoaded, showWizard } = mod as any;
 
     // reset showWizard to false then call recheckConfig to see it flip back to true on error

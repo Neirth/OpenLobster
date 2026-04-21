@@ -622,7 +622,7 @@ export const configGroups = [
   {
     id: "graphql",
     title: "GRAPHQL CONFIGURATION",
-    fields: ["graphqlEnabled", "webEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl"],
+    fields: ["webEnabled", "graphqlEnabled", "graphqlPort", "graphqlHost", "graphqlBaseUrl", "a2aEnabled"],
   },
   {
     id: "logging",
@@ -632,6 +632,6 @@ export const configGroups = [
   {
     id: "scheduler",
     title: "SCHEDULER CONFIGURATION",
-    fields: ["schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval", "a2aEnabled"],
+    fields: ["schedulerEnabled", "schedulerMemoryEnabled", "schedulerMemoryInterval"],
   },
 ];
