@@ -10,7 +10,7 @@ vi.mock("../../App", () => ({
 }));
 
 const mockClientRequest = vi.hoisted(() => vi.fn());
-vi.mock("../../graphql/client", () => ({
+vi.mock("../../graphql/config", () => ({
   client: { request: mockClientRequest },
 }));
 

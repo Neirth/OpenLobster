@@ -1,9 +1,10 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Component } from 'solid-js';
 import { For, Show, Suspense, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import { createMutation, useQueryClient } from '@tanstack/solid-query';
-import { useMcpServers, useMcpUsers, useMcpTools, useToolPermissions, useConfig } from '@/ui/hooks';
+import { useMcpServers, useMcpUsers, useMcpTools, useToolPermissions, useConfig } from '@/hooks';
 import {
   CONNECT_MCP_MUTATION,
   DISCONNECT_MCP_MUTATION,
@@ -11,12 +12,12 @@ import {
   SET_TOOL_PERMISSION_MUTATION,
   DELETE_TOOL_PERMISSION_MUTATION,
   SET_ALL_TOOL_PERMISSIONS_MUTATION,
-} from '@/ui/graphql/mutations';
-import { client } from '../../graphql/client';
-import AppShell from '../../components/AppShell';
-import Modal from '../../components/Modal';
-import MarketplaceModal from '../../components/MarketplaceModal';
-import { t } from '../../App';
+} from '@/graphql/mutations';
+import { client } from '@/graphql/config';
+import AppShell from '@/components/AppShell';
+import Modal from '@/components/Modal';
+import MarketplaceModal from '@/components/MarketplaceModal';
+import { t } from '@/App';
 import './McpsView.css';
 
 /** Built-in capability descriptors — ordered by relevance. MCP gateway is excluded
@@ -130,7 +131,7 @@ const McpsView: Component = () => {
         CONNECT_MCP_MUTATION,
         vars,
       ),
-    onSuccess: (data, vars) => {
+    onSuccess: (data: any, vars) => {
       const res = data.connectMcp;
       if (res?.error && !res?.requiresAuth) {
         setAddError(res.error);
@@ -169,7 +170,7 @@ const McpsView: Component = () => {
         INITIATE_OAUTH_MUTATION,
         vars,
       ),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       const res = data.initiateOAuth;
       if (!res.success || !res.authUrl) {
         setOauthStatus('error');

@@ -14,9 +14,9 @@ vi.mock("../../components/AppShell/AppShell", () => ({
   default: (props: any) => <div class="app-shell" data-active-tab={props.activeTab}>{props.children}</div>,
 }));
 
-vi.mock("../../graphql/client", () => ({ client: {} }));
+vi.mock("../../graphql/config", () => ({ client: {} }));
 
-import { renderWithQueryClient } from "../../test-utils";
+import { renderWithQueryClient } from "@/test-utils";
 import SkillsView from "./SkillsView";
 
 describe("SkillsView Component", () => {

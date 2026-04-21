@@ -5,4 +5,4 @@
  * Mutations don't need mocking as they are tested separately.
  */
 
-export * from "@/ui/graphql/mutations";
+export * from "../../../../src/graphql/mutations";

@@ -9,15 +9,12 @@
 }
 
 .schema-field--row {
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr 320px;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  cursor: default;
-  transition: background var(--duration-micro) var(--ease-out);
+  gap: var(--space-8);
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .schema-field--row:hover {

@@ -46,15 +46,15 @@ vi.mock("../../utils/formatChatTime", () => ({
 // vi.hoisted ensures mockRequest is available when the vi.mock factory runs.
 const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
 
-vi.mock("../../graphql/client", () => ({
+vi.mock("../../graphql/config", () => ({
   client: { request: mockRequest },
 }));
 
-vi.mock("@/ui/graphql/queries", () => ({
+vi.mock("@/graphql/queries", () => ({
   MESSAGES_QUERY: "MESSAGES_QUERY",
 }));
 
-vi.mock("@/ui/hooks", () => ({
+vi.mock("@/hooks", () => ({
   useConfig: () => ({
     data: { agentName: "OpenLobster", agent: { name: "OpenLobster" } },
     isLoading: false,
@@ -63,7 +63,7 @@ vi.mock("@/ui/hooks", () => ({
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-import type { Message } from "@/ui/types";
+import type { Message } from "@/types";
 import MessageThread from "./MessageThread";
 
 function makeMsg(overrides: Partial<Message> & { id: string }): Message {

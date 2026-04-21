@@ -6,7 +6,7 @@ import { render, fireEvent, waitFor } from "@solidjs/testing-library";
 
 const mockSaveToken = vi.fn();
 const mockRecheckConfig = vi.fn(() => Promise.resolve());
-const mockValidateTokenOnServer = vi.fn(() => Promise.resolve(true));
+const mockValidateTokenOnServer = vi.fn((_token: string) => Promise.resolve(true));
 
 vi.mock("../../App", () => ({
   t: (key: string) => key,
@@ -16,6 +16,13 @@ vi.mock("../../App", () => ({
 vi.mock("../../stores/authStore", () => ({
   saveToken: (v: string) => mockSaveToken(v),
   validateTokenOnServer: (v: string) => mockValidateTokenOnServer(v),
+  getStoredToken: () => null,
+  syncNeedsAuthFromStorage: () => {},
+  clearToken: () => {},
+  needsAuth: () => false,
+  setNeedsAuth: (_v: any) => {},
+  isValidating: () => false,
+  setIsValidating: (_v: any) => {},
 }));
 
 import AccessTokenModal from "./AccessTokenModal";

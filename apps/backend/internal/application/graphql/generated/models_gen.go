@@ -543,10 +543,14 @@ type UpdateConfigInput struct {
 }
 
 type UpdateConfigResult struct {
-	AgentName    *string          `json:"agentName,omitempty"`
-	SystemPrompt *string          `json:"systemPrompt,omitempty"`
-	Provider     *string          `json:"provider,omitempty"`
-	Channels     []*ChannelConfig `json:"channels,omitempty"`
+	AgentName            *string          `json:"agentName,omitempty"`
+	SystemPrompt         *string          `json:"systemPrompt,omitempty"`
+	Provider             *string          `json:"provider,omitempty"`
+	PluginDefaultAi      *string          `json:"pluginDefaultAi,omitempty"`
+	PluginDefaultMemory  *string          `json:"pluginDefaultMemory,omitempty"`
+	PluginDefaultSecrets *string          `json:"pluginDefaultSecrets,omitempty"`
+	PluginDefaultAudio   *string          `json:"pluginDefaultAudio,omitempty"`
+	Channels             []*ChannelConfig `json:"channels,omitempty"`
 }
 
 type User struct {

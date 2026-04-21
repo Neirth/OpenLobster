@@ -11,14 +11,14 @@
 import type { Component } from 'solid-js';
 import { createSignal, For, Show, createEffect, batch, createMemo } from 'solid-js';
 import { useQueryClient } from '@tanstack/solid-query';
-import { useConfig } from '@/ui/hooks';
-import { MESSAGES_QUERY } from '@/ui/graphql/queries';
-import type { Message } from '@/ui/types';
-import { renderMarkdown } from '../../lib/markdown';
-import { t } from '../../App';
-import { client } from '../../graphql/client';
+import { useConfig } from '@/hooks';
+import { MESSAGES_QUERY } from '@/graphql/queries';
+import type { Message } from '@/types';
+import { renderMarkdown } from '@/lib/markdown';
+import { t } from '@/App';
+import { client } from '@/graphql/config';
 import SkeletonMessages from '../SkeletonMessages';
-import { formatChatTime } from '../../utils/formatChatTime';
+import { formatChatTime } from '@/utils/formatChatTime';
 import './MessageThread.css';
 
 const PAGE_SIZE = 50;

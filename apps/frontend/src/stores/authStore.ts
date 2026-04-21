@@ -11,7 +11,7 @@
  */
 
 import { createSignal } from 'solid-js';
-import { GRAPHQL_ENDPOINT } from '../graphql/config';
+import { GRAPHQL_ENDPOINT } from '@/graphql/constants';
 
 const TOKEN_KEY = 'openlobster_access_token';
 
@@ -33,8 +33,8 @@ export async function validateTokenOnServer(token: string): Promise<boolean> {
 
     return res.status !== 401;
   } catch {
-    // Red inalcanzable: guardado optimista. Si el token es incorrecto,
-    // el backend devolverá 401 en la siguiente petición.
+    // Si hay un error de red pero recibimos un 401 de cache
+    // o el endpoint no responde, devolvemos true (guardado optimista).
     return true;
   } finally {
     setIsValidating(false);

@@ -556,9 +556,9 @@ func setDefaults() {
 	viper.SetDefault("plugins.data_dir", filepath.Join(home, ".openlobster"))
 	viper.SetDefault("plugins.call_timeout", "10s")
 	viper.SetDefault("plugins.defaults", map[string]string{
-		"ai":      "openlobster-ai-ollama",
-		"memory":  "openlobster-memory-gml",
-		"secrets": "openlobster-secrets-json",
+		"ai":      "ollama",
+		"memory":  "gml",
+		"secrets": "secrets-json",
 		"audio":   "",
 	})
 	viper.SetDefault("plugins.enabled", map[string]bool{})
@@ -631,10 +631,10 @@ func bootstrapEncryptedConfig(path string) error {
 	v.SetDefault("agent.capabilities.filesystem", true)
 	v.SetDefault("agent.capabilities.sessions", true)
 	v.SetDefault("wizard.completed", false)
-	v.SetDefault("plugins.defaults", map[string]string{
-		"ai":      "openlobster-ai-ollama",
-		"memory":  "openlobster-memory-gml",
-		"secrets": "openlobster-secrets-json",
+	v.Set("plugins.defaults", map[string]string{
+		"ai":      "ollama",
+		"memory":  "gml",
+		"secrets": "secrets-json",
 		"audio":   "",
 	})
 	v.SetDefault("plugins.enabled", map[string]bool{})

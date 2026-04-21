@@ -2,7 +2,7 @@
 
 import type { Component } from 'solid-js';
 import { For, Show, createResource, createSignal, createMemo } from 'solid-js';
-import { t } from '../../App';
+import { t } from '@/App';
 import './MarketplaceModal.css';
 
 export interface MarketplaceServer {

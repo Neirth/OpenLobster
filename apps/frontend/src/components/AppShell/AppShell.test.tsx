@@ -17,7 +17,7 @@ vi.mock('../Header/Header', () => ({
 }));
 
 // Mock @/ui utilities
-vi.mock('../../graphql/client', () => ({
+vi.mock('../../graphql/config', () => ({
   client: {},
 }));
 

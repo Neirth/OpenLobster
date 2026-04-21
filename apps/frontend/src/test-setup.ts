@@ -70,4 +70,55 @@ if (typeof window !== "undefined") {
   }
 }
 
+import { vi } from "vitest";
+
+// Common global mocks
+vi.mock("@/graphql/config", () => ({
+  client: {
+    request: vi.fn(async (query: string) => {
+      const q = query.toLowerCase();
+      // Return safe defaults based on common query names to avoid 'undefined' or empty list failures
+      if (q.includes("tasks")) return { tasks: [
+        { id: "1", prompt: "Morning brief", schedule: "0 8 * * *", enabled: true, status: "running" },
+        { id: "2", prompt: "Cleanup logs", schedule: "0 0 * * *", enabled: true, status: "pending" },
+        { id: "3", prompt: "One-time backup", schedule: "2026-12-31T23:59:00Z", enabled: true, status: "pending" }
+      ] };
+      if (q.includes("skills")) return { skills: [
+        { id: "s1", name: "Python", description: "Scripting", enabled: true, status: "active" },
+        { id: "s2", name: "Javascript", description: "Frontend", enabled: true, status: "active" }
+      ]};
+      if (q.includes("metric") || q.includes("dashboard")) return { metrics: {
+        health: "OK", sessionCount: 5, mcpServerCount: 2, messagesReceived: 100, messagesSent: 50, uptime: "24h"
+      }};
+      if (q.includes("agent")) return { agent: { name: "OpenLobster", version: "0.3.0" } };
+      if (q.includes("config")) return { config: { wizardCompleted: true, theme: "dark" } };
+      if (q.includes("mcp") || q.includes("tool")) return { 
+        mcpServers: [{ id: "m1", name: "Filesystem", status: "running" }],
+        mcpTools: [{ id: "t1", name: "read_file", serverId: "m1" }]
+      };
+      if (q.includes("message")) return { messages: [{ id: "msg1", role: "user", content: "Hello" }] };
+      if (q.includes("conversation")) return { conversations: [{ id: "c1", title: "New Chat", lastMessageAt: new Date().toISOString() }] };
+      if (q.includes("channel")) return { channels: [{ id: "ch1", name: "Discord", active: true }] };
+      if (q.includes("memory")) return { memoryEntries: [{ id: "mem1", content: "Fact 1", category: "personal" }] };
+      
+      return { data: {} };
+    }),
+  },
+  GRAPHQL_ENDPOINT: "/graphql",
+}));
+
+vi.mock("@/graphql/config", () => {
+  const mockClient = {
+    request: vi.fn(async (query: string) => {
+      if (query.includes("tasks")) return { tasks: [] };
+      if (query.includes("agent")) return { agent: { name: "OpenLobster" } };
+      return { data: {} };
+    }),
+  };
+  return {
+    client: mockClient,
+    createGraphqlClient: vi.fn(() => mockClient),
+  };
+});
+
 export {};

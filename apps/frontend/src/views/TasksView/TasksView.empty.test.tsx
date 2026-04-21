@@ -21,18 +21,18 @@ vi.mock("../../components/AppShell/AppShell", () => ({
   default: (props: any) => <div class="app-shell" {...props} />,
 }));
 
-vi.mock("../../graphql/client", () => ({
+vi.mock("../../graphql/config", () => ({
   client: { request: vi.fn(() => Promise.resolve({})) },
 }));
 
-vi.mock("@/ui/graphql/mutations", () => ({
+vi.mock("@/graphql/mutations", () => ({
   ADD_TASK_MUTATION: "ADD_TASK_MUTATION",
   REMOVE_TASK_MUTATION: "REMOVE_TASK_MUTATION",
   TOGGLE_TASK_MUTATION: "TOGGLE_TASK_MUTATION",
   UPDATE_TASK_MUTATION: "UPDATE_TASK_MUTATION",
 }));
 
-vi.mock("@/ui/hooks", () => ({
+vi.mock("@/hooks", () => ({
   useTasks: () => ({
     data: [],
     isLoading: false,
