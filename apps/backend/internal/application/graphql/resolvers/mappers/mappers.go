@@ -240,14 +240,22 @@ func MessagesToGenerated(list []dto.MessageSnapshot) []*generated.Message {
 		if m.Role == "compaction" {
 			continue
 		}
-		out = append(out, &generated.Message{
+		msg := &generated.Message{
 			ID:             m.ID,
 			ConversationID: m.ConversationID,
 			Role:           m.Role,
 			Content:        m.Content,
 			CreatedAt:      m.CreatedAt,
 			Attachments:    attachmentsToGenerated(m.Attachments),
-		})
+		}
+		if m.Audio != nil {
+			msg.Audio = &generated.AudioContent{
+				Transcription: StrPtr(m.Audio.Transcription),
+				Format:        StrPtr(m.Audio.Format),
+				DurationMs:    IntPtr(m.Audio.DurationMs),
+			}
+		}
+		out = append(out, msg)
 	}
 	return out
 }
@@ -679,6 +687,18 @@ func UpdateConfigInputToMap(input generated.UpdateConfigInput) map[string]interf
 	if input.ChannelWhatsAppAPIToken != nil {
 		m["channelWhatsAppApiToken"] = *input.ChannelWhatsAppAPIToken
 	}
+	if input.ChannelTelegramEnabled != nil {
+		m["channelTelegramEnabled"] = *input.ChannelTelegramEnabled
+	}
+	if input.ChannelTelegramToken != nil {
+		m["channelTelegramToken"] = *input.ChannelTelegramToken
+	}
+	if input.ChannelDiscordEnabled != nil {
+		m["channelDiscordEnabled"] = *input.ChannelDiscordEnabled
+	}
+	if input.ChannelDiscordToken != nil {
+		m["channelDiscordToken"] = *input.ChannelDiscordToken
+	}
 	if input.ChannelTwilioEnabled != nil {
 		m["channelTwilioEnabled"] = *input.ChannelTwilioEnabled
 	}
@@ -699,6 +719,30 @@ func UpdateConfigInputToMap(input generated.UpdateConfigInput) map[string]interf
 	}
 	if input.ChannelSlackAppToken != nil {
 		m["channelSlackAppToken"] = *input.ChannelSlackAppToken
+	}
+	if input.Provider != nil {
+		m["provider"] = *input.Provider
+	}
+	if input.Model != nil {
+		m["model"] = *input.Model
+	}
+	if input.APIKey != nil {
+		m["apiKey"] = *input.APIKey
+	}
+	if input.BaseURL != nil {
+		m["baseURL"] = *input.BaseURL
+	}
+	if input.PluginDefaultAi != nil {
+		m["pluginDefaultAi"] = *input.PluginDefaultAi
+	}
+	if input.PluginDefaultMemory != nil {
+		m["pluginDefaultMemory"] = *input.PluginDefaultMemory
+	}
+	if input.PluginDefaultSecrets != nil {
+		m["pluginDefaultSecrets"] = *input.PluginDefaultSecrets
+	}
+	if input.PluginDefaultAudio != nil {
+		m["pluginDefaultAudio"] = *input.PluginDefaultAudio
 	}
 	if input.WizardCompleted != nil {
 		m["wizardCompleted"] = *input.WizardCompleted
@@ -778,9 +822,8 @@ func MemoryEdgesFromSnapshot(edges []dto.GraphEdgeSnapshot) []*generated.MemoryE
 	}
 	out := make([]*generated.MemoryEdge, len(edges))
 	for i, e := range edges {
-		id := e.Source + "-" + e.Target
 		out[i] = &generated.MemoryEdge{
-			ID:       id,
+			ID:       e.Source + "-" + e.Target,
 			SourceID: e.Source,
 			TargetID: e.Target,
 			Relation: StrPtr(e.Label),

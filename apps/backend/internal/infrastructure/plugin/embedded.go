@@ -46,24 +46,21 @@ func ExtractEmbeddedPlugins(destDir string) error {
 			continue
 		}
 
-		// Calculate embedded hash
-		embeddedHash := sha256Sum(content)
+		// Skip SHA check for QA
 
-		// Check existing file
+		// Check existing file integrity
 		shouldCopy := false
-		if _, err := os.Stat(destPath); os.IsNotExist(err) {
+		if existing, err := os.ReadFile(destPath); os.IsNotExist(err) {
 			shouldCopy = true
-		} else {
-			diskContent, err := os.ReadFile(destPath)
-			if err != nil {
+		} else if err == nil {
+			// Compare hashes to ensure it's up to date
+			if sha256Sum(existing) != sha256Sum(content) {
+				log.Printf("plugins: updating bundled binary %s (integrity mismatch)", filename)
 				shouldCopy = true
-			} else {
-				diskHash := sha256Sum(diskContent)
-				if diskHash != embeddedHash {
-					log.Printf("plugins: hash mismatch for %s, overwriting", filename)
-					shouldCopy = true
-				}
 			}
+		} else {
+			// Other error, better safe than sorry
+			shouldCopy = true
 		}
 
 		if shouldCopy {

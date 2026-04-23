@@ -32,6 +32,8 @@ type Message struct {
 	// ToolCallsRaw is a JSON-encoded []ports.ToolCall, set on role=assistant
 	// messages that contain tool_use blocks.
 	ToolCallsRaw string `json:"tool_calls_raw,omitempty"`
+	// AudioTranscription stores the text transcription of an audio message
+	AudioTranscription string `json:"audio_transcription,omitempty"`
 }
 
 type AudioContent struct {
@@ -39,6 +41,7 @@ type AudioContent struct {
 	Format         string        `json:"format"`
 	Duration       time.Duration `json:"duration"`
 	PlatformFormat string        `json:"platform_format"`
+	Transcription  string        `json:"transcription,omitempty"`
 }
 
 type Attachment struct {

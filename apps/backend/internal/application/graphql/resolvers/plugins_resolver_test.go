@@ -107,7 +107,7 @@ func TestReloadPlugins_InvokesRuntimeReload(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, reloadCalls)
 	require.Len(t, out, 1)
-	assert.Equal(t, plugin.id, out[0].ID)
+	assert.Equal(t, plugin.ptype+":"+plugin.id, out[0].ID)
 }
 
 func TestUpdatePluginConfig_MessagingTriggersRuntimeReload(t *testing.T) {

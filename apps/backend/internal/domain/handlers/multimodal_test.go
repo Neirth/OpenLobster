@@ -92,9 +92,11 @@ func TestBuildLatestUserMessage_AudioAttachment(t *testing.T) {
 	}
 	msg := h.buildLatestUserMessage(context.Background(), "", attachments, nil)
 
-	require.Len(t, msg.Blocks, 1)
-	assert.Equal(t, ports.ContentBlockAudio, msg.Blocks[0].Type)
-	assert.Equal(t, []byte("https://example.com/voice.ogg"), msg.Blocks[0].Data)
+	// fallback text + audio block = 2 blocks
+	require.Len(t, msg.Blocks, 2)
+	assert.Equal(t, "Describe what is in this message.", msg.Blocks[0].Text)
+	assert.Equal(t, ports.ContentBlockAudio, msg.Blocks[1].Type)
+	assert.Equal(t, []byte("https://example.com/voice.ogg"), msg.Blocks[1].Data)
 }
 
 func TestBuildLatestUserMessage_RawAudio(t *testing.T) {
@@ -187,9 +189,11 @@ func TestBuildLatestUserMessage_STTFallbackWhenAudioInputNotSupported(t *testing
 	audio := &models.AudioContent{Data: []byte{0x01, 0x02}, Format: "audio/ogg"}
 	msg := h.buildLatestUserMessage(context.Background(), "", nil, audio)
 
-	require.Len(t, msg.Blocks, 1)
-	assert.Equal(t, ports.ContentBlockText, msg.Blocks[0].Type)
-	assert.Equal(t, "transcripcion", msg.Blocks[0].Text)
+	// fallback text + transcribed text = 2 blocks
+	require.Len(t, msg.Blocks, 2)
+	assert.Equal(t, "Describe what is in this message.", msg.Blocks[0].Text)
+	assert.Equal(t, ports.ContentBlockText, msg.Blocks[1].Type)
+	assert.Equal(t, "transcripcion", msg.Blocks[1].Text)
 	assert.Equal(t, 1, fakeAudio.sttCalls)
 }
 
@@ -202,8 +206,10 @@ func TestBuildLatestUserMessage_NoSTTFallbackWhenAudioInputSupported(t *testing.
 	audio := &models.AudioContent{Data: []byte{0x01, 0x02}, Format: "audio/ogg"}
 	msg := h.buildLatestUserMessage(context.Background(), "", nil, audio)
 
-	require.Len(t, msg.Blocks, 1)
-	assert.Equal(t, ports.ContentBlockAudio, msg.Blocks[0].Type)
+	// fallback text + audio block = 2 blocks
+	require.Len(t, msg.Blocks, 2)
+	assert.Equal(t, "Describe what is in this message.", msg.Blocks[0].Text)
+	assert.Equal(t, ports.ContentBlockAudio, msg.Blocks[1].Type)
 	assert.Equal(t, 0, fakeAudio.sttCalls)
 }
 
@@ -216,7 +222,9 @@ func TestBuildLatestUserMessage_STTFallbackErrorKeepsAudioBlock(t *testing.T) {
 	audio := &models.AudioContent{Data: []byte{0x01, 0x02}, Format: "audio/ogg"}
 	msg := h.buildLatestUserMessage(context.Background(), "", nil, audio)
 
-	require.Len(t, msg.Blocks, 1)
-	assert.Equal(t, ports.ContentBlockAudio, msg.Blocks[0].Type)
+	// fallback text + audio block = 2 blocks
+	require.Len(t, msg.Blocks, 2)
+	assert.Equal(t, "Describe what is in this message.", msg.Blocks[0].Text)
+	assert.Equal(t, ports.ContentBlockAudio, msg.Blocks[1].Type)
 	assert.Equal(t, 1, fakeAudio.sttCalls)
 }

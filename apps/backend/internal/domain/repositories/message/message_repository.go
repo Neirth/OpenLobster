@@ -22,8 +22,10 @@ func NewMessageRepository(db *gorm.DB) ports.MessageRepositoryPort {
 
 func (r *repository) Save(ctx context.Context, message *domainmodels.Message) error {
 	var audioData []byte
+	var audioTranscription string
 	if message.Audio != nil {
 		audioData = message.Audio.Data
+		audioTranscription = message.Audio.Transcription
 	}
 	// Domain Message no longer contains UserID/GroupID — persistence stores them separately.
 	// Map attachments metadata to persistence models (do not store raw Data)
@@ -41,14 +43,15 @@ func (r *repository) Save(ctx context.Context, message *domainmodels.Message) er
 	toolMeta := buildToolMetadata(message.ToolCallID, message.ToolCallsRaw)
 
 	m := domainmodels.MessageModel{
-		ID:             message.ID.String(),
-		ConversationID: message.ConversationID,
-		Role:           message.Role,
-		Content:        message.Content,
-		AudioData:      audioData,
-		CreatedAt:      message.Timestamp,
-		Attachments:    attModels,
-		ToolMetadata:   toolMeta,
+		ID:                 message.ID.String(),
+		ConversationID:     message.ConversationID,
+		Role:               message.Role,
+		Content:            message.Content,
+		AudioData:          audioData,
+		AudioTranscription: audioTranscription,
+		CreatedAt:          message.Timestamp,
+		Attachments:        attModels,
+		ToolMetadata:       toolMeta,
 	}
 	return r.db.WithContext(ctx).Create(&m).Error
 }
@@ -224,6 +227,12 @@ func msgModelToEntity(m domainmodels.MessageModel) *domainmodels.Message {
 		Content:        m.Content,
 		Timestamp:      m.CreatedAt,
 		IsValidated:    m.IsValidated,
+	}
+	if len(m.AudioData) > 0 || m.AudioTranscription != "" {
+		msg.Audio = &domainmodels.AudioContent{
+			Data:          m.AudioData,
+			Transcription: m.AudioTranscription,
+		}
 	}
 	if m.ToolMetadata != "" {
 		msg.ToolCallID, msg.ToolCallsRaw = parseToolMetadata(m.ToolMetadata)

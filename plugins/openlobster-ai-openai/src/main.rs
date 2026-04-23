@@ -11,10 +11,12 @@ use async_openai::{
     config::OpenAIConfig,
     types::{
         ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessageArgs,
-        ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
+        ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImage,
+        ChatCompletionRequestMessageContentPartText, ChatCompletionRequestSystemMessageArgs,
         ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs,
-        ChatCompletionTool, ChatCompletionToolArgs, ChatCompletionToolType,
-        CreateChatCompletionRequestArgs, FunctionCall, FunctionObjectArgs,
+        ChatCompletionRequestUserMessageContentPart, ChatCompletionTool, ChatCompletionToolArgs,
+        ChatCompletionToolType, CreateChatCompletionRequestArgs, FunctionCall, FunctionObjectArgs,
+        ImageUrl,
     },
     Client,
 };
@@ -56,9 +58,18 @@ struct InputPayload {
 struct ChatMsg {
     #[serde(default)] role: String,
     #[serde(default)] content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")] blocks: Option<Vec<ContentBlock>>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_calls: Option<Vec<ToolCallMsg>>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_name: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct ContentBlock {
+    r#type: String,
+    #[serde(default)] text: Option<String>,
+    #[serde(default)] data: Option<String>,
+    #[serde(default)] mime_type: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -257,8 +268,40 @@ async fn chat_inner(input: Option<Value>) -> anyhow::Result<CallResponse> {
                 ChatCompletionRequestToolMessageArgs::default()
                     .tool_call_id(tc_id).content(m.content.clone()).build()?.into()
             }
-            _ => ChatCompletionRequestUserMessageArgs::default()
-                .content(m.content.clone()).build()?.into(),
+            "user" | _ => {
+                let mut builder = ChatCompletionRequestUserMessageArgs::default();
+                if let Some(blocks) = &m.blocks {
+                    let mut parts: Vec<ChatCompletionRequestUserMessageContentPart> = Vec::new();
+                    // DEPRECATED: Do NOT add m.content if blocks are present to avoid duplication.
+                    for b in blocks {
+                        match b.r#type.as_str() {
+                            "text" => if let Some(t) = &b.text {
+                                parts.push(ChatCompletionRequestUserMessageContentPart::Text(
+                                    ChatCompletionRequestMessageContentPartText {
+                                        text: t.clone(),
+                                    }
+                                ));
+                            },
+                            "image" => if let Some(data) = &b.data {
+                                let mime = b.mime_type.as_deref().unwrap_or("image/jpeg");
+                                parts.push(ChatCompletionRequestUserMessageContentPart::ImageUrl(
+                                    ChatCompletionRequestMessageContentPartImage {
+                                        image_url: ImageUrl {
+                                            url: format!("data:{};base64,{}", mime, data),
+                                            detail: None,
+                                        },
+                                    }
+                                ));
+                            },
+                            _ => {}
+                        }
+                    }
+                    builder.content(parts);
+                } else {
+                    builder.content(m.content.clone());
+                }
+                builder.build()?.into()
+            }
         };
         messages.push(msg);
     }

@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use async_trait::async_trait;
 use ollama_rs::generation::chat::request::ChatMessageRequest;
 use ollama_rs::generation::chat::ChatMessage;
+use ollama_rs::generation::images::Image;
 use ollama_rs::Ollama;
 use openlobster_sdk_base::{run, Plugin, CallResponse, HotConfig, PluginInfo};
 use serde::{Deserialize, Serialize};
@@ -48,9 +49,18 @@ struct InputPayload {
 struct ChatMsg {
     #[serde(default)] role: String,
     #[serde(default)] content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")] blocks: Option<Vec<ContentBlock>>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_calls: Option<Vec<ToolCallMsg>>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_name: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct ContentBlock {
+    r#type: String,
+    #[serde(default)] text: Option<String>,
+    #[serde(default)] data: Option<String>,
+    #[serde(default)] mime_type: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -154,8 +164,8 @@ fn sanitize_messages(messages: &[ChatMsg]) -> Vec<ChatMsg> {
 // ---------------------------------------------------------------------------
 
 async fn chat(input: Option<Value>) -> CallResponse {
-    let payload: InputPayload = input
-        .and_then(|v| serde_json::from_value(v).ok())
+    let payload: InputPayload = input.as_ref()
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
 
     let cfg = CONFIG.merge(payload.config);
@@ -183,16 +193,51 @@ async fn chat(input: Option<Value>) -> CallResponse {
         }
     };
     let host = format!("{}://{}", parsed.scheme(), parsed.host_str().unwrap_or("localhost"));
-    let port = parsed.port().unwrap_or(11434);
+    let port = parsed.port().unwrap_or_else(|| {
+        if parsed.scheme() == "https" { 443 } else { 11434 }
+    });
 
-    let client = Ollama::new(host, port);
+    let api_key = HotConfig::get_str(&cfg, "api_key");
+    let client = if !api_key.is_empty() {
+        use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+        let mut headers = HeaderMap::new();
+        if let Ok(mut auth_val) = HeaderValue::from_str(&format!("Bearer {}", api_key)) {
+            auth_val.set_sensitive(true);
+            headers.insert(AUTHORIZATION, auth_val);
+        }
+        let req_client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()
+            .unwrap_or_default();
+        Ollama::new_with_client(host, port, req_client)
+    } else {
+        Ollama::new(host, port)
+    };
 
     let raw_messages = payload.messages.unwrap_or_default();
     let sanitized = sanitize_messages(&raw_messages);
 
     let mut ollama_messages: Vec<ChatMessage> = Vec::with_capacity(sanitized.len());
-    for m in &sanitized {
-        let msg = match m.role.as_str() {
+    let last_idx = if sanitized.is_empty() { 0 } else { sanitized.len() - 1 };
+
+    for (idx, m) in sanitized.iter().enumerate() {
+        let mut images: Vec<Image> = Vec::new();
+        
+        // ONLY send images for the LATEST message to avoid saturating cloud proxies
+        if idx == last_idx {
+            if let Some(blocks) = &m.blocks {
+                for b in blocks {
+                    if b.r#type == "image" {
+                        if let Some(data) = &b.data {
+                             let clean_data = data.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+                             images.push(Image::from_base64(clean_data));
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut msg = match m.role.as_str() {
             "system" => ChatMessage::system(m.content.clone()),
             "tool"   => ChatMessage::tool(m.content.clone()),
             "assistant" => {
@@ -203,8 +248,8 @@ async fn chat(input: Option<Value>) -> CallResponse {
                             .unwrap_or(Value::Object(Default::default()));
                         msg.tool_calls.push(ollama_rs::generation::tools::ToolCall {
                             function: ollama_rs::generation::tools::ToolCallFunction {
-                                name: tc.function.name.clone(),
-                                arguments: args,
+                                  name: tc.function.name.clone(),
+                                  arguments: args,
                             },
                         });
                     }
@@ -213,72 +258,88 @@ async fn chat(input: Option<Value>) -> CallResponse {
             }
             _ => ChatMessage::user(m.content.clone()),
         };
+
+        if !images.is_empty() {
+            msg.images = Some(images);
+        }
         ollama_messages.push(msg);
     }
 
-    let payload_tools: Vec<ollama_rs::generation::tools::ToolInfo> = match payload.tools {
-        Some(arr) => arr.into_iter().filter_map(|v| {
-            let mut tool_json = v.clone();
-            if let Some(t_obj) = tool_json.as_object_mut() {
-                let type_val = t_obj.get("type").and_then(|t| t.as_str()).unwrap_or("function");
-                let normalized_type = if type_val.eq_ignore_ascii_case("function") { "Function" } else { type_val };
-                t_obj.insert("type".to_string(), serde_json::json!(normalized_type));
-                if let Some(func_obj) = t_obj.get_mut("function").and_then(|f| f.as_object_mut()) {
-                    if !func_obj.contains_key("parameters") {
-                        func_obj.insert("parameters".to_string(), serde_json::json!({"type":"object","properties":{}}));
-                    }
-                    if !func_obj.contains_key("description") {
-                        func_obj.insert("description".to_string(), serde_json::json!(""));
+    // MANUAL REQWEST IMPLEMENTATION: Bypassing ollama-rs to ensure ultra-minimalist JSON.
+    let base_url = input.as_ref()
+        .and_then(|v| v.get("config"))
+        .and_then(|c| c.get("base_url"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("http://localhost:11434");
+        
+    let api_key = input.as_ref()
+        .and_then(|v| v.get("config"))
+        .and_then(|c| c.get("api_key"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/chat", base_url.trim_end_matches('/'));
+    
+    let request_payload = serde_json::json!({
+        "model": model,
+        "messages": ollama_messages,
+        "stream": false
+    });
+
+    openlobster_sdk_base::emit_log("info", &format!("Ollama: Sending manual POST to {} (len={})", url, request_payload.to_string().len()));
+    
+    let mut req_builder = client.post(&url).json(&request_payload);
+    if !api_key.is_empty() {
+        req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+    }
+
+    match req_builder.send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            
+            if status.is_success() {
+                let resp_val: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
+                let content = resp_val.get("message").and_then(|m| m.get("content")).and_then(|c| c.as_str()).unwrap_or("").to_string();
+                
+                let mut out_tool_calls: Vec<ToolCallMsg> = Vec::new();
+                if let Some(tcs) = resp_val.get("message").and_then(|m| m.get("tool_calls")).and_then(|a| a.as_array()) {
+                    for (i, tc) in tcs.iter().enumerate() {
+                        if let (Some(name), Some(args)) = (tc.get("function").and_then(|f| f.get("name")).and_then(|n| n.as_str()),
+                                                         tc.get("function").and_then(|f| f.get("arguments"))) {
+                            out_tool_calls.push(ToolCallMsg {
+                                id: format!("call_{}", i),
+                                r#type: "function".to_string(),
+                                function: ToolCallFunction {
+                                    name: name.to_string(),
+                                    arguments: args.to_string(),
+                                },
+                            });
+                        }
                     }
                 }
-            }
-            serde_json::from_value(tool_json).ok()
-        }).collect(),
-        None => Vec::new(),
-    };
 
-    let request = ChatMessageRequest::new(model.clone(), ollama_messages).tools(payload_tools);
+                let prompt_tokens = resp_val.get("prompt_eval_count").and_then(|v| v.as_u64()).unwrap_or(0);
+                let completion_tokens = resp_val.get("eval_count").and_then(|v| v.as_u64()).unwrap_or(0);
 
-    match client.send_chat_messages(request).await {
-        Ok(resp) => {
-            let content = resp.message.content.clone();
-            let (prompt_tokens, completion_tokens) = resp.final_data.as_ref()
-                .map(|fd| (fd.prompt_eval_count, fd.eval_count))
-                .unwrap_or((0, 0));
+                let stop_reason = if !out_tool_calls.is_empty() { "tool_use".to_string() } else { "stop".to_string() };
 
-            let mut out_tool_calls: Vec<ToolCallMsg> = Vec::new();
-            for (i, tc) in resp.message.tool_calls.into_iter().enumerate() {
-                out_tool_calls.push(ToolCallMsg {
-                    id: format!("call_{}", i),
-                    r#type: "function".to_string(),
-                    function: ToolCallFunction {
-                        name: tc.function.name,
-                        arguments: serde_json::to_string(&tc.function.arguments).unwrap_or_default(),
-                    },
-                });
-            }
+                openlobster_sdk_base::emit_log("info", &format!("Ollama: Manual Success content_len={} tools={}", content.len(), out_tool_calls.len()));
 
-            let stop_reason = if !out_tool_calls.is_empty() {
-                "tool_use".to_string()
+                CallResponse::ok(OutputPayload {
+                    content, tool_calls: out_tool_calls, stop_reason,
+                    usage: UsagePayload { prompt_tokens, completion_tokens },
+                    error: None,
+                })
             } else {
-                "stop".to_string()
-            };
-
-            CallResponse::ok(OutputPayload {
-                content, tool_calls: out_tool_calls, stop_reason,
-                usage: UsagePayload { prompt_tokens, completion_tokens },
-                error: None,
-            })
-        }
-        Err(e) => {
-            let msg = format!("ollama chat request failed: model={} base_url={}: {}", model, base_url, e);
-            CallResponse {
-                output: Some(serde_json::to_value(OutputPayload {
-                    content: String::new(), tool_calls: Vec::new(), stop_reason: String::new(),
-                    usage: UsagePayload::default(), error: Some(msg),
-                }).unwrap_or_default()),
-                error: Some(e.to_string()),
+                openlobster_sdk_base::emit_log("error", &format!("Ollama: Manual request failed status={} body={}", status, body));
+                CallResponse::err(format!("Ollama status {}: {}", status, body))
             }
+        },
+        Err(e) => {
+            openlobster_sdk_base::emit_log("error", &format!("Ollama connection error: {}", e));
+            CallResponse::err(format!("Ollama connection error: {}", e))
         }
     }
 }

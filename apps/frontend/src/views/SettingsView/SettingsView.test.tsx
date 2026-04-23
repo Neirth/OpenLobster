@@ -733,157 +733,6 @@ describe("SettingsView — editable agent config field coverage", () => {
 //   4. save mutation input      – field must be sent to the backend on save
 // ─────────────────────────────────────────────────────────────────────────────
 
-const EDITABLE_CHANNEL_FIELDS = [
-] as const;
-
-// Maps each channelXxx form key to its name inside the CONFIG_QUERY
-// channelSecrets block (shorter GraphQL field names without the "channel" prefix).
-const CHANNEL_QUERY_FIELD_NAME: Record<string, string> = {
-  channelTelegramEnabled: "telegramEnabled",
-  channelTelegramToken: "telegramToken",
-  channelDiscordEnabled: "discordEnabled",
-  channelDiscordToken: "discordToken",
-  channelWhatsAppEnabled: "whatsAppEnabled",
-  channelWhatsAppPhoneId: "whatsAppPhoneId",
-  channelWhatsAppApiToken: "whatsAppApiToken",
-  channelTwilioEnabled: "twilioEnabled",
-  channelTwilioAccountSid: "twilioAccountSid",
-  channelTwilioAuthToken: "twilioAuthToken",
-  channelTwilioFromNumber: "twilioFromNumber",
-  channelSlackEnabled: "slackEnabled",
-  channelSlackBotToken: "slackBotToken",
-  channelSlackAppToken: "slackAppToken",
-};
-
-describe("SettingsView — editable channel config field coverage", () => {
-  it.each(EDITABLE_CHANNEL_FIELDS)(
-    "CONFIG_QUERY requests channel field '%s' from the server",
-    (field) => {
-      const queryField = CHANNEL_QUERY_FIELD_NAME[field] ?? field;
-      expect(
-        CONFIG_QUERY,
-        `CONFIG_QUERY must include '${queryField}' (form field '${field}')`
-      ).toContain(queryField);
-    }
-  );
-
-  it("save mutation sends all editable channel fields to the backend", async () => {
-    mockFetch.mockImplementation((_url: string, options?: { body?: string }) => {
-      const body = options?.body ? JSON.parse(options.body) : {};
-      const query = body.query || "";
-      const isConfig =
-        (query.includes("config") || query.includes("Config")) && !query.includes("mutation");
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: async () =>
-          isConfig
-            ? {
-                data: {
-                  config: {
-                    agent: { name: "Bot", provider: "openai", model: "gpt-4o" },
-                    capabilities: {},
-                    database: {},
-                    memory: {},
-                    graphql: {},
-                    logging: {},
-                    secrets: {},
-                    scheduler: {},
-                    channelSecrets: {},
-                  },
-                },
-              }
-            : query.includes("updateConfig")
-            ? { data: { updateConfig: { agentName: "Bot" } } }
-            : { data: { systemFiles: [] } },
-      });
-    });
-
-    mockFetch.mockClear();
-    const { container } = renderWithQueryClient(() => <SettingsView />);
-    await waitFor(() =>
-      expect(container.querySelector(".settings-actions .save-btn")).toBeTruthy()
-    );
-
-    fireEvent.click(container.querySelector(".settings-actions .save-btn") as HTMLElement);
-
-    await waitFor(() => {
-      const saveCalls = mockFetch.mock.calls.filter(([, opts]) => {
-        const b = opts?.body ? JSON.parse(opts.body) : {};
-        return (b.query ?? "").includes("updateConfig") && b.variables?.input;
-      });
-      expect(saveCalls.length).toBeGreaterThan(0);
-      const input = JSON.parse(saveCalls[0][1].body).variables.input;
-      for (const field of EDITABLE_CHANNEL_FIELDS) {
-        expect(
-          field in input,
-          `channel field '${field}' must be present in the save mutation input`
-        ).toBe(true);
-      }
-    });
-  });
-
-  it("server-loaded Slack values are forwarded unchanged in the save mutation", async () => {
-    mockFetch.mockImplementation((_url: string, options?: { body?: string }) => {
-      const body = options?.body ? JSON.parse(options.body) : {};
-      const query = body.query || "";
-      const isConfig =
-        (query.includes("config") || query.includes("Config")) && !query.includes("mutation");
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: async () =>
-          isConfig
-            ? {
-                data: {
-                  config: {
-                    agent: { name: "Bot", provider: "openai", model: "gpt-4o" },
-                    capabilities: {},
-                    database: {},
-                    memory: {},
-                    graphql: {},
-                    logging: {},
-                    secrets: {},
-                    scheduler: {},
-                    channelSecrets: {
-                      slackEnabled: true,
-                      slackBotToken: "xoxb-server-token",
-                      slackAppToken: "xapp-server-token",
-                    },
-                  },
-                },
-              }
-            : query.includes("updateConfig")
-            ? { data: { updateConfig: { agentName: "Bot" } } }
-            : { data: { systemFiles: [] } },
-      });
-    });
-
-    mockFetch.mockClear();
-    const { container } = renderWithQueryClient(() => <SettingsView />);
-    await waitFor(() =>
-      expect(container.querySelector(".settings-actions .save-btn")).toBeTruthy()
-    );
-
-    fireEvent.click(container.querySelector(".settings-actions .save-btn") as HTMLElement);
-
-    await waitFor(() => {
-      const saveCalls = mockFetch.mock.calls.filter(([, opts]) => {
-        const b = opts?.body ? JSON.parse(opts.body) : {};
-        return (b.query ?? "").includes("updateConfig") && b.variables?.input;
-      });
-      expect(saveCalls.length).toBeGreaterThan(0);
-      const input = JSON.parse(saveCalls[0][1].body).variables.input;
-      expect(input.channelSlackEnabled, "Slack enabled must be loaded from server").toBe(true);
-      expect(input.channelSlackBotToken, "Slack bot token must be loaded from server").toBe(
-        "xoxb-server-token"
-      );
-      expect(input.channelSlackAppToken, "Slack app token must be loaded from server").toBe(
-        "xapp-server-token"
-      );
-    });
-  });
-});
 
 // ─── Regression: ALL remaining config groups ─────────────────────────────────
 //
@@ -952,11 +801,6 @@ const OTHER_QUERY_FIELD_NAME: Record<string, string> = {
   databaseDSN: "dsn",
   databaseMaxOpenConns: "maxOpenConns",
   databaseMaxIdleConns: "maxIdleConns",
-  memoryBackend: "backend",
-  memoryFilePath: "filePath",
-  memoryNeo4jURI: "uri",
-  memoryNeo4jUser: "user",
-  memoryNeo4jPassword: "password",
   subagentsMaxConcurrent: "maxConcurrent",
   subagentsDefaultTimeout: "defaultTimeout",
   graphqlEnabled: "enabled",
@@ -965,10 +809,6 @@ const OTHER_QUERY_FIELD_NAME: Record<string, string> = {
   graphqlBaseUrl: "baseUrl",
   loggingLevel: "level",
   loggingPath: "path",
-  secretsBackend: "backend",
-  secretsFilePath: "path",
-  secretsOpenbaoURL: "url",
-  secretsOpenbaoToken: "token",
   schedulerEnabled: "enabled",
   schedulerMemoryEnabled: "memoryEnabled",
   schedulerMemoryInterval: "memoryInterval",
@@ -1118,7 +958,6 @@ describe("SettingsView — all groups round-trip: server values reach mutation",
         name: "RoundTripBot",
         provider: "anthropic",
         model: "claude-opus-4",
-        anthropicApiKey: "sk-ant-rt",
         reasoningLevel: "low",
       },
       capabilities: {
@@ -1138,34 +977,15 @@ describe("SettingsView — all groups round-trip: server values reach mutation",
       },
       memory: {
         backend: "neo4j",
-        filePath: "./rt.gml",
-        neo4j: { uri: "bolt://rt:7687", user: "rt", password: "rt-pass" },
       },
       subagents: { maxConcurrent: 6, defaultTimeout: "120s" },
       graphql: { enabled: false, port: 9999, host: "127.0.0.1", baseUrl: "https://rt.test" },
       logging: { level: "warn", path: "./rt.log" },
       secrets: {
         backend: "openbao",
-        file: { path: "./rt-secrets.json" },
-        openbao: { url: "https://rt-vault.test", token: "hvs.rt" },
       },
       scheduler: { enabled: false, memoryEnabled: true, memoryInterval: "2h" },
-      channelSecrets: {
-        slackEnabled: true,
-        slackBotToken: "xoxb-rt",
-        slackAppToken: "xapp-rt",
-        telegramEnabled: false,
-        telegramToken: "tg-rt",
-        discordEnabled: true,
-        discordToken: "dc-rt",
-        whatsAppEnabled: false,
-        whatsAppPhoneId: "+34900000001",
-        whatsAppApiToken: "wa-rt",
-        twilioEnabled: true,
-        twilioAccountSid: "AC-rt",
-        twilioAuthToken: "tw-rt",
-        twilioFromNumber: "+15550000002",
-      },
+      channelSecrets: {},
     };
 
     mockFetch.mockImplementation((_url: string, options?: { body?: string }) => {
@@ -1203,7 +1023,6 @@ describe("SettingsView — all groups round-trip: server values reach mutation",
 
       // Agent
       expect(input.agentName, "agentName from server").toBe("RoundTripBot");
-      expect(input.anthropicApiKey, "anthropicApiKey from server").toBe("sk-ant-rt");
       expect(input.reasoningLevel, "reasoningLevel from server").toBe("low");
 
       // Capabilities
@@ -1218,12 +1037,6 @@ describe("SettingsView — all groups round-trip: server values reach mutation",
       expect(input.databaseMaxOpenConns, "databaseMaxOpenConns from server").toBe(8);
       expect(input.databaseMaxIdleConns, "databaseMaxIdleConns from server").toBe(3);
 
-      // Memory
-      expect(input.memoryBackend, "memoryBackend from server").toBe("neo4j");
-      expect(input.memoryFilePath, "memoryFilePath from server").toBe("./rt.gml");
-      expect(input.memoryNeo4jURI, "memoryNeo4jURI from server").toBe("bolt://rt:7687");
-      expect(input.memoryNeo4jUser, "memoryNeo4jUser from server").toBe("rt");
-      expect(input.memoryNeo4jPassword, "memoryNeo4jPassword from server").toBe("rt-pass");
 
       // Subagents
       expect(input.subagentsMaxConcurrent, "subagentsMaxConcurrent from server").toBe(6);
@@ -1238,20 +1051,11 @@ describe("SettingsView — all groups round-trip: server values reach mutation",
       expect(input.loggingLevel, "loggingLevel from server").toBe("warn");
       expect(input.loggingPath, "loggingPath from server").toBe("./rt.log");
 
-      // Secrets
-      expect(input.secretsBackend, "secretsBackend from server").toBe("openbao");
-      expect(input.secretsFilePath, "secretsFilePath from server").toBe("./rt-secrets.json");
-      expect(input.secretsOpenbaoURL, "secretsOpenbaoURL from server").toBe("https://rt-vault.test");
-      expect(input.secretsOpenbaoToken, "secretsOpenbaoToken from server").toBe("hvs.rt");
 
       // Scheduler
       expect(input.schedulerEnabled, "schedulerEnabled from server").toBe(false);
       expect(input.schedulerMemoryEnabled, "schedulerMemoryEnabled from server").toBe(true);
 
-      // Channels
-      expect(input.channelSlackEnabled, "channelSlackEnabled from server").toBe(true);
-      expect(input.channelSlackBotToken, "channelSlackBotToken from server").toBe("xoxb-rt");
-      expect(input.channelSlackAppToken, "channelSlackAppToken from server").toBe("xapp-rt");
     });
   });
 });
@@ -1278,7 +1082,6 @@ describe("SettingsView — editable field count sentinel", () => {
   it(`canonical arrays cover exactly ${EXPECTED_EDITABLE_FIELD_COUNT} editable fields`, () => {
     const total =
       EDITABLE_AGENT_FIELDS.length +
-      EDITABLE_CHANNEL_FIELDS.length +
       CAPABILITY_SUBFIELDS.length +
       ALL_OTHER_EDITABLE_FIELDS.length;
 

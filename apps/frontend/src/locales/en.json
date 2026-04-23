@@ -45,6 +45,7 @@
   "chat.attachmentSize": "Size",
   "chat.unknown": "unknown",
   "chat.roleTool": "TOOL",
+  "chat.voiceNote": "VOICE NOTE",
   "chat.contentTruncated": "[... content truncated ...]",
   "chat.loadingMore": "Loading older messages...",
   "chat.deleteUser.button": "Delete user",
@@ -537,6 +538,6 @@
   "plugins.noConfig": "This plugin has no configurable settings.",
   "plugins.configSaved": "Plugin configuration saved",
   "plugins.stateSaved": "Plugin state saved",
-  "plugins.setDefault": "Set as default",
-  "plugins.defaultSaved": "Default plugin updated"
+  "plugins.enable": "Enable",
+  "plugins.disable": "Disable"
 }

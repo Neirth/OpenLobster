@@ -15,19 +15,23 @@ type SecretsWrapper struct {
 	cfg    map[string]interface{}
 }
 
-func (w *SecretsWrapper) currentConfig() map[string]interface{} {
-	return liveConfigForPlugin(w.plugin.ID(), w.cfg)
-}
-
 func NewSecretsWrapper(p ports.PluginPort, cfg map[string]interface{}) *SecretsWrapper {
 	return &SecretsWrapper{plugin: p, cfg: cfg}
+}
+
+func (w *SecretsWrapper) UpdateConfig(cfg map[string]interface{}) {
+	w.cfg = cfg
+}
+
+func (w *SecretsWrapper) Plugin() ports.PluginPort {
+	return w.plugin
 }
 
 func (w *SecretsWrapper) call(fn string, payload map[string]interface{}) ([]byte, error) {
 	if payload == nil {
 		payload = map[string]interface{}{}
 	}
-	payload["config"] = w.currentConfig()
+	payload["config"] = w.cfg
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("secrets plugin %s: marshal %s: %w", w.plugin.ID(), fn, err)

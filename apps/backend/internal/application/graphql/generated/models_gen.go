@@ -67,6 +67,12 @@ type ApprovePairingResult struct {
 	Error   *string      `json:"error,omitempty"`
 }
 
+type AudioContent struct {
+	Transcription *string `json:"transcription,omitempty"`
+	Format        *string `json:"format,omitempty"`
+	DurationMs    *int    `json:"durationMs,omitempty"`
+}
+
 type CapabilitiesConfig struct {
 	Browser    *bool `json:"browser,omitempty"`
 	Terminal   *bool `json:"terminal,omitempty"`
@@ -290,6 +296,7 @@ type Message struct {
 	Content        string               `json:"content"`
 	CreatedAt      string               `json:"createdAt"`
 	Attachments    []*MessageAttachment `json:"attachments,omitempty"`
+	Audio          *AudioContent        `json:"audio,omitempty"`
 }
 
 type MessageAttachment struct {

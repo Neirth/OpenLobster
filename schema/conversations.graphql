@@ -19,6 +19,12 @@ type MessageAttachment {
   mimeType: String
 }
 
+type AudioContent {
+  transcription: String
+  format:        String
+  durationMs:    Int
+}
+
 type Message {
   id:             String!
   conversationId: String!
@@ -26,6 +32,7 @@ type Message {
   content:        String!
   createdAt:      String!
   attachments:    [MessageAttachment!]
+  audio:          AudioContent
 }
 
 type MessageSentResult {

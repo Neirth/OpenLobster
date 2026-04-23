@@ -1,7 +1,12 @@
 // Copyright (c) OpenLobster contributors. See LICENSE for details.
 import { test, expect } from '@playwright/test';
+import { stubGraphQL } from './utils';
 
 test.describe('Frontend Views Navigation', () => {
+  test.beforeEach(async ({ page }) => {
+    await stubGraphQL(page);
+  });
+
   test('Dashboard view is accessible', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');

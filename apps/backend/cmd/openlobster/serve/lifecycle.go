@@ -62,7 +62,7 @@ func (a *App) startAndWait() {
 
 	// Rebuild and start messaging adapters (plugins and native) in a single
 	// reconciled runtime path so hot-reloads use the same wiring rules as boot.
-	a.rebuildMessagingRuntime()
+	a.SyncMessagingRuntime()
 
 	// HTTP server
 	addr := a.HTTPServer.Addr

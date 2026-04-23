@@ -27,6 +27,8 @@ import (
 	inframc "github.com/neirth/openlobster/internal/infrastructure/adapters/mcp"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/terminal"
 	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/plugin"
+	"github.com/neirth/openlobster/internal/infrastructure/logging"
+	"github.com/spf13/viper"
 )
 
 type namedMessagingAdapter struct {
@@ -60,6 +62,15 @@ func (a *App) stopMessagingRuntime() {
 		a.messagingRuntimeCancel()
 		a.messagingRuntimeCancel = nil
 	}
+
+	// Granular cleanup using individual cancels
+	if a.channelCancels != nil {
+		for ct := range a.channelCancels {
+			a.stopMessagingChannel(ct)
+		}
+	}
+
+	// Ensure all adapters are closed if they were tracked legacy-style
 	for _, adapter := range a.MessagingAdapters {
 		if adapter == nil {
 			continue
@@ -99,6 +110,41 @@ func (a *App) stopMessagingRuntime() {
 	}
 }
 
+// stopMessagingChannel closes a specific messaging adapter by its channel type.
+func (a *App) stopMessagingChannel(channelType string) {
+	ct := normalizeChannelType(channelType)
+	if a.channelCancels == nil {
+		return
+	}
+
+	cancel, ok := a.channelCancels[ct]
+	if !ok {
+		return
+	}
+
+	log.Printf("channels: stopping adapter %q...", ct)
+	cancel()
+	delete(a.channelCancels, ct)
+
+	// Also remove from the main registry to prevent further routing
+	a.ChanReg.Remove(ct)
+
+	// Clean up legacy MessagingAdapters slice if it contains this adapter
+	newAdapters := make([]ports.MessagingPort, 0)
+	for _, adp := range a.MessagingAdapters {
+		if typed, ok := adp.(messagingAdapterChannelType); ok {
+			if normalizeChannelType(typed.ChannelType()) == ct {
+				if closer, ok := adp.(messagingAdapterCloser); ok {
+					_ = closer.Close()
+				}
+				continue
+			}
+		}
+		newAdapters = append(newAdapters, adp)
+	}
+	a.MessagingAdapters = newAdapters
+}
+
 func (a *App) startMessagingAdapters(ctx context.Context, adapters []namedMessagingAdapter) {
 	started := make([]ports.MessagingPort, 0, len(adapters))
 	var startedMu sync.Mutex
@@ -126,10 +172,18 @@ func (a *App) startMessagingAdapters(ctx context.Context, adapters []namedMessag
 
 		adapter := item.adapter
 		wg.Add(1)
-		go func(channelType string, adapter ports.MessagingPort) {
+
+		// Create a per-channel context anchored to the main messaging context
+		cctx, ccancel := context.WithCancel(ctx)
+		if a.channelCancels == nil {
+			a.channelCancels = make(map[string]context.CancelFunc)
+		}
+		a.channelCancels[channelType] = ccancel
+
+		go func(channelType string, adapter ports.MessagingPort, cctx context.Context) {
 			defer wg.Done()
 
-			if err := adapter.Start(ctx, func(_ context.Context, msg *models.Message) {
+			if err := adapter.Start(cctx, func(_ context.Context, msg *models.Message) {
 				a.handleInboundMessage(msg, channelType)
 			}); err != nil {
 				log.Printf("channel %s: failed to start adapter: %v", channelType, err)
@@ -138,18 +192,23 @@ func (a *App) startMessagingAdapters(ctx context.Context, adapters []namedMessag
 
 			appendStarted(adapter)
 			log.Printf("channel: %s - adapter started", channelType)
-		}(channelType, adapter)
+		}(channelType, adapter, cctx)
 	}
 
-	wg.Wait()
+	// We launch adapters in background but don't wait for them to finish here,
+	// as they are long-running processes. 
+	go func() {
+		wg.Wait()
+	}()
 	a.MessagingAdapters = started
 }
 
-func (a *App) rebuildMessagingRuntime() {
+func (a *App) SyncMessagingRuntime() {
 	a.reloadMu.Lock()
 	defer a.reloadMu.Unlock()
 
-	a.stopMessagingRuntime()
+	// Granular diff-based reconciliation starts here. 
+	// We no longer call a.stopMessagingRuntime() globally.
 
 	if a.PluginRegistry == nil {
 		if a.AgentRegistry != nil {
@@ -172,6 +231,7 @@ func (a *App) rebuildMessagingRuntime() {
 	plugins := a.PluginRegistry.GetByType("messaging")
 	sort.SliceStable(plugins, func(i, j int) bool { return plugins[i].ID() < plugins[j].ID() })
 
+	keepAlive := make(map[string]bool)
 	for _, p := range plugins {
 		if p == nil {
 			continue
@@ -179,12 +239,28 @@ func (a *App) rebuildMessagingRuntime() {
 		pluginID := strings.TrimSpace(p.ID())
 		channelType := pluginMessagingChannelType(pluginID)
 		if channelType == "" {
-			log.Printf("plugins: messaging plugin %q skipped (empty channel_type)", pluginID)
 			continue
 		}
-		if !isMessagingChannelEnabled(a, channelType) {
-			log.Printf("plugins: messaging channel %s disabled (plugin=%s)", channelType, pluginID)
+
+		enabled := isMessagingChannelEnabled(a, channelType)
+		if !enabled {
+			if _, running := a.channelCancels[channelType]; running {
+				log.Printf("plugins: messaging channel %s was disabled, stopping it", channelType)
+				a.stopMessagingChannel(channelType)
+			}
 			continue
+		}
+
+		// If it's already running, we only restart if we really have to.
+		// For now, to ensure tokens are picked up, we'll follow a "stop and restart" 
+		// approach IF it was enabled, but critically, we only do it for the ones 
+		// that are part of this reconciliation pass.
+		// Since SyncMessagingRuntime doesn't know which specific ones changed yet, 
+		// we'll at least stop the existing instance of THIS channel before starting a new one.
+		if _, running := a.channelCancels[channelType]; running {
+			log.Printf("plugins: messaging channel %s is already running, replacing with fresh config", channelType)
+			a.stopMessagingChannel(channelType)
+			time.Sleep(300 * time.Millisecond) // Give polling loop time to exit
 		}
 
 		cfg := liveConfigForPluginFromApp(a, p)
@@ -198,6 +274,15 @@ func (a *App) rebuildMessagingRuntime() {
 		wired[channelType] = pluginID
 		started = append(started, namedMessagingAdapter{channelType: channelType, adapter: wrapper})
 		log.Printf("plugins: messaging channel → %s (%s)", channelType, p.Name())
+		keepAlive[channelType] = true
+	}
+
+	// Stop any channel that is no longer in the active plugins list (e.g. plugin removed)
+	for ct := range a.channelCancels {
+		if !keepAlive[ct] {
+			log.Printf("channels: cleaning up orphaned adapter %q", ct)
+			a.stopMessagingChannel(ct)
+		}
 	}
 
 	a.startMessagingAdapters(ctx, started)
@@ -215,17 +300,90 @@ func liveConfigForPluginFromApp(a *App, p ports.PluginPort) map[string]interface
 	if a == nil || p == nil {
 		return map[string]interface{}{}
 	}
-	if a.Cfg == nil || a.Cfg.Plugins.Settings == nil {
-		return map[string]interface{}{}
+
+	// Determine the Viper category root based on the plugin type
+	pType := p.Type()
+	_, shortID := parseID(p.ID())
+
+	viperRoot := ""
+	switch pType {
+	case "ai":
+		viperRoot = "providers"
+	case "messaging":
+		viperRoot = "channels"
+	case "memory", "secrets", "audio":
+		viperRoot = pType
 	}
-	cfg := a.Cfg.Plugins.Settings[p.ID()]
-	if cfg == nil {
-		return map[string]interface{}{}
+
+	clone := make(map[string]interface{})
+	if viperRoot != "" {
+		key := viperRoot + "." + shortID
+		clone = viper.GetStringMap(key)
+		token := viper.GetString(key + ".bot_token")
+		if token != "" && clone["bot_token"] == nil {
+			clone["bot_token"] = token
+		}
+
+		// Mask sensitive fields for debugging
+		readyMap := make(map[string]interface{})
+		for k, v := range clone {
+			val := fmt.Sprintf("%v", v)
+			lowK := strings.ToLower(k)
+			if strings.Contains(lowK, "key") || strings.Contains(lowK, "token") || strings.Contains(lowK, "secret") {
+				if len(val) > 8 {
+					readyMap[k] = val[:4] + "..." + val[len(val)-4:]
+				} else {
+					readyMap[k] = "****"
+				}
+			} else {
+				readyMap[k] = v
+			}
+		}
+		logging.Debugf("DEBUG: CONFIG: Initializing plugin %q with configuration: %v", p.ID(), readyMap)
 	}
-	clone := make(map[string]interface{}, len(cfg))
-	for k, v := range cfg {
-		clone[k] = v
+
+	// 2. Generic absolute path resolution for any "path" key
+	if pathVal, ok := clone["path"]; ok {
+		if pathStr, ok := pathVal.(string); ok && pathStr != "" && !filepath.IsAbs(pathStr) {
+			clone["path"] = filepath.Join(a.Cfg.BaseDir, pathStr)
+		}
 	}
+
+	// 3. Category-wide mandatory injections
+	switch pType {
+	case "memory":
+		clone["backend"] = string(a.Cfg.Memory.Backend)
+		// Special case: "file" and "gml" share the same struct in a.Cfg for simplicity
+		if (shortID == "file" || shortID == "gml") && (clone["path"] == nil || clone["path"] == "") {
+			path := a.Cfg.Memory.File.Path
+			if path != "" && !filepath.IsAbs(path) {
+				path = filepath.Join(a.Cfg.BaseDir, path)
+			}
+			clone["path"] = path
+		}
+	case "secrets":
+		clone["backend"] = a.Cfg.Secrets.Backend
+		if (shortID == "file" || shortID == "json") && (clone["path"] == nil || clone["path"] == "") {
+			path := a.Cfg.Secrets.File.Path
+			if path != "" && !filepath.IsAbs(path) {
+				path = filepath.Join(a.Cfg.BaseDir, path)
+			}
+			clone["path"] = path
+		}
+	case "ai":
+		// Inject provider model as default if not explicitly set in the plugin config
+		if clone["model"] == nil || clone["model"] == "" {
+			switch shortID {
+			case "ollama":
+				clone["model"] = a.Cfg.Providers.Ollama.DefaultModel
+			case "openai":
+				clone["model"] = a.Cfg.Providers.OpenAI.Model
+			case "anthropic":
+				clone["model"] = a.Cfg.Providers.Anthropic.Model
+			}
+		}
+	}
+
 	return clone
 }
 
@@ -251,27 +409,10 @@ func (a *App) initPlugins() {
 		return
 	}
 
-	// Register valid plugins first, then wire in two passes so that the audio
-	// provider is available when the AI wrapper is created.
-	if a.Cfg.Plugins.Settings == nil {
-		a.Cfg.Plugins.Settings = make(map[string]map[string]interface{})
-	}
-	loadedPlugins := make([]ports.PluginPort, 0, len(plugins))
+	// Register and find enabled plugins
+	enabledPlugins := make([]ports.PluginPort, 0)
 	for _, p := range plugins {
-		schema, schemaErr := p.Schema()
-		pluginCfg := buildPluginConfig(p.Type(), p.ID(), schema, a.Cfg.Plugins.Settings[p.ID()], a)
-		a.Cfg.Plugins.Settings[p.ID()] = pluginCfg
-
-		if schemaErr != nil {
-			log.Printf("plugins: %s schema read failed: %v", p.ID(), schemaErr)
-		}
-
 		a.PluginRegistry.Register(p)
-		loadedPlugins = append(loadedPlugins, p)
-	}
-
-	enabledPlugins := make([]ports.PluginPort, 0, len(loadedPlugins))
-	for _, p := range loadedPlugins {
 		if p.Type() == "messaging" || isPluginEnabled(a.Cfg.Plugins.Enabled, p.ID()) {
 			enabledPlugins = append(enabledPlugins, p)
 			continue
@@ -279,47 +420,36 @@ func (a *App) initPlugins() {
 		log.Printf("plugins: %s disabled by config", p.ID())
 	}
 
-	desiredAIPluginID := configuredDefaultPluginID("ai", a)
-	if desiredAIPluginID == "" {
-		desiredAIPluginID = aiPluginIDForProvider(a.Cfg.Agent.Provider)
-	}
-	if desiredAIPluginID == "" {
-		desiredAIPluginID = selectProviderPluginID(
+	// Select canonical defaults for each type
+	selectedPluginByType := map[string]string{
+		"ai": selectProviderPluginID(
 			enabledPlugins,
 			"ai",
 			configuredBackendForType("ai", a),
+			a.Cfg.Agent.Provider,
+			nil,
+		),
+		"memory": selectProviderPluginID(
+			enabledPlugins,
+			"memory",
+			configuredBackendForType("memory", a),
+			string(a.Cfg.Memory.Backend),
+			nil,
+		),
+		"secrets": selectProviderPluginID(
+			enabledPlugins,
+			"secrets",
+			configuredBackendForType("secrets", a),
+			a.Cfg.Secrets.Backend,
+			nil,
+		),
+		"audio": selectProviderPluginID(
+			enabledPlugins,
+			"audio",
 			"",
-			a.Cfg.Plugins.Settings,
-		)
-	}
-
-	preferredMemoryPluginID := selectProviderPluginID(
-		enabledPlugins,
-		"memory",
-		configuredBackendForType("memory", a),
-		configuredDefaultPluginID("memory", a),
-		a.Cfg.Plugins.Settings,
-	)
-	preferredSecretsPluginID := selectProviderPluginID(
-		enabledPlugins,
-		"secrets",
-		configuredBackendForType("secrets", a),
-		configuredDefaultPluginID("secrets", a),
-		a.Cfg.Plugins.Settings,
-	)
-	preferredAudioPluginID := selectProviderPluginID(
-		enabledPlugins,
-		"audio",
-		"",
-		configuredDefaultPluginID("audio", a),
-		a.Cfg.Plugins.Settings,
-	)
-
-	selectedPluginByType := map[string]string{
-		"ai":      desiredAIPluginID,
-		"memory":  preferredMemoryPluginID,
-		"secrets": preferredSecretsPluginID,
-		"audio":   preferredAudioPluginID,
+			a.Cfg.Audio.Backend,
+			nil,
+		),
 	}
 
 	activePlugins := make([]ports.PluginPort, 0, len(enabledPlugins))
@@ -336,7 +466,7 @@ func (a *App) initPlugins() {
 		}
 
 		if p.ID() != selectedPluginID {
-			log.Printf("plugins: %s skipped (not default for %s)", p.ID(), p.Type())
+			log.Printf("plugins: %s skipped (not default for %s). Expected: %s, Got: %s", p.ID(), p.Type(), selectedPluginID, p.ID())
 			continue
 		}
 
@@ -350,7 +480,7 @@ func (a *App) initPlugins() {
 		if p.Type() != "audio" {
 			continue
 		}
-		cfg := a.Cfg.Plugins.Settings[p.ID()]
+		cfg := liveConfigForPluginFromApp(a, p)
 		if err := validatePluginConfig(p, cfg); err != nil {
 			continue
 		}
@@ -361,7 +491,7 @@ func (a *App) initPlugins() {
 		})
 	}
 	if len(audioProviders) > 0 {
-		orderedAudioProviders := orderAudioProviders(audioProviders, preferredAudioPluginID)
+		orderedAudioProviders := orderAudioProviders(audioProviders, selectedPluginByType["audio"])
 		a.AudioProvider = newFallbackAudioProvider(orderedAudioProviders)
 		if len(orderedAudioProviders) > 1 {
 			log.Printf("plugins: audio provider → %s (fallbacks: %d)", orderedAudioProviders[0].name, len(orderedAudioProviders)-1)
@@ -372,44 +502,29 @@ func (a *App) initPlugins() {
 
 	// Pass 2: AI, messaging, memory plugins.
 	for _, p := range activePlugins {
-		cfg := a.Cfg.Plugins.Settings[p.ID()]
+		cfg := liveConfigForPluginFromApp(a, p)
 		switch p.Type() {
 		case "ai":
-			if desiredAIPluginID != "" && p.ID() != desiredAIPluginID {
+			if selectedPluginByType["ai"] != "" && p.ID() != selectedPluginByType["ai"] {
 				continue
 			}
 			if err := validatePluginConfig(p, cfg); err != nil {
-				if desiredAIPluginID == p.ID() {
-					log.Printf("plugins: AI provider %s invalid config: %v", p.ID(), err)
-				}
 				continue
 			}
 			if a.AIProvider == nil {
 				a.AIProvider = pluginadapter.NewAIWrapper(p, cfg)
-				log.Printf("plugins: AI provider → %s", p.Name())
+				if m, ok := cfg["model"].(string); ok {
+					a.AIModel = m
+				}
+				log.Printf("plugins: AI provider -> %s (model: %s)", p.Name(), a.AIModel)
 			}
 
 		case "messaging":
-			channelType := p.ID()
-			// Strip the "openlobster-messages-" prefix if present.
-			const pfx = "openlobster-messages-"
-			if len(channelType) > len(pfx) && channelType[:len(pfx)] == pfx {
-				channelType = channelType[len(pfx):]
-			}
-			if !isMessagingChannelEnabled(a, channelType) {
-				continue
-			}
-			if err := validatePluginConfig(p, cfg); err != nil {
-				log.Printf("plugins: messaging channel %s not wired: %v", channelType, err)
-				continue
-			}
-			wrapper := pluginadapter.NewMessagingWrapper(p, channelType, cfg)
-			a.ChanReg.Set(channelType, wrapper)
-			a.MessagingAdapters = append(a.MessagingAdapters, wrapper)
-			log.Printf("plugins: messaging channel → %s (%s)", channelType, p.Name())
+			// Messaging channels are handled by SyncMessagingRuntime during startAndWait
+			continue
 
 		case "memory":
-			if preferredMemoryPluginID != "" && p.ID() != preferredMemoryPluginID {
+			if selectedPluginByType["memory"] != "" && p.ID() != selectedPluginByType["memory"] {
 				continue
 			}
 			if err := validatePluginConfig(p, cfg); err != nil {
@@ -421,7 +536,7 @@ func (a *App) initPlugins() {
 				log.Printf("plugins: memory backend → %s", p.Name())
 			}
 		case "secrets":
-			if preferredSecretsPluginID != "" && p.ID() != preferredSecretsPluginID {
+			if selectedPluginByType["secrets"] != "" && p.ID() != selectedPluginByType["secrets"] {
 				continue
 			}
 			if err := validatePluginConfig(p, cfg); err != nil {
@@ -448,20 +563,34 @@ func validatePluginConfig(p ports.PluginPort, cfg map[string]interface{}) error 
 	return pluginadapter.ValidateConfigSchema(schema, cfg)
 }
 
-func aiPluginIDForProvider(provider string) string {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "", "ollama":
-		return "openlobster-ai-ollama"
-	case "anthropic":
-		return "openlobster-ai-anthropic"
-	case "openai":
-		return "openlobster-ai-openai"
-	default:
-		return ""
+func parseID(pluginID string) (pType, pName string) {
+	id := strings.ToLower(strings.TrimSpace(pluginID))
+	if strings.Contains(id, ":") {
+		parts := strings.SplitN(id, ":", 2)
+		return parts[0], parts[1]
 	}
+
+	prefixes := []string{"openlobster-messages-", "openlobster-ai-", "openlobster-memory-", "openlobster-secrets-", "openlobster-audio-"}
+	for _, pfx := range prefixes {
+		if strings.HasPrefix(id, pfx) {
+			pName = strings.TrimPrefix(id, pfx)
+			pType = strings.TrimPrefix(strings.TrimSuffix(pfx, "-"), "openlobster-")
+			if pType == "messages" {
+				pType = "messaging"
+			}
+			return pType, pName
+		}
+	}
+	return "", id
 }
 
 func isMessagingChannelEnabled(a *App, channelType string) bool {
+	enabledByID := a.Cfg.Plugins.Enabled
+	if v, ok := enabledByID[channelType]; ok {
+		return v
+	}
+
+	// Dynamic lookup via config
 	switch strings.ToLower(strings.TrimSpace(channelType)) {
 	case "telegram":
 		return a.Cfg.Channels.Telegram.Enabled
@@ -479,66 +608,19 @@ func isMessagingChannelEnabled(a *App, channelType string) bool {
 }
 
 
-func buildPluginConfig(pluginType, pluginID string, schema []byte, rawCfg map[string]interface{}, a *App) map[string]interface{} {
-	cfg := cloneMap(rawCfg)
-	source := domainConfigSource(pluginType, pluginID, a)
-	backend := configuredBackend(source, cfg)
-	if backend == "" {
-		backend = configuredBackendForType(pluginType, a)
-	}
-
-	if backend != "" {
-		setDefaultValue(cfg, "backend", backend)
-	}
-
-	schemaDoc := parseSchema(schema)
-	candidates := configCandidates(source, backend)
-
-	for key, prop := range schemaDoc.Properties {
-		if !isEmptyValue(cfg[key]) {
-			continue
-		}
-		if value, ok := lookupConfigValue(key, candidates...); ok {
-			cfg[key] = value
-			continue
-		}
-		if !isEmptyValue(prop.Default) {
-			cfg[key] = prop.Default
-		}
-	}
-
-	return cfg
-}
-
-func cloneMap(src map[string]interface{}) map[string]interface{} {
-	if src == nil {
-		return map[string]interface{}{}
-	}
-	out := make(map[string]interface{}, len(src))
-	for k, v := range src {
-		out[k] = v
-	}
-	return out
-}
-
-func setDefaultValue(cfg map[string]interface{}, key string, value interface{}) {
-	if isEmptyValue(value) {
-		return
-	}
-	if isEmptyValue(cfg[key]) {
-		cfg[key] = value
-	}
-}
 
 func isPluginEnabled(enabled map[string]bool, pluginID string) bool {
 	if enabled == nil {
 		return true
 	}
-	v, ok := enabled[pluginID]
-	if !ok {
-		return true
+	if v, ok := enabled[pluginID]; ok {
+		return v
 	}
-	return v
+	_, shortID := parseID(pluginID)
+	if v, ok := enabled[shortID]; ok {
+		return v
+	}
+	return true
 }
 
 func configuredBackendForType(pluginType string, a *App) string {
@@ -554,27 +636,44 @@ func configuredBackendForType(pluginType string, a *App) string {
 	}
 }
 
-func configuredDefaultPluginID(pluginType string, a *App) string {
-	if a == nil || a.Cfg.Plugins.Defaults == nil {
-		return ""
-	}
-	return strings.TrimSpace(a.Cfg.Plugins.Defaults[strings.ToLower(strings.TrimSpace(pluginType))])
-}
-
 func selectProviderPluginID(plugins []ports.PluginPort, pluginType, backend, preferredPluginID string, pluginSettings map[string]map[string]interface{}) string {
-	bestID := ""
-	bestScore := -1001 // Threshold for mandatory fallback
-
-	// Pass 1: Mandatory Default Check
+	// Pass 1: Mandatory Default Check (Viper/Explicit setting wins)
 	if preferredPluginID != "" {
 		for _, p := range plugins {
-			if p.Type() == pluginType && (p.ID() == preferredPluginID || p.Name() == preferredPluginID) {
+			if p.Type() != pluginType {
+				continue
+			}
+			pID := p.ID()
+			_, pShortID := parseID(pID)
+
+			// Match by full ID (memory:file), short ID (file), or friendly name
+			if pID == preferredPluginID || pShortID == preferredPluginID || p.Name() == preferredPluginID {
 				return p.ID()
 			}
 		}
 	}
 
-	// Pass 2: Scoring / Fallback
+	// Pass 2: Semantic Defaults (Internal metadata priority)
+	semanticDefault := ""
+	switch pluginType {
+	case "memory", "secrets":
+		semanticDefault = pluginType + ":file"
+	case "ai":
+		semanticDefault = "ai:ollama"
+	}
+
+	if semanticDefault != "" {
+		for _, p := range plugins {
+			if p.Type() == pluginType && p.ID() == semanticDefault {
+				return p.ID()
+			}
+		}
+	}
+
+	// Pass 3: Scoring / Fallback
+	bestID := ""
+	bestScore := -1001
+
 	for _, p := range plugins {
 		if p.Type() != pluginType {
 			continue
@@ -652,210 +751,6 @@ func parseSchema(schema []byte) schemaDoc {
 	return doc
 }
 
-func domainConfigSource(pluginType, pluginID string, a *App) map[string]interface{} {
-	switch pluginType {
-	case "ai":
-		switch pluginID {
-		case "openlobster-ai-anthropic":
-			return structToConfigMap(a.Cfg.Providers.Anthropic)
-		case "openlobster-ai-openai":
-			return structToConfigMap(a.Cfg.Providers.OpenAI)
-		case "openlobster-ai-ollama":
-			src := structToConfigMap(a.Cfg.Providers.Ollama)
-			if v, ok := src["endpoint"]; ok && !isEmptyValue(v) {
-				src["base_url"] = v
-			}
-			return src
-		}
-
-	case "messaging":
-		switch pluginID {
-		case "openlobster-messages-telegram":
-			src := structToConfigMap(a.Cfg.Channels.Telegram)
-			if v, ok := src["bot_token"]; ok && !isEmptyValue(v) {
-				src["token"] = v
-			}
-			return src
-		case "openlobster-messages-discord":
-			src := structToConfigMap(a.Cfg.Channels.Discord)
-			if v, ok := src["bot_token"]; ok && !isEmptyValue(v) {
-				src["token"] = v
-			}
-			return src
-		case "openlobster-messages-slack":
-			return structToConfigMap(a.Cfg.Channels.Slack)
-		case "openlobster-messages-whatsapp":
-			src := structToConfigMap(a.Cfg.Channels.WhatsApp)
-			if v, ok := src["api_token"]; ok && !isEmptyValue(v) {
-				src["api_access_token"] = v
-			}
-			if v, ok := src["phone_id"]; ok && !isEmptyValue(v) {
-				src["phone_number_id"] = v
-			}
-			return src
-		case "openlobster-messages-twilio":
-			return structToConfigMap(a.Cfg.Channels.Twilio)
-		}
-
-	case "memory":
-		switch pluginID {
-		case "openlobster-memory-gml":
-			return structToConfigMap(a.Cfg.Memory.File)
-		case "openlobster-memory-neo4j":
-			src := structToConfigMap(a.Cfg.Memory.Neo4j)
-			if v, ok := src["user"]; ok && !isEmptyValue(v) {
-				src["username"] = v
-			}
-			return src
-		}
-
-	case "secrets":
-		switch pluginID {
-		case "openlobster-secrets-json":
-			return structToConfigMap(a.Cfg.Secrets.File)
-		case "openlobster-secrets-openbao":
-			if a.Cfg.Secrets.Openbao != nil {
-				return structToConfigMap(*a.Cfg.Secrets.Openbao)
-			}
-		}
-	}
-	return map[string]interface{}{}
-}
-
-func configuredBackend(source map[string]interface{}, cfg map[string]interface{}) string {
-	if v, ok := cfg["backend"].(string); ok && strings.TrimSpace(v) != "" {
-		return strings.ToLower(strings.TrimSpace(v))
-	}
-	if v, ok := source["backend"].(string); ok && strings.TrimSpace(v) != "" {
-		return strings.ToLower(strings.TrimSpace(v))
-	}
-	return ""
-}
-
-func configCandidates(source map[string]interface{}, backend string) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, 2)
-	if backend != "" {
-		if m, ok := source[backend].(map[string]interface{}); ok {
-			out = append(out, m)
-		}
-	}
-	out = append(out, source)
-	return out
-}
-
-func lookupConfigValue(key string, candidates ...map[string]interface{}) (interface{}, bool) {
-	for _, m := range candidates {
-		if m == nil {
-			continue
-		}
-		if v, ok := m[key]; ok && !isEmptyValue(v) {
-			return v, true
-		}
-		for mk, mv := range m {
-			if strings.EqualFold(mk, key) && !isEmptyValue(mv) {
-				return mv, true
-			}
-		}
-	}
-
-	aliases := map[string][]string{
-		"username":         {"user"},
-		"user":             {"username"},
-		"token":            {"bot_token", "api_token", "auth_token", "api_access_token"},
-		"bot_token":        {"token"},
-		"api_access_token": {"api_token"},
-		"api_token":        {"api_access_token"},
-		"phone_number_id":  {"phone_id"},
-		"phone_id":         {"phone_number_id"},
-		"base_url":         {"endpoint"},
-		"endpoint":         {"base_url"},
-	}
-	for _, alias := range aliases[strings.ToLower(key)] {
-		for _, m := range candidates {
-			if m == nil {
-				continue
-			}
-			if v, ok := m[alias]; ok && !isEmptyValue(v) {
-				return v, true
-			}
-			for mk, mv := range m {
-				if strings.EqualFold(mk, alias) && !isEmptyValue(mv) {
-					return mv, true
-				}
-			}
-		}
-	}
-
-	return nil, false
-}
-
-func structToConfigMap(v interface{}) map[string]interface{} {
-	out, ok := toConfigValue(reflect.ValueOf(v)).(map[string]interface{})
-	if !ok || out == nil {
-		return map[string]interface{}{}
-	}
-	return out
-}
-
-func toConfigValue(v reflect.Value) interface{} {
-	if !v.IsValid() {
-		return nil
-	}
-	for v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			return nil
-		}
-		v = v.Elem()
-	}
-
-	switch v.Kind() {
-	case reflect.Struct:
-		t := v.Type()
-		m := map[string]interface{}{}
-		for i := 0; i < v.NumField(); i++ {
-			f := t.Field(i)
-			if !f.IsExported() {
-				continue
-			}
-			key := f.Tag.Get("mapstructure")
-			if key == "" {
-				key = strings.ToLower(f.Name)
-			} else {
-				key = strings.Split(key, ",")[0]
-			}
-			if key == "" || key == "-" {
-				continue
-			}
-			val := toConfigValue(v.Field(i))
-			if val == nil {
-				continue
-			}
-			m[key] = val
-		}
-		return m
-
-	case reflect.Map:
-		if v.IsNil() {
-			return nil
-		}
-		m := map[string]interface{}{}
-		for _, k := range v.MapKeys() {
-			m[fmt.Sprintf("%v", k.Interface())] = toConfigValue(v.MapIndex(k))
-		}
-		return m
-
-	case reflect.Slice, reflect.Array:
-		n := v.Len()
-		out := make([]interface{}, 0, n)
-		for i := 0; i < n; i++ {
-			out = append(out, toConfigValue(v.Index(i)))
-		}
-		return out
-
-	default:
-		return v.Interface()
-	}
-}
 
 func isEmptyValue(v interface{}) bool {
 	if v == nil {
@@ -942,13 +837,13 @@ func (p *fallbackAudioProvider) SpeechToText(ctx context.Context, req ports.STTR
 
 // onPluginMessage is the callback invoked by messaging plugins (via
 // host_emit_message) to deliver inbound messages to the message handler.
-func (a *App) onPluginMessage(msgJSON []byte) {
+func (a *App) onPluginMessage(pluginID string, channelType string, msgJSON []byte) {
 	var msg models.Message
 	if err := json.Unmarshal(msgJSON, &msg); err != nil {
-		log.Printf("plugins: malformed inbound message from plugin: %v", err)
+		log.Printf("plugins: malformed inbound message from plugin %s: %v", pluginID, err)
 		return
 	}
-	a.handleInboundMessage(&msg, "")
+	a.handleInboundMessage(&msg, channelType)
 }
 
 func (a *App) handleInboundMessage(msg *models.Message, fallbackChannelType string) {
@@ -1118,23 +1013,11 @@ func (a *App) initServices() {
 
 	// Message handler
 	gormDB := a.db.GormDB()
-	a.MsgHandler = domainhandlers.NewMessageHandler(
-		a.AIProvider,
-		a.MsgRouter,
-		a.MemoryAdapter,
-		a.ToolRegistry,
-		a.PermManager,
-		a.SessionRepo,
-		a.MessageRepo,
-		a.UserRepo,
-		eventBus,
-		a.CtxInjector,
-		a.CompactionSvc,
-		a.UserChannelRepo,
-		a.PairingService,
-		cfg.SubAgents.MaxConcurrent,
-		a.AudioProvider,
-	)
+	a.MsgHandler = domainhandlers.NewMessageHandler(a.AIProvider, a.MsgRouter, a.MemoryAdapter, a.ToolRegistry, a.PermManager, a.SessionRepo, a.MessageRepo, a.UserRepo, a.EventBus, a.CtxInjector, a.CompactionSvc, a.UserChannelRepo, a.PairingService, a.Cfg.SubAgents.MaxConcurrent, a.AudioProvider)
+	// Initialize runner model with the one resolved during initPlugins
+	if a.AIProvider != nil {
+		a.MsgHandler.SetAIProvider(a.AIProvider, a.AIModel)
+	}
 	a.MsgHandler.SetGroupRegistrar(repositories.NewGroupRepository(gormDB))
 	a.MsgHandler.SetPlatformEnsurer(repositories.NewChannelRepository(gormDB))
 	a.MsgHandler.SetSkillsProvider(a.SkillsAdapter)

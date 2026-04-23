@@ -20,10 +20,10 @@ import (
 var errPluginFunctionFailed = errors.New("plugin function failed")
 
 const (
-	defaultCallTimeout        = 10 * time.Second
-	minLongRunningCallTimeout = 02 * time.Minute
-	minStartCallTimeout       = 05 * time.Minute
-	handshakeTimeout          = 10 * time.Second
+	defaultCallTimeout        = 10 * time.Minute
+	minLongRunningCallTimeout = 20 * time.Minute
+	minStartCallTimeout       = 30 * time.Minute
+	handshakeTimeout          = 30 * time.Minute
 )
 
 // Adapter implements ports.PluginPort using a native subprocess and JSON-RPC over stdin/stdout.

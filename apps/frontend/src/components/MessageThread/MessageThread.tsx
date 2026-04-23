@@ -201,6 +201,9 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
       return props.participantName ? props.participantName : 'USER_' + msg.conversationId.slice(-4).toUpperCase();
     };
 
+    const isEmpty = !rawContent.trim() && (msg.attachments ?? []).length === 0 && !msg.audio;
+    if (isEmpty) return null;
+
     return (
       <div
         class="msg"
@@ -220,8 +223,23 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
           </div>
         </Show>
 
-        {/* If attachments exist, render them first and use message content as caption below */}
-        <Show when={(msg.attachments ?? []).length > 0}>
+        {/* If audio exists, render it as a voice note block */}
+        <Show when={msg.audio}>
+          <div class="msg__audio">
+            <div class="msg__audio-header">
+              <span class="material-symbols-outlined">mic</span>
+              <span class="msg__audio-label">{t('chat.voiceNote')}</span>
+            </div>
+            <Show when={msg.audio?.transcription}>
+              <div class="msg__audio-transcription">
+                {msg.audio?.transcription}
+              </div>
+            </Show>
+          </div>
+        </Show>
+
+        {/* If attachments exist, render them only if no audio block is already shown to avoid duplication */}
+        <Show when={(msg.attachments ?? []).length > 0 && !msg.audio}>
           <div class="msg__attachments">
             <For each={msg.attachments}>
               {(att) => (
@@ -231,15 +249,15 @@ const MessageThread: Component<MessageThreadProps> = (props) => {
                 </div>
               )}
             </For>
-            <Show when={msg.content}>
+            <Show when={msg.content && !msg.audio}>
               {/* eslint-disable-next-line solid/no-innerhtml */}
               <div class="msg__attachment-caption" innerHTML={renderMarkdown(displayContent)} />
             </Show>
           </div>
         </Show>
 
-        {/* If no attachments, render body normally */}
-        <Show when={(msg.attachments ?? []).length === 0}>
+        {/* If no attachments and no audio, render body normally */}
+        <Show when={(msg.attachments ?? []).length === 0 && !msg.audio}>
           {/* eslint-disable-next-line solid/no-innerhtml */}
           <div class="msg__body" innerHTML={renderMarkdown(displayContent)} />
         </Show>

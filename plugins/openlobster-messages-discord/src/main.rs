@@ -17,6 +17,11 @@ use twilight_model::id::marker::ChannelMarker;
 use twilight_model::id::Id;
 use twilight_gateway::{Cluster, Intents, Event};
 use futures::stream::StreamExt;
+use opus_rs::{OpusEncoder, Application};
+use twilight_model::channel::message::{Message, MessageFlags};
+use hyper::Client;
+use hyper_rustls::HttpsConnectorBuilder;
+use ogg::PacketWriter;
 
 // ---------------------------------------------------------------------------
 // Hot config
@@ -50,6 +55,15 @@ struct SendMessage {
     #[serde(default)] metadata: Option<HashMap<String, Value>>,
     #[serde(default)] content: String,
     #[serde(default)] audio: Option<AudioContent>,
+    #[serde(default)] attachments: Vec<Attachment>,
+}
+
+#[derive(Deserialize, Debug, Default)]
+struct Attachment {
+    #[serde(rename = "type")] r#type: String,
+    filename: String,
+    mime_type: String,
+    #[serde(default)] data: String, // Base64
 }
 
 #[derive(Deserialize, Debug, Default)]
@@ -57,6 +71,7 @@ struct AudioContent {
     data: String, // Base64
     format: Option<String>,
     duration: Option<u64>,
+    sample_rate: Option<u32>,
     platform_format: Option<String>,
 }
 
@@ -263,24 +278,38 @@ async fn send(input: Option<Value>) -> CallResponse {
         let cid = Id::<ChannelMarker>::new(channel_id_u64);
         let mut builder = http.create_message(cid);
         
-        // Scope the attachment to live as long as the builder needs it
-        let mut attachment: Option<[twilight_model::http::attachment::Attachment; 1]> = None;
+        let mut twilight_attachments = Vec::new();
+        let mut attachment_id = 0;
 
         // Audio support
         if let Some(audio) = &payload.message.audio {
             if let Ok(bytes) = BASE64.decode(&audio.data) {
                 let filename = format!("voice.{}", audio.format.as_deref().unwrap_or("ogg"));
-                attachment = Some([twilight_model::http::attachment::Attachment {
+                twilight_attachments.push(twilight_model::http::attachment::Attachment {
                     description: None,
                     file: bytes,
                     filename,
-                    id: 0,
-                }]);
+                    id: attachment_id,
+                });
+                attachment_id += 1;
             }
         }
 
-        if let Some(a) = &attachment {
-            builder = match builder.attachments(a) {
+        // Multimedia / Attachments support
+        for att in &payload.message.attachments {
+            if let Ok(bytes) = BASE64.decode(&att.data) {
+                twilight_attachments.push(twilight_model::http::attachment::Attachment {
+                    description: None,
+                    file: bytes,
+                    filename: att.filename.clone(),
+                    id: attachment_id,
+                });
+                attachment_id += 1;
+            }
+        }
+
+        if !twilight_attachments.is_empty() {
+            builder = match builder.attachments(&twilight_attachments) {
                 Ok(b) => b,
                 Err(e) => return CallResponse::err(format!("discord attachments failed: {}", e)),
             };
@@ -440,39 +469,48 @@ async fn start(input: Option<Value>) -> CallResponse {
 
                         emit_log("info", &format!("Downloading Discord attachment: {}", attachment.filename));
                         
-                        let client = reqwest::Client::new();
-                        match client.get(&attachment.proxy_url).send().await {
-                            Ok(resp) => {
-                                if resp.status().is_success() {
-                                    match resp.bytes().await {
-                                        Ok(bytes) => {
-                                            let b64 = BASE64.encode(&bytes);
-                                            let mime = attachment.content_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
-                                            
-                                            // Identify if this is the primary audio/voice content
-                                            if audio_content.is_none() && mime.starts_with("audio/") {
-                                                audio_content = Some(serde_json::json!({
-                                                    "data": b64.clone(),
-                                                    "format": mime.split('/').last().unwrap_or("ogg").to_string(),
-                                                    "platform_format": "discord_attachment"
-                                                }));
-                                            }
+                        let client = hyper::Client::builder().build::<_, hyper::Body>(hyper_rustls::HttpsConnectorBuilder::new()
+                            .with_native_roots()
+                            .https_or_http()
+                            .enable_http1()
+                            .build());
 
-                                            attachments_json.push(serde_json::json!({
-                                                "type": "binary",
-                                                "filename": attachment.filename,
-                                                "size": attachment.size,
-                                                "content_type": mime,
-                                                "data": b64
-                                            }));
+                        match hyper::Request::get(&attachment.proxy_url).body(hyper::Body::empty()) {
+                            Ok(req) => {
+                                match client.request(req).await {
+                                    Ok(resp) => {
+                                        if resp.status().is_success() {
+                                            match hyper::body::to_bytes(resp.into_body()).await {
+                                                Ok(bytes) => {
+                                                    let b64 = BASE64.encode(&bytes);
+                                                    let mime = attachment.content_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
+                                                    
+                                                    if audio_content.is_none() && mime.starts_with("audio/") {
+                                                        audio_content = Some(serde_json::json!({
+                                                            "data": b64.clone(),
+                                                            "format": mime.split('/').last().unwrap_or("ogg").to_string(),
+                                                            "platform_format": "discord_attachment"
+                                                        }));
+                                                    }
+
+                                                    attachments_json.push(serde_json::json!({
+                                                        "type": "binary",
+                                                        "filename": attachment.filename,
+                                                        "size": attachment.size,
+                                                        "mime_type": mime,
+                                                        "data": b64
+                                                    }));
+                                                }
+                                                Err(e) => emit_log("error", &format!("Failed to read Discord attachment bytes: {}", e)),
+                                            }
+                                        } else {
+                                            emit_log("error", &format!("Failed to download Discord attachment: HTTP {}", resp.status()));
                                         }
-                                        Err(e) => emit_log("error", &format!("Failed to read Discord attachment bytes: {}", e)),
                                     }
-                                } else {
-                                    emit_log("error", &format!("Failed to download Discord attachment: HTTP {}", resp.status()));
+                                    Err(e) => emit_log("error", &format!("Failed to request Discord attachment: {}", e)),
                                 }
                             }
-                            Err(e) => emit_log("error", &format!("Failed to request Discord attachment: {}", e)),
+                            Err(e) => emit_log("error", &format!("Failed to build Discord download request: {}", e)),
                         }
                     }
 
@@ -515,7 +553,7 @@ impl Plugin for DiscordPlugin {
             schema: metadata_schema(),
             properties: metadata_properties(),
             exports: vec!["inbound_mode", "capabilities", "resolve_channel_id",
-                          "send", "start", "configure", "typing"],
+                          "send", "send_voice", "start", "configure", "typing", "speaking"],
         }
     }
 
@@ -526,7 +564,9 @@ impl Plugin for DiscordPlugin {
             "capabilities"       => capabilities(),
             "resolve_channel_id" => resolve_channel_id(input),
             "send"               => send(input).await,
+            "send_voice"         => fn_send_voice(input).await,
             "typing"             => typing(input).await,
+            "speaking"           => typing(input).await, // Fallback to typing for Discord
             "start"              => start(input).await,
             other                => CallResponse::err(format!("unknown function: {}", other)),
         }
@@ -536,4 +576,176 @@ impl Plugin for DiscordPlugin {
 #[tokio::main]
 async fn main() {
     run(DiscordPlugin).await;
+}
+
+fn resolve(input: &Value, key: &str, fallback: &str) -> String {
+    if let Some(v) = input.get("config").and_then(|c| c.get(key))
+        .and_then(Value::as_str).filter(|s| !s.is_empty())
+    {
+        return v.to_string();
+    }
+    if let Some(v) = input.get(key).and_then(Value::as_str).filter(|s| !s.is_empty()) {
+        return v.to_string();
+    }
+    let hot = CONFIG.merge(None);
+    let v = HotConfig::get_str(&hot, key);
+    if !v.is_empty() { return v; }
+    fallback.to_string()
+}
+
+async fn fn_send_voice(input: Option<Value>) -> CallResponse {
+    let input = match input {
+        Some(v) => v,
+        None    => return CallResponse::err("input required"),
+    };
+
+    let cfg = input.get("config").cloned().unwrap_or(Value::Null);
+    let token = resolve(&input, "token", "");
+
+    if token.is_empty() {
+        return CallResponse::err("discord token required");
+    }
+
+    let http = HttpClient::new(token);
+
+    let resolved = resolve_channel_id(Some(serde_json::json!({
+        "config": &cfg,
+        "message": {
+            "channel_id":   input.get("message").and_then(|m| m.get("channel_id")),
+            "recipient_id": input.get("message").and_then(|m| m.get("recipient_id")),
+            "sender_id":    input.get("message").and_then(|m| m.get("sender_id")),
+            "metadata":     input.get("message").and_then(|m| m.get("metadata"))
+        }
+    })));
+
+    let channel_id_str = match resolved.output {
+        Some(v) => v.as_str().unwrap_or("").to_string(),
+        None    => return CallResponse::err("failed to resolve channel id"),
+    };
+
+    let payload: SendInput = match serde_json::from_value(input) {
+        Ok(p)  => p,
+        Err(e) => return CallResponse::err(format!("invalid input: {}", e)),
+    };
+
+    if let Ok(channel_id_u64) = channel_id_str.parse::<u64>() {
+        let cid = Id::<ChannelMarker>::new(channel_id_u64);
+
+        if let Some(audio) = &payload.message.audio {
+            if let Ok(bytes) = BASE64.decode(&audio.data) {
+                let mut pcm_s16 = Vec::with_capacity(bytes.len() / 2);
+                for chunk in bytes.chunks_exact(2) {
+                    pcm_s16.push(i16::from_le_bytes([chunk[0], chunk[1]]));
+                }
+
+                let pcm_resampled = if audio.sample_rate.unwrap_or(16000) == 16000 {
+                    resample_16k_to_48k(&pcm_s16)
+                } else {
+            pcm_s16
+                };
+
+                match encode_opus_ogg(&pcm_resampled, 48000) {
+                    Ok(ogg_data) => {
+                        use twilight_model::channel::message::MessageFlags;
+                        
+                        let attachments = vec![twilight_model::http::attachment::Attachment {
+                            description: None,
+                            file: ogg_data,
+                            filename: "voice.ogg".to_string(),
+                            id: 0,
+                        }];
+
+                        // Using twilight's CreateMessage with flags. 
+                        // Note: Flags 8192 (1 << 13) is IS_VOICE_MESSAGE.
+                        // If the SDK version is too old for the constant, we use from_bits_truncate.
+                        let mut builder = http.create_message(cid);
+                        builder = builder.attachments(&attachments).unwrap();
+                        builder = builder.flags(MessageFlags::from_bits_truncate(8192));
+                        
+                        if !payload.message.content.is_empty() {
+                            builder = builder.content(&payload.message.content).unwrap();
+                        }
+
+                        match builder.await {
+                            Ok(_) => return CallResponse::ok(serde_json::json!({"ok": true})),
+                            Err(e) => return CallResponse::err(format!("discord voice send failed: {}", e)),
+                        }
+                    },
+                    Err(e) => return CallResponse::err(format!("opus encoding failed: {}", e)),
+                }
+            }
+        }
+    }
+
+    CallResponse::err("send_voice failed")
+}
+
+fn resample_16k_to_48k(input: &[i16]) -> Vec<i16> {
+    if input.len() < 2 { return input.to_vec(); }
+    let mut output = Vec::with_capacity(input.len() * 3);
+    for i in 0..input.len() - 1 {
+        let s0 = input[i] as i32;
+        let s1 = input[i+1] as i32;
+        
+        output.push(s0 as i16);
+        output.push(((s0 * 2 + s1) / 3) as i16);
+        output.push(((s0 + s1 * 2) / 3) as i16);
+    }
+    // Last sample
+    let last = input[input.len()-1];
+    output.push(last);
+    output.push(last);
+    output.push(last);
+    output
+}
+
+fn encode_opus_ogg(pcm: &[i16], sample_rate: u32) -> Result<Vec<u8>, String> {
+    let mut encoder = OpusEncoder::new(sample_rate as i32, 1, Application::Voip)
+        .map_err(|e| format!("encoder init failed: {:?}", e))?;
+    
+    let mut output_ogg = Vec::new();
+    {
+        let mut writer = PacketWriter::new(&mut output_ogg);
+        
+        // Opus Identification Header
+        let mut id_header = Vec::new();
+        id_header.extend_from_slice(b"OpusHead");
+        id_header.push(1); // Version
+        id_header.push(1); // Mono
+        id_header.extend_from_slice(&0u16.to_le_bytes()); // Pre-skip
+        id_header.extend_from_slice(&(sample_rate).to_le_bytes());
+        id_header.extend_from_slice(&0i16.to_le_bytes()); // Output gain
+        id_header.push(0); // Mapping family
+        
+        writer.write_packet(id_header, 1, ogg::PacketWriteEndInfo::EndPage, 0)
+            .map_err(|e| format!("ogg id header failed: {}", e))?;
+            
+        // Opus Comment Header
+        let mut comment_header = Vec::with_capacity(100);
+        comment_header.extend_from_slice(b"OpusTags");
+        let vendor = b"openlobster-rs";
+        comment_header.extend_from_slice(&(vendor.len() as u32).to_le_bytes());
+        comment_header.extend_from_slice(vendor);
+        comment_header.extend_from_slice(&0u32.to_le_bytes()); // No tags
+        
+        writer.write_packet(comment_header, 1, ogg::PacketWriteEndInfo::EndPage, 0)
+            .map_err(|e| format!("ogg comment header failed: {}", e))?;
+
+        // Encode frames (20ms = 960 samples @ 48kHz)
+        let frame_size = 960;
+        let mut abs_granule = 0;
+        for chunk in pcm.chunks_exact(frame_size) {
+            let f32_chunk: Vec<f32> = chunk.iter().map(|&s| s as f32 / 32768.0).collect();
+            let mut encoded = vec![0u8; 1024];
+            let len = encoder.encode(&f32_chunk, frame_size, &mut encoded)
+                .map_err(|e| format!("encode failed: {:?}", e))?;
+            encoded.truncate(len);
+            
+            abs_granule += frame_size as u64;
+            writer.write_packet(encoded, 1, ogg::PacketWriteEndInfo::EndPage, abs_granule)
+                .map_err(|e| format!("ogg data packet failed: {}", e))?;
+        }
+    }
+    
+    Ok(output_ogg)
 }

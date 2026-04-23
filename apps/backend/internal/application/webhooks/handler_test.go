@@ -52,6 +52,14 @@ func (a *testMessagingAdapter) SendTyping(context.Context, string, int) error {
 	return nil
 }
 
+func (a *testMessagingAdapter) SendSpeaking(context.Context, string, int) error {
+	return nil
+}
+
+func (a *testMessagingAdapter) SendVoice(context.Context, *models.Message) error {
+	return nil
+}
+
 func (a *testMessagingAdapter) HandleWebhook(ctx context.Context, payload []byte) (*models.Message, error) {
 	if a.handleWebhookFn == nil {
 		return nil, nil

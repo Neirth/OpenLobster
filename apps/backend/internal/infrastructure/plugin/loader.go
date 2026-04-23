@@ -21,7 +21,7 @@ import (
 // LoadPlugins scans dir for plugins and returns the loaded collection.
 //
 // Plugins are native subprocess binaries from plugins dir.
-func LoadPlugins(ctx context.Context, dir string, onMessage func([]byte), builtins []string, callTimeout time.Duration) ([]ports.PluginPort, error) {
+func LoadPlugins(ctx context.Context, dir string, onMessage func(pluginID string, channelType string, payload []byte), builtins []string, callTimeout time.Duration) ([]ports.PluginPort, error) {
 	// Ensure bundled plugins are extracted/updated before loading
 	if err := ExtractEmbeddedPlugins(dir); err != nil {
 		log.Printf("plugins: extraction failed: %v", err)
@@ -51,14 +51,18 @@ func LoadPlugins(ctx context.Context, dir string, onMessage func([]byte), builti
 		if adapter == nil {
 			return false
 		}
-		if _, exists := loadedIDs[adapter.ID()]; exists {
+		pluginType := strings.TrimSpace(adapter.Type())
+		pluginID := adapter.ID()
+		compositeID := fmt.Sprintf("%s:%s", pluginType, pluginID)
+
+		if _, exists := loadedIDs[compositeID]; exists {
 			_ = adapter.Close()
-			log.Printf("plugins: skip %s — duplicate ID already loaded", adapter.ID())
+			log.Printf("plugins: skip %s %s — duplicate ID already loaded", pluginType, pluginID)
 			return false
 		}
 
 		markBuiltin := false
-		if _, ok := builtinSet[adapter.ID()]; ok {
+		if _, ok := builtinSet[pluginID]; ok {
 			markBuiltin = true
 		}
 		if markBuiltin {
@@ -67,25 +71,24 @@ func LoadPlugins(ctx context.Context, dir string, onMessage func([]byte), builti
 			}
 		}
 
-		pluginType := strings.TrimSpace(adapter.Type())
 		switch pluginType {
 		case "ai", "messaging", "memory", "audio", "secrets":
 		default:
 			_ = adapter.Close()
 			if state, ok := adapter.(ports.PluginStatePort); ok {
 				if lastErr := strings.TrimSpace(state.LastError()); lastErr != "" {
-					log.Printf("plugins: skip %s — unsupported type %q (last_error=%s)", adapter.ID(), pluginType, lastErr)
+					log.Printf("plugins: skip %s — unsupported type %q (last_error=%s)", compositeID, pluginType, lastErr)
 					return false
 				}
 			}
-			log.Printf("plugins: skip %s — unsupported type %q", adapter.ID(), pluginType)
+			log.Printf("plugins: skip %s — unsupported type %q", compositeID, pluginType)
 			return false
 		}
 
 		if pluginType == "messaging" {
 			if err := validateMessagingPluginABI(adapter); err != nil {
 				_ = adapter.Close()
-				log.Printf("plugins: skip %s — invalid messaging ABI: %v", adapter.ID(), err)
+				log.Printf("plugins: skip %s — invalid messaging ABI: %v", compositeID, err)
 				return false
 			}
 		}
@@ -93,14 +96,14 @@ func LoadPlugins(ctx context.Context, dir string, onMessage func([]byte), builti
 		if pluginType == "ai" {
 			if err := validateAIPluginABI(adapter); err != nil {
 				_ = adapter.Close()
-				log.Printf("plugins: skip %s — invalid AI ABI: %v", adapter.ID(), err)
+				log.Printf("plugins: skip %s — invalid AI ABI: %v", compositeID, err)
 				return false
 			}
 		}
 
 		plugins = append(plugins, adapter)
-		loadedIDs[adapter.ID()] = struct{}{}
-		log.Printf("plugins: loaded %s (%s v%s) from %s", adapter.ID(), adapter.Name(), adapter.Version(), source)
+		loadedIDs[compositeID] = struct{}{}
+		log.Printf("plugins: loaded %s (v%s) from %s", compositeID, adapter.Version(), source)
 		return true
 	}
 
@@ -198,7 +201,7 @@ func pluginChannelType(pluginID string) string {
 	return ""
 }
 
-func runtimeOnMessage(pluginID string, onMessage func([]byte)) func([]byte) {
+func runtimeOnMessage(pluginID string, onMessage func(string, string, []byte)) func([]byte) {
 	channelType := pluginChannelType(pluginID)
 	return func(payload []byte) {
 		if len(payload) == 0 {
@@ -207,7 +210,7 @@ func runtimeOnMessage(pluginID string, onMessage func([]byte)) func([]byte) {
 		payloadCopy := append([]byte(nil), payload...)
 		threads.PublishPluginMessage(pluginID, channelType, payloadCopy)
 		if onMessage != nil {
-			go onMessage(payloadCopy)
+			go onMessage(pluginID, channelType, payloadCopy)
 		}
 	}
 }

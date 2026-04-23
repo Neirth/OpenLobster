@@ -100,6 +100,12 @@ type ComplexityRoot struct {
 		Success func(childComplexity int) int
 	}
 
+	AudioContent struct {
+		DurationMs    func(childComplexity int) int
+		Format        func(childComplexity int) int
+		Transcription func(childComplexity int) int
+	}
+
 	CapabilitiesConfig struct {
 		Browser    func(childComplexity int) int
 		Filesystem func(childComplexity int) int
@@ -308,6 +314,7 @@ type ComplexityRoot struct {
 
 	Message struct {
 		Attachments    func(childComplexity int) int
+		Audio          func(childComplexity int) int
 		Content        func(childComplexity int) int
 		ConversationID func(childComplexity int) int
 		CreatedAt      func(childComplexity int) int
@@ -993,6 +1000,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ApprovePairingResult.Success(childComplexity), true
+
+	case "AudioContent.durationMs":
+		if e.ComplexityRoot.AudioContent.DurationMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AudioContent.DurationMs(childComplexity), true
+	case "AudioContent.format":
+		if e.ComplexityRoot.AudioContent.Format == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AudioContent.Format(childComplexity), true
+	case "AudioContent.transcription":
+		if e.ComplexityRoot.AudioContent.Transcription == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AudioContent.Transcription(childComplexity), true
 
 	case "CapabilitiesConfig.browser":
 		if e.ComplexityRoot.CapabilitiesConfig.Browser == nil {
@@ -1760,6 +1786,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Message.Attachments(childComplexity), true
+	case "Message.audio":
+		if e.ComplexityRoot.Message.Audio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Message.Audio(childComplexity), true
 	case "Message.content":
 		if e.ComplexityRoot.Message.Content == nil {
 			break
@@ -3698,6 +3730,12 @@ type MessageAttachment {
   mimeType: String
 }
 
+type AudioContent {
+  transcription: String
+  format:        String
+  durationMs:    Int
+}
+
 type Message {
   id:             String!
   conversationId: String!
@@ -3705,6 +3743,7 @@ type Message {
   content:        String!
   createdAt:      String!
   attachments:    [MessageAttachment!]
+  audio:          AudioContent
 }
 
 type MessageSentResult {
@@ -6312,6 +6351,93 @@ func (ec *executionContext) fieldContext_ApprovePairingResult_error(_ context.Co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AudioContent_transcription(ctx context.Context, field graphql.CollectedField, obj *AudioContent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AudioContent_transcription,
+		func(ctx context.Context) (any, error) {
+			return obj.Transcription, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AudioContent_transcription(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioContent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AudioContent_format(ctx context.Context, field graphql.CollectedField, obj *AudioContent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AudioContent_format,
+		func(ctx context.Context) (any, error) {
+			return obj.Format, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AudioContent_format(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioContent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AudioContent_durationMs(ctx context.Context, field graphql.CollectedField, obj *AudioContent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AudioContent_durationMs,
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AudioContent_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AudioContent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -10089,6 +10215,43 @@ func (ec *executionContext) fieldContext_Message_attachments(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Message_audio(ctx context.Context, field graphql.CollectedField, obj *Message) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Message_audio,
+		func(ctx context.Context) (any, error) {
+			return obj.Audio, nil
+		},
+		nil,
+		ec.marshalOAudioContent2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐAudioContent,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Message_audio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Message",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "transcription":
+				return ec.fieldContext_AudioContent_transcription(ctx, field)
+			case "format":
+				return ec.fieldContext_AudioContent_format(ctx, field)
+			case "durationMs":
+				return ec.fieldContext_AudioContent_durationMs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AudioContent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MessageAttachment_type(ctx context.Context, field graphql.CollectedField, obj *MessageAttachment) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13809,6 +13972,8 @@ func (ec *executionContext) fieldContext_Query_messages(ctx context.Context, fie
 				return ec.fieldContext_Message_createdAt(ctx, field)
 			case "attachments":
 				return ec.fieldContext_Message_attachments(ctx, field)
+			case "audio":
+				return ec.fieldContext_Message_audio(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -19664,6 +19829,46 @@ func (ec *executionContext) _ApprovePairingResult(ctx context.Context, sel ast.S
 	return out
 }
 
+var audioContentImplementors = []string{"AudioContent"}
+
+func (ec *executionContext) _AudioContent(ctx context.Context, sel ast.SelectionSet, obj *AudioContent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, audioContentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AudioContent")
+		case "transcription":
+			out.Values[i] = ec._AudioContent_transcription(ctx, field, obj)
+		case "format":
+			out.Values[i] = ec._AudioContent_format(ctx, field, obj)
+		case "durationMs":
+			out.Values[i] = ec._AudioContent_durationMs(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var capabilitiesConfigImplementors = []string{"CapabilitiesConfig"}
 
 func (ec *executionContext) _CapabilitiesConfig(ctx context.Context, sel ast.SelectionSet, obj *CapabilitiesConfig) graphql.Marshaler {
@@ -21018,6 +21223,8 @@ func (ec *executionContext) _Message(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "attachments":
 			out.Values[i] = ec._Message_attachments(ctx, field, obj)
+		case "audio":
+			out.Values[i] = ec._Message_audio(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -24555,6 +24762,13 @@ func (ec *executionContext) marshalOAppConfig2ᚖgithubᚗcomᚋneirthᚋopenlob
 		return graphql.Null
 	}
 	return ec._AppConfig(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOAudioContent2ᚖgithubᚗcomᚋneirthᚋopenlobsterᚋinternalᚋapplicationᚋgraphqlᚋgeneratedᚐAudioContent(ctx context.Context, sel ast.SelectionSet, v *AudioContent) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AudioContent(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {

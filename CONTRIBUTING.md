@@ -32,61 +32,47 @@ Thank you for contributing! This document explains how to open issues and pull r
 - [ ] I did not commit secrets or personal config files
 - [ ] Database migrations (if any) are included and tested
 
-## Git pre-commit hook
-
-After cloning, install the hook (copies [.github/hooks/pre-commit](.github/hooks/pre-commit) to `.git/hooks/`):
-
-```bash
-pnpm run hooks:install
-```
-
 ## Local development — useful commands
 
+OpenLobster uses a root `Makefile` for full system orchestration. This is the recommended way to build the project.
 
-Frontend (node/pnpm):
+### Orchestration (Makefile)
 
+```bash
+# Full production build (Frontend + Plugins + Backend + Signing)
+make build-prod
+
+# Clean all build artifacts
+make clean
+
+# Sign all binaries (Mandatory for macOS execution)
+make sign
 ```
+
+### Component Development
+
+If you need to work on specific components:
+
+Frontend:
+```bash
+cd apps/frontend
 pnpm install
-# Run frontend in dev mode
-pnpm --filter @openlobster/frontend dev
-# Run frontend tests and e2e
-pnpm --filter @openlobster/frontend test
-pnpm --filter @openlobster/frontend test:e2e
-# Lint and build
-pnpm --filter @openlobster/frontend lint
-pnpm --filter @openlobster/frontend build
+pnpm dev   # Start dev server
+pnpm test  # Run tests
 ```
 
-Backend (Go, via pnpm workspace scripts):
-
-```
-# Build the Go backend (runs the package's build script)
-pnpm --filter @openlobster/backend build
-# Run backend unit tests
-pnpm --filter @openlobster/backend test
-# Lint (runs the package lint script which invokes staticcheck)
-pnpm --filter @openlobster/backend lint
-# Formatting
-gofmt -w .
+Backend:
+```bash
+cd apps/backend
+go test ./...  # Run unit tests
 golangci-lint run
-```
-
-General (workspace-level):
-
-```
-# Install dependencies for the workspace
-pnpm install
-# Run turbo build across the monorepo
-pnpm -w build
-# Run workspace lint (where configured)
-pnpm -w lint
 ```
 
 Adjust commands to your local environment; CI may run slightly different commands.
 
 ## Code style and linters
 
-- JavaScript/TypeScript: follow the repo ESLint/Prettier configuration. Run `pnpm -w lint`.
+- JavaScript/TypeScript: follow the repo ESLint/Prettier configuration. Run `pnpm lint` in `apps/frontend`.
 - Go: run `gofmt -w .` and `golangci-lint run` before opening a PR.
 - Tests should be deterministic and not rely on external services. Mock external AI providers or use the `mocks/` directory for test fixtures.
 

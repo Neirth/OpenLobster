@@ -104,6 +104,18 @@ func (m *Router) SendTyping(ctx context.Context, channelID string, duration_ms i
 	return adapter.SendTyping(ctx, channelID, duration_ms)
 }
 
+func (m *Router) SendSpeaking(ctx context.Context, channelID string, duration_ms int) error {
+	ct, _ := ctx.Value(ports.ContextKeyChannelType).(string)
+	if ct == "" {
+		return nil
+	}
+	adapter := m.reg.Get(ct)
+	if adapter == nil {
+		return nil
+	}
+	return adapter.SendSpeaking(ctx, channelID, duration_ms)
+}
+
 func (m *Router) SendMessage(ctx context.Context, msg *models.Message) error {
 	if msg == nil {
 		return nil
@@ -131,6 +143,28 @@ func (m *Router) SendMessage(ctx context.Context, msg *models.Message) error {
 		return err
 	}
 	return adapter.SendMessage(ctx, msg)
+}
+
+func (m *Router) SendVoice(ctx context.Context, msg *models.Message) error {
+	if msg == nil {
+		return nil
+	}
+	ct := ""
+	if msg.Metadata != nil {
+		if v, ok := msg.Metadata["channel_type"].(string); ok {
+			ct = strings.TrimSpace(strings.ToLower(v))
+		}
+	}
+	if ct == "" {
+		err := fmt.Errorf("messaging: cannot route SendVoice — msg has no channel_type in Metadata (channel_id=%q)", msg.ChannelID)
+		log.Print(err)
+		return err
+	}
+	adapter := m.reg.Get(ct)
+	if adapter == nil {
+		return fmt.Errorf("messaging: cannot route SendVoice — no adapter for channel_type=%q", ct)
+	}
+	return adapter.SendVoice(ctx, msg)
 }
 
 func (m *Router) SendMedia(ctx context.Context, media *ports.Media) error {

@@ -5,7 +5,7 @@
 all: build
 
 install:
-	pnpm install
+	yes | pnpm install
 
 build: install
 	pnpm build

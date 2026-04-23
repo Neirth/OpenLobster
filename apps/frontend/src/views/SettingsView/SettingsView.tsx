@@ -34,14 +34,6 @@ function graphqlHeaders(): Record<string, string> {
 function getDefaultFormValues(): Record<string, unknown> {
   return {
     agentName: "OpenLobster",
-    provider: "ollama",
-    model: "llama3.2:latest",
-    apiKey: "",
-    baseURL: "",
-    ollamaHost: "http://localhost:11434",
-    ollamaApiKey: "",
-    anthropicApiKey: "",
-    dockerModelRunnerEndpoint: "http://localhost:12434/engines/v1",
     reasoningLevel: "medium",
     capabilities: {
       browser: false,
@@ -56,11 +48,6 @@ function getDefaultFormValues(): Record<string, unknown> {
     databaseDSN: "./data/openlobster.db",
     databaseMaxOpenConns: 0,
     databaseMaxIdleConns: 0,
-    memoryBackend: "file",
-    memoryFilePath: "./data/memory",
-    memoryNeo4jURI: "",
-    memoryNeo4jUser: "",
-    memoryNeo4jPassword: "",
     subagentsMaxConcurrent: 5,
     subagentsDefaultTimeout: "300s",
     graphqlEnabled: true,
@@ -70,28 +57,14 @@ function getDefaultFormValues(): Record<string, unknown> {
     graphqlBaseUrl: "",
     loggingLevel: "info",
     loggingPath: "./logs",
-    secretsBackend: "file",
-    secretsFilePath: "./data/secrets",
-    secretsOpenbaoURL: "",
-    secretsOpenbaoToken: "",
     schedulerEnabled: true,
     schedulerMemoryEnabled: true,
     schedulerMemoryInterval: "4h",
-    channelTelegramEnabled: false,
-    channelTelegramToken: "",
-    channelDiscordEnabled: false,
-    channelDiscordToken: "",
-    channelWhatsAppEnabled: false,
-    channelWhatsAppPhoneId: "",
-    channelWhatsAppApiToken: "",
-    channelTwilioEnabled: false,
-    channelTwilioAccountSid: "",
-    channelTwilioAuthToken: "",
-    channelTwilioFromNumber: "",
-    channelSlackEnabled: false,
-    channelSlackBotToken: "",
-    channelSlackAppToken: "",
-    a2aEnabled: true,
+    a2aEnabled: false,
+    pluginDefaultAi: "",
+    pluginDefaultMemory: "",
+    pluginDefaultSecrets: "",
+    pluginDefaultAudio: "",
   };
 }
 
@@ -109,7 +82,7 @@ const BOT_DOC_LINKS: { labelKey: string; href: string }[] = [
  * Configuration fields are shown/hidden based on dependencies defined in the schema.
  * On save, converts JSON form data to YAML before sending to backend.
  */
-const SettingsView: Component = () => {
+ const SettingsView: Component = () => {
   const queryClient = useQueryClient();
   // Form values state - will be loaded from server
   const [formValues, setFormValues] = createSignal<Record<string, unknown>>({});
@@ -185,14 +158,6 @@ const SettingsView: Component = () => {
         // Transform server config to form values format (nested structure)
         setFormValues({
           agentName: config.agent?.name || "OpenLobster",
-          provider: config.agent?.provider || "ollama",
-          model: config.agent?.model || "llama3.2:latest",
-          apiKey: config.agent?.apiKey || "",
-          baseURL: config.agent?.baseURL || "",
-          ollamaHost: config.agent?.ollamaHost || "http://localhost:11434",
-          ollamaApiKey: config.agent?.ollamaApiKey || "",
-          anthropicApiKey: config.agent?.anthropicApiKey || "",
-          dockerModelRunnerEndpoint: config.agent?.dockerModelRunnerEndpoint || "http://localhost:12434/engines/v1",
           reasoningLevel: config.agent?.reasoningLevel || "medium",
           capabilities: config.capabilities || {
             browser: false,
@@ -207,60 +172,30 @@ const SettingsView: Component = () => {
           databaseDSN: config.database?.dsn || "./data/openlobster.db",
           databaseMaxOpenConns: config.database?.maxOpenConns || 0,
           databaseMaxIdleConns: config.database?.maxIdleConns || 0,
-          memoryBackend: config.memory?.backend || "file",
-          memoryFilePath: config.memory?.filePath || "./data/memory",
-          memoryNeo4jURI: config.memory?.neo4j?.uri || "",
-          memoryNeo4jUser: config.memory?.neo4j?.user || "",
-          memoryNeo4jPassword: config.memory?.neo4j?.password || "",
           subagentsMaxConcurrent: config.subagents?.maxConcurrent || 5,
           subagentsDefaultTimeout: config.subagents?.defaultTimeout || "300s",
-          graphqlEnabled:
-            config.graphql?.enabled !== undefined
-              ? config.graphql.enabled
-              : true,
+          graphqlEnabled: config.graphql?.enabled !== undefined ? config.graphql.enabled : true,
           webEnabled: config.webEnabled ?? true,
           graphqlPort: config.graphql?.port || 8080,
           graphqlHost: config.graphql?.host || "127.0.0.1",
           graphqlBaseUrl: config.graphql?.baseUrl || "",
           loggingLevel: config.logging?.level || "info",
           loggingPath: config.logging?.path || "./logs",
-          secretsBackend: config.secrets?.backend || "file",
-          secretsFilePath: config.secrets?.file?.path || "./data/secrets",
-          secretsOpenbaoURL: config.secrets?.openbao?.url || "",
-          secretsOpenbaoToken: config.secrets?.openbao?.token || "",
           schedulerEnabled: config.scheduler?.enabled ?? true,
           schedulerMemoryEnabled: config.scheduler?.memoryEnabled ?? true,
           schedulerMemoryInterval: config.scheduler?.memoryInterval ?? "4h",
-          channelTelegramEnabled:
-            config.channelSecrets?.telegramEnabled ?? false,
-          channelTelegramToken: config.channelSecrets?.telegramToken || "",
-          channelDiscordEnabled: config.channelSecrets?.discordEnabled ?? false,
-          channelDiscordToken: config.channelSecrets?.discordToken || "",
-          channelWhatsAppEnabled:
-            config.channelSecrets?.whatsAppEnabled ?? false,
-          channelWhatsAppPhoneId: config.channelSecrets?.whatsAppPhoneId || "",
-          channelWhatsAppApiToken:
-            config.channelSecrets?.whatsAppApiToken || "",
-          channelTwilioEnabled: config.channelSecrets?.twilioEnabled ?? false,
-          channelTwilioAccountSid:
-            config.channelSecrets?.twilioAccountSid || "",
-          channelTwilioAuthToken: config.channelSecrets?.twilioAuthToken || "",
-          channelSlackEnabled: config.channelSecrets?.slackEnabled ?? false,
-          channelSlackBotToken: config.channelSecrets?.slackBotToken || "",
-          channelSlackAppToken: config.channelSecrets?.slackAppToken || "",
-          channelTwilioFromNumber:
-            config.channelSecrets?.twilioFromNumber || "",
-          a2aEnabled: config.a2aEnabled ?? true,
+          a2aEnabled: config.a2aEnabled ?? false,
+          pluginDefaultAi: config.pluginDefaults?.ai || "",
+          pluginDefaultMemory: config.pluginDefaults?.memory || "",
+          pluginDefaultSecrets: config.pluginDefaults?.secrets || "",
+          pluginDefaultAudio: config.pluginDefaults?.audio || "",
         });
       }
     } catch (error) {
       console.error("Failed to load configuration:", error);
       setSaveMessage({
         type: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Failed to load configuration",
+        text: error instanceof Error ? error.message : "Failed to load configuration",
       });
       // Load default values so the form remains editable (including graphqlBaseUrl).
       setFormValues(getDefaultFormValues());
@@ -298,6 +233,11 @@ const SettingsView: Component = () => {
     });
   };
 
+  /** Refreshes settings when a plugin configuration is updated. */
+  const onPluginConfigUpdated = () => {
+    queryClient.invalidateQueries({ queryKey: ["config"] });
+  };
+
   // Save configuration with direct API call
   const handleSave = async () => {
     try {
@@ -306,7 +246,7 @@ const SettingsView: Component = () => {
 
       const v = formValues();
 
-      // Send to backend GraphQL API with all form fields
+      // Send to backend GraphQL API with core form fields
       const response = await fetch(GRAPHQL_ENDPOINT, {
         method: "POST",
         headers: graphqlHeaders(),
@@ -317,37 +257,22 @@ const SettingsView: Component = () => {
                 agentName
                 systemPrompt
                 provider
-                channels {
-                  channelId
-                  channelName
-                  enabled
-                }
+                pluginDefaultAi
+                pluginDefaultMemory
+                pluginDefaultSecrets
+                pluginDefaultAudio
               }
             }
           `,
           variables: {
             input: {
               agentName: v.agentName,
-              systemPrompt: v.systemPrompt,
-              provider: v.provider,
-              model: v.model,
-              apiKey: v.apiKey,
-              baseURL: v.baseURL,
-              ollamaHost: v.ollamaHost,
-              ollamaApiKey: v.ollamaApiKey,
-              anthropicApiKey: v.anthropicApiKey,
-              dockerModelRunnerEndpoint: v.dockerModelRunnerEndpoint,
               reasoningLevel: v.reasoningLevel,
               capabilities: v.capabilities ?? {},
               databaseDriver: v.databaseDriver,
               databaseDSN: v.databaseDSN,
               databaseMaxOpenConns: v.databaseMaxOpenConns,
               databaseMaxIdleConns: v.databaseMaxIdleConns,
-              memoryBackend: v.memoryBackend,
-              memoryFilePath: v.memoryFilePath,
-              memoryNeo4jURI: v.memoryNeo4jURI,
-              memoryNeo4jUser: v.memoryNeo4jUser,
-              memoryNeo4jPassword: v.memoryNeo4jPassword,
               subagentsMaxConcurrent: v.subagentsMaxConcurrent,
               subagentsDefaultTimeout: v.subagentsDefaultTimeout,
               graphqlEnabled: v.graphqlEnabled,
@@ -357,28 +282,14 @@ const SettingsView: Component = () => {
               graphqlBaseUrl: v.graphqlBaseUrl,
               loggingLevel: v.loggingLevel,
               loggingPath: v.loggingPath,
-              secretsBackend: v.secretsBackend,
-              secretsFilePath: v.secretsFilePath,
-              secretsOpenbaoURL: v.secretsOpenbaoURL,
-              secretsOpenbaoToken: v.secretsOpenbaoToken,
               schedulerEnabled: v.schedulerEnabled,
               schedulerMemoryEnabled: v.schedulerMemoryEnabled,
               schedulerMemoryInterval: v.schedulerMemoryInterval,
-              channelTelegramEnabled: v.channelTelegramEnabled,
-              channelTelegramToken: v.channelTelegramToken,
-              channelDiscordEnabled: v.channelDiscordEnabled,
-              channelDiscordToken: v.channelDiscordToken,
-              channelWhatsAppEnabled: v.channelWhatsAppEnabled,
-              channelWhatsAppPhoneId: v.channelWhatsAppPhoneId,
-              channelWhatsAppApiToken: v.channelWhatsAppApiToken,
-              channelTwilioEnabled: v.channelTwilioEnabled,
-              channelTwilioAccountSid: v.channelTwilioAccountSid,
-              channelTwilioAuthToken: v.channelTwilioAuthToken,
-              channelTwilioFromNumber: v.channelTwilioFromNumber,
-              channelSlackEnabled: v.channelSlackEnabled,
-              channelSlackBotToken: v.channelSlackBotToken,
-              channelSlackAppToken: v.channelSlackAppToken,
               a2aEnabled: v.a2aEnabled,
+              pluginDefaultAi: v.pluginDefaultAi,
+              pluginDefaultMemory: v.pluginDefaultMemory,
+              pluginDefaultSecrets: v.pluginDefaultSecrets,
+              pluginDefaultAudio: v.pluginDefaultAudio,
             },
           },
         }),
@@ -407,6 +318,18 @@ const SettingsView: Component = () => {
           text: t("settings.saveSuccess"),
         });
         setTimeout(() => setSaveMessage(null), 3000);
+
+        // Sync local state with result
+        const updated = data.data.updateConfig;
+        setFormValues((prev) => ({
+          ...prev,
+          agentName: updated.agentName || prev.agentName,
+          pluginDefaultAi: updated.pluginDefaultAi || prev.pluginDefaultAi,
+          pluginDefaultMemory: updated.pluginDefaultMemory || prev.pluginDefaultMemory,
+          pluginDefaultSecrets: updated.pluginDefaultSecrets || prev.pluginDefaultSecrets,
+          pluginDefaultAudio: updated.pluginDefaultAudio || prev.pluginDefaultAudio,
+        }));
+
         // Refrescar agent y config en vivo (p. ej. nombre en el header)
         void queryClient.refetchQueries({ queryKey: ["agent"] });
         void queryClient.refetchQueries({ queryKey: ["config"] });
@@ -565,7 +488,19 @@ const SettingsView: Component = () => {
 
         {/* Plugins */}
         <Show when={!isLoading()}>
-          <PluginsSection />
+          <PluginsSection
+            pluginDefaults={{
+              ai: (formValues().pluginDefaultAi as string) || "",
+              memory: (formValues().pluginDefaultMemory as string) || "",
+              secrets: (formValues().pluginDefaultSecrets as string) || "",
+              audio: (formValues().pluginDefaultAudio as string) || "",
+            }}
+            onDefaultChange={(type, id) => {
+              handleFieldChange(`pluginDefault${type.charAt(0).toUpperCase() + type.slice(1)}`, id);
+              onPluginConfigUpdated();
+            }} 
+            onConfigSave={onPluginConfigUpdated}
+          />
         </Show>
 
         {/* Workspace Files Editor */}

@@ -1,12 +1,13 @@
-/* Copyright (c) OpenLobster contributors. See LICENSE for details. */
-
 /* ── Page layout ─────────────────────────────────────────────── */
 
 .settings-view {
   /* inherits padding from app-shell__content */
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: var(--space-10);
+  font-family: var(--font-sans);
+  max-width: 800px;
+  margin: 0 auto;
 }
 
 /* ── Loading state ───────────────────────────────────────────── */
@@ -17,8 +18,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0 24px;
+  padding: 0 var(--space-6);
   text-align: center;
+  font-family: var(--font-sans);
 }
 
 .settings-loading__icon {
@@ -26,7 +28,7 @@
   color: var(--color-text-muted);
   opacity: 0.35;
   font-variation-settings: 'FILL' 0, 'wght' 300;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
   animation: settings-spin 2s linear infinite;
 }
 
@@ -45,9 +47,9 @@
 .settings-loading__hint {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
-  margin: 4px 0 0 0;
+  margin: var(--space-1) 0 0 0;
   max-width: 280px;
-  line-height: 1.5;
+  line-height: var(--leading-normal);
 }
 
 /* ── Page header ─────────────────────────────────────────────── */
@@ -56,11 +58,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 16px;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-4);
 }
 
 .settings-header h1 {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-bold);
   color: var(--color-text-muted);
   text-transform: uppercase;
@@ -71,7 +74,7 @@
 .settings-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .save-success {
@@ -102,7 +105,7 @@
 .settings-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .section-title {
@@ -111,7 +114,7 @@
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
   color: var(--color-text-muted);
-  margin: 0 0 12px 0;
+  margin: 0 0 var(--space-3) 0;
 }
 
 .settings-list {
@@ -127,7 +130,6 @@
   justify-content: space-between;
   align-items: center;
   height: 52px;
-  padding: 0 12px;
   background: transparent;
   border-radius: var(--radius-sm);
   cursor: default;
@@ -139,17 +141,8 @@
   flex-direction: column;
   align-items: stretch;
   height: auto;
-  padding: 12px;
-  gap: 12px;
-}
-
-.setting-item--tall .setting-info {
-  flex: none;
-}
-
-
-.setting-item--tall .setting-info {
-  flex: none;
+  padding: var(--space-3);
+  gap: var(--space-3);
 }
 
 .setting-item--tall .setting-textarea {
@@ -185,7 +178,7 @@
 .setting-select,
 .setting-input {
   height: 32px;
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   background: var(--color-bg-selected);
   border: none;
   border-radius: var(--radius-sm);
@@ -207,14 +200,14 @@
 .setting-textarea {
   width: 100%;
   min-height: 120px;
-  padding: 12px;
+  padding: var(--space-3);
   background: var(--color-bg-sunken);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
-  line-height: 1.5;
+  line-height: var(--leading-normal);
   resize: vertical;
   outline: none;
 }
@@ -283,7 +276,7 @@
 
 .encrypted-file-btn {
   height: 32px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
   background: var(--color-bg-selected);
   border: none;
   border-radius: var(--radius-sm);
@@ -310,9 +303,9 @@
 .link-button {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   height: 44px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
@@ -340,7 +333,7 @@
 /* ── Footer ──────────────────────────────────────────────────── */
 
 .settings-footer {
-  padding-top: 16px;
+  padding-top: var(--space-4);
 }
 
 .footer-link {
@@ -363,7 +356,7 @@
 .settings-save {
   display: flex;
   justify-content: flex-end;
-  padding: 24px 0;
+  padding: var(--space-6) 0;
   border-top: 1px solid var(--color-bg-selected);
 }
 
@@ -371,9 +364,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-2);
   height: 36px;
-  padding: 0 14px;
+  padding: 0 var(--space-4);
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-bg-selected);
   border-radius: var(--radius-sm);
@@ -404,7 +397,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .workspace-editor .workspace-editor__header .section-title {
@@ -414,7 +407,7 @@
 .workspace-editor__actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .workspace-editor__tabs {
@@ -425,10 +418,10 @@
 }
 
 .workspace-editor__tab {
-  padding: 6px 14px;
+  padding: 6px var(--space-4);
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-sans);
   color: var(--color-text-muted);
   background: transparent;
   border: none;
@@ -456,10 +449,10 @@
   border-top: none;
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   color: var(--color-text-primary);
-  font-family: var(--font-mono, monospace);
-  font-size: 13px;
-  line-height: 1.6;
-  padding: 14px 16px;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  padding: var(--space-4);
   resize: vertical;
   outline: none;
   box-sizing: border-box;
@@ -473,35 +466,36 @@
 
 /* Espaciado entre archivos y el textarea */
 .workspace-editor__tabs {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 /* Espaciado entre sección de archivos y la tabla de enlaces */
 .settings-section--with-gap {
-  margin-bottom: 32px;
+  margin-bottom: var(--space-8);
 }
 
 .settings-section--spaced {
-  margin-top: 24px;
+  margin-top: var(--space-6);
 }
 
 /* Tabla 3x2 de enlaces a documentación de bots */
 .settings-doc-links__grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px 16px;
-  margin-top: 12px;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-3);
 }
 
 .settings-doc-links__cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   text-decoration: none;
@@ -519,16 +513,17 @@
 .settings-theme-toggle {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .settings-theme-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   height: 32px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
   border-radius: var(--radius-md);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--color-text-muted);

@@ -3,9 +3,10 @@
 .schema-field {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px 0;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
   border-bottom: 1px solid var(--color-bg-selected);
+  font-family: var(--font-sans);
 }
 
 .schema-field--row {
@@ -13,7 +14,7 @@
   grid-template-columns: 1fr 320px;
   align-items: center;
   gap: var(--space-8);
-  padding: 12px 0;
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -28,9 +29,9 @@
 .schema-field--group {
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--space-2);
   border-bottom: none;
-  padding-bottom: 4px;
+  padding-bottom: var(--space-1);
 }
 
 .schema-field:last-child {
@@ -40,7 +41,7 @@
 .field-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 0;
   flex: 1;
 }
@@ -56,14 +57,14 @@
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   margin: 0;
-  line-height: 1.4;
+  line-height: var(--leading-normal);
 }
 
 .field-input,
 .field-select {
   width: 100%;
   max-width: 400px;
-  padding: 8px 12px;
+  padding: 8px var(--space-3);
   background: var(--color-bg-selected);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -92,14 +93,14 @@
   width: min(100%, 400px);
   min-height: 96px;
   max-height: 220px;
-  padding: 12px;
+  padding: var(--space-3);
   background: var(--color-bg-selected);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
-  line-height: 1.5;
+  line-height: var(--leading-normal);
   outline: none;
   resize: vertical;
   transition: border-color var(--duration-micro) var(--ease-out);
@@ -117,7 +118,7 @@
 }
 
 .field-group .schema-field {
-  padding: 14px 12px;
+  padding: var(--space-4) 0px;
 }
 
 .schema-field--group > .field-info {
@@ -169,5 +170,5 @@
 }
 
 .toggle-switch input:focus + .toggle-slider {
-  box-shadow: 0 0 0 2px var(--color-accent-muted);
+  box-shadow: 0 0 0 2px var(--color-accent-bg);
 }

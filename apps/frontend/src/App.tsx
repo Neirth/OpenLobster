@@ -8,18 +8,6 @@ import { Router, Route, useLocation } from "@solidjs/router";
 import en from "./locales/en.json";
 import es from "./locales/es.json";
 import zh from "./locales/zh.json";
-import AuthModals from "@/components/AuthModals";
-import BrowserCheck from "@/components/BrowserCheck";
-import MobileBlocker from "@/components/MobileBlocker";
-import OAuthCallbackError from "@/components/OAuthCallbackError/OAuthCallbackError";
-import { GRAPHQL_ENDPOINT } from "@/graphql/constants";
-import { getStoredToken } from "@/stores/authStore";
-import { effectiveTheme, setSystemTheme } from "@/stores/themeStore";
-import "@/styles/tokens.css";
-import "@/styles/reset.css";
-import "./styles/global.css";
-
-// Lazy load views
 const ChatView = lazy(() => import("./views/ChatView/ChatView"));
 const DashboardView = lazy(() => import("./views/DashboardView/DashboardView"));
 const TasksView = lazy(() => import("./views/TasksView/TasksView"));
@@ -29,6 +17,17 @@ const SkillsView = lazy(() => import("./views/SkillsView/SkillsView"));
 const SettingsView = lazy(() => import("./views/SettingsView/SettingsView"));
 const WizardView = lazy(() => import("./views/WizardView/WizardView"));
 const Error404 = lazy(() => import("./views/ErrorView/ErrorView").then((m) => ({ default: m.Error404 })));
+import AuthModals from "@/components/AuthModals";
+import BrowserCheck from "@/components/BrowserCheck";
+import MobileBlocker from "@/components/MobileBlocker";
+import OAuthCallbackError from "@/components/OAuthCallbackError/OAuthCallbackError";
+import { GRAPHQL_ENDPOINT } from "@/graphql/constants";
+
+import { getStoredToken } from "@/stores/authStore";
+import { effectiveTheme, setSystemTheme } from "@/stores/themeStore";
+import "@/styles/tokens.css";
+import "@/styles/reset.css";
+import "./styles/global.css";
 
 // Exported so that AccessTokenModal can trigger a re-check after saving a token.
 export const [configLoaded, setConfigLoaded] = createSignal(false);

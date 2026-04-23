@@ -81,7 +81,7 @@ all: build-prod
 
 ## --- High Level Targets ---
 
-build-prod: frontend plugins prepare-prod backend sign
+build-prod: frontend plugins sign-plugins prepare-prod backend sign-backend
 	@echo "--- Production Build & Sign Complete ($(TARGET)): $(DIST_EXE) ---"
 
 ## --- Component Compilation (Delegated) ---
@@ -92,9 +92,9 @@ frontend:
 plugins:
 	@for p in $(WHITELIST); do \
 		if [ -d "plugins/$$p" ]; then \
-			$(MAKE) -C "plugins/$$p" build RUST_TARGET=$(RUST_TARGET) IS_CROSS=$(IS_CROSS); \
+			$(MAKE) -C "plugins/$$p" build RUST_TARGET=$(RUST_TARGET) IS_CROSS=$(IS_CROSS) || exit 1; \
 		elif [ -d "plugins/$$p-rust" ]; then \
-			$(MAKE) -C "plugins/$$p-rust" build RUST_TARGET=$(RUST_TARGET) IS_CROSS=$(IS_CROSS); \
+			$(MAKE) -C "plugins/$$p-rust" build RUST_TARGET=$(RUST_TARGET) IS_CROSS=$(IS_CROSS) || exit 1; \
 		fi; \
 	done
 
@@ -102,10 +102,10 @@ ditto:
 	@$(MAKE) -C plugins/openlobster-misc-ditto build
 
 backend:
-	@$(MAKE) -C apps/backend build
+	@$(MAKE) -C apps/backend build-prod
 
-sign:
-	@echo "Signing binaries for $(OS) (Target: $(TARGET))..."
+sign-backend:
+	@echo "Signing backend binary for $(OS) (Target: $(TARGET))..."
 	@if [ -f "$(DIST_EXE)" ]; then \
 		if [ "$(OS)" = "Darwin" ]; then \
 			if command -v codesign > /dev/null; then \
@@ -117,6 +117,9 @@ sign:
 			echo "Linux binary signing placeholder for $(DIST_EXE)"; \
 		fi; \
 	fi
+
+sign-plugins:
+	@echo "Signing plugins for $(OS) (Target: $(TARGET))..."
 	@for p in $(WHITELIST); do \
 		src="plugins/$$p/target/$(RUST_TARGET)/release/$$p"; \
 		if [ ! -f "$$src" ]; then src="plugins/$$p/target/release/$$p"; fi; \

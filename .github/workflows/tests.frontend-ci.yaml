@@ -6,12 +6,14 @@ on:
     paths:
       - 'apps/frontend/**'
       - 'schema/**'
+      - 'codegen.ts'
       - '.github/workflows/tests.frontend-ci.yaml'
   pull_request:
     branches: [ master ]
     paths:
       - 'apps/frontend/**'
       - 'schema/**'
+      - 'codegen.ts'
       - '.github/workflows/tests.frontend-ci.yaml'
 
 jobs:
@@ -27,6 +29,8 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
+        with:
+          package_json_file: apps/frontend/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -39,8 +43,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: GraphQL Codegen
-        run: pnpm exec graphql-codegen --config codegen.ts
-        working-directory: .
+        run: pnpm codegen
 
       - name: Typecheck
         run: pnpm typecheck
@@ -60,6 +63,8 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
+        with:
+          package_json_file: apps/frontend/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -72,8 +77,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: GraphQL Codegen
-        run: pnpm exec graphql-codegen --config codegen.ts
-        working-directory: .
+        run: pnpm codegen
 
       - name: Run unit tests with coverage
         run: pnpm test:coverage
@@ -97,6 +101,8 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
+        with:
+          package_json_file: apps/frontend/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v6

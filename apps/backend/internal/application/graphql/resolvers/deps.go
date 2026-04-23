@@ -13,6 +13,7 @@ import (
 	"github.com/neirth/openlobster/internal/domain/ports"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
 	"github.com/neirth/openlobster/internal/domain/services/mcp"
+	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
 // MessageDispatcherPort processes messages through the unified handler.
@@ -389,14 +390,22 @@ func (d *Deps) Messages(ctx context.Context, conversationID string, before *stri
 			})
 		}
 
-		out = append(out, dto.MessageSnapshot{
+		msgSnap := dto.MessageSnapshot{
 			ID:             m.ID.String(),
 			ConversationID: m.ConversationID,
 			Role:           m.Role,
 			Content:        m.Content,
 			CreatedAt:      m.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 			Attachments:    attSnapshots,
-		})
+		}
+		if m.Audio != nil {
+			msgSnap.Audio = &dto.AudioSnapshot{
+				Transcription: m.Audio.Transcription,
+				Format:        m.Audio.Format,
+				DurationMs:    int(m.Audio.Duration.Milliseconds()),
+			}
+		}
+		out = append(out, msgSnap)
 	}
 	return out, nil
 }
@@ -688,11 +697,14 @@ func (d *Deps) UserGraph(ctx context.Context, userID string) (*dto.GraphSnapshot
 	return portsGraphToSnapshot(g), nil
 }
 
-// MemoryGraph implements memory.Provider.
-// Uses an empty userID to return the full graph (all memories from all users),
-// so the dashboard can show bot-generated memories from any channel.
 func (d *Deps) MemoryGraph(ctx context.Context) (*dto.GraphSnapshot, error) {
-	return d.UserGraph(ctx, "")
+	g, err := d.UserGraph(ctx, "")
+	if err != nil {
+		logging.Debugf("DEBUG: DEPS: MemoryGraph error: %v", err)
+		return nil, err
+	}
+	logging.Debugf("DEBUG: DEPS: MemoryGraph returned %d nodes and %d edges", len(g.Nodes), len(g.Edges))
+	return g, nil
 }
 
 // AddMemory implements memory.Provider.
@@ -733,13 +745,12 @@ func (d *Deps) ExecuteCypher(ctx context.Context, cypher string) (*dto.GraphSnap
 
 // AddMemoryNode implements memory.Provider.
 func (d *Deps) AddMemoryNode(ctx context.Context, label, typ, value string) (string, error) {
-	if d.CommandSvc == nil || d.MemoryRepo == nil {
+	if d.MemoryRepo == nil {
 		return "", nil
 	}
-	if err := d.CommandSvc.AddMemory(ctx, "dashboard", value); err != nil {
-		return "", err
-	}
-	return "", nil
+	// Use dashboard as the user context for manual additions.
+	err := d.MemoryRepo.AddKnowledge(ctx, "dashboard", value, label, "", typ, nil)
+	return "", err
 }
 
 // UpdateMemoryNode implements memory.Provider.

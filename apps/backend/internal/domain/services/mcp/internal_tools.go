@@ -710,24 +710,16 @@ type AddMemoryTool struct {
 func (t *AddMemoryTool) Definition() ToolDefinition {
 	return ToolDefinition{
 		Name: "add_memory",
-		Description: "Store a fact about the user that links them to a thing or place (not the user's own profile fields). " +
-			"Use a short label for the fact and a semantic relation from user to that fact. " +
-			"Examples: User lives in Valencia → content='User lives in Valencia', label='Valencia', relation='LIVES_IN'. " +
-			"User likes electronic music → content='User loves electronic music', label='Electronica', relation='LIKES'. " +
-			"User works as X → label='Software Engineer', relation='IS'. " +
-			"For the user's own attributes (name, phone, birthday) use set_user_property instead. " +
-			"For a relation between two users (e.g. friends) use add_user_relation instead. " +
-			"For memory consolidation agents processing multiple users, use for_user parameter to specify which user's memory to store the fact in.",
+		Description: "MANDATORY: Use this tool IMMEDIATELY to save ANY new fact about the user (identity, preference, job). " +
+			"This is your primary way to learn. Keep content concise.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"content":  {"type": "string", "description": "Full sentence describing what to remember (e.g. 'User lives in Valencia', 'User loves electronic music')"},
-				"label":    {"type": "string", "description": "Short keyword for the fact (e.g. 'Valencia', 'Electronica', 'Software Engineer'). Defaults to first words of content."},
-				"relation": {"type": "string", "description": "Edge from user to this fact: LIVES_IN, LIKES, IS, WORKS_AT, WORKS_AS, PREFERS, HAS_FACT, etc. Defaults to HAS_FACT."},
-				"entity_type": {"type": "string", "description": "Semantic category for the node: fact, person, place, thing, story, event, organization. Defaults to 'fact' (or inferred from relation)."},
-				"for_user": {"type": "string", "description": "Name of the user this memory belongs to. Only for memory consolidation agents processing multiple users — omit for normal per-user interactions."}
+				"content":  {"type": "string", "description": "The fact to remember (e.g. 'User likes pizza')"},
+				"label":    {"type": "string", "description": "Short category (e.g. 'preference', 'identity')"},
+				"relation": {"type": "string", "description": "Relation (LIKES, IS, PREFERS). Defaults to HAS_FACT."}
 			},
-			"required": ["content"]
+			"required": ["content", "label"]
 		}`),
 	}
 }
@@ -1891,28 +1883,26 @@ func RegisterAllInternalTools(reg *ToolRegistry, tools InternalTools) {
 	reg.RegisterInternal("terminal_list_processes", &TerminalListProcessesTool{Tools: tools})
 	reg.RegisterInternal("terminal_get_output", &TerminalGetOutputTool{Tools: tools})
 	reg.RegisterInternal("add_memory", &AddMemoryTool{Tools: tools})
-	reg.RegisterInternal("add_user_relation", &AddUserRelationTool{Tools: tools})
 	reg.RegisterInternal("search_memory", &SearchMemoryTool{Tools: tools})
 	reg.RegisterInternal("set_user_property", &SetUserPropertyTool{Tools: tools})
 	reg.RegisterInternal("edit_memory_node", &EditMemoryNodeTool{Tools: tools})
 	reg.RegisterInternal("delete_memory_node", &DeleteMemoryNodeTool{Tools: tools})
-	reg.RegisterInternal("schedule_cron", &ScheduleCronTool{Tools: tools})
-	reg.RegisterInternal("browser_fetch", &BrowserFetchTool{Tools: tools})
-	reg.RegisterInternal("browser_screenshot", &BrowserScreenshotTool{Tools: tools})
-	reg.RegisterInternal("browser_click", &BrowserClickTool{Tools: tools})
-	reg.RegisterInternal("browser_fill_input", &BrowserFillInputTool{Tools: tools})
-	reg.RegisterInternal("subagent_spawn", &SubAgentSpawnTool{Tools: tools})
+	reg.RegisterInternal("add_user_relation", &AddUserRelationTool{Tools: tools})
 	reg.RegisterInternal("task_add", &TaskAddTool{Tools: tools})
 	reg.RegisterInternal("task_done", &TaskDoneTool{Tools: tools})
 	reg.RegisterInternal("task_list", &TaskListTool{Tools: tools})
+	reg.RegisterInternal("subagent_spawn", &SubAgentSpawnTool{Tools: tools})
 	reg.RegisterInternal("read_file", &ReadFileTool{Tools: tools})
 	reg.RegisterInternal("write_file", &WriteFileTool{Tools: tools})
 	reg.RegisterInternal("edit_file", &EditFileTool{Tools: tools})
 	reg.RegisterInternal("list_content", &ListContentTool{Tools: tools})
+	reg.RegisterInternal("load_skill", &LoadSkillTool{Tools: tools})
+	reg.RegisterInternal("read_skill_file", &ReadSkillFileTool{Tools: tools})
+	reg.RegisterInternal("browser_fetch", &BrowserFetchTool{Tools: tools})
+	reg.RegisterInternal("browser_screenshot", &BrowserScreenshotTool{Tools: tools})
+	reg.RegisterInternal("browser_click", &BrowserClickTool{Tools: tools})
+	reg.RegisterInternal("browser_fill_input", &BrowserFillInputTool{Tools: tools})
+	reg.RegisterInternal("schedule_cron", &ScheduleCronTool{Tools: tools})
 	reg.RegisterInternal("list_conversations", &ListConversationsTool{Tools: tools})
 	reg.RegisterInternal("get_conversation_messages", &GetConversationMessagesTool{Tools: tools})
-	if tools.Skills != nil {
-		reg.RegisterInternal("load_skill", &LoadSkillTool{Tools: tools})
-		reg.RegisterInternal("read_skill_file", &ReadSkillFileTool{Tools: tools})
-	}
 }

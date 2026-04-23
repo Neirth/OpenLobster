@@ -2,8 +2,13 @@
  
 
 import { test, expect } from '@playwright/test';
+import { stubGraphQL } from './utils';
 
 test.describe('Frontend Application', () => {
+  test.beforeEach(async ({ page }) => {
+    await stubGraphQL(page);
+  });
+
   test('application loads successfully', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');

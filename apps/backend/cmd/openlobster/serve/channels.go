@@ -30,5 +30,5 @@ func (a *App) rebuildActiveChannels() []dto.ChannelStatus {
 // reloadChannel reconciles the runtime messaging wiring after channel-related
 // config changes.
 func (a *App) reloadChannel(_ string) {
-	a.rebuildMessagingRuntime()
+	a.SyncMessagingRuntime()
 }

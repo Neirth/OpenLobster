@@ -7,6 +7,7 @@ import (
 	"github.com/neirth/openlobster/internal/application/graphql/dto"
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
 	"github.com/neirth/openlobster/internal/application/graphql/resolvers"
+	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
 // Handler provides utilities for GraphQL (e.g. updating channels).
@@ -29,5 +30,6 @@ func (h *Handler) UpdateAgentChannels(channels []dto.ChannelStatus) {
 func NewGraphQLServer(deps *resolvers.Deps) http.Handler {
 	r := resolvers.NewResolver(deps)
 	schema := generated.NewExecutableSchema(generated.Config{Resolvers: r})
+	logging.Debugf("DEBUG: GRAPHQL: Starting default server...")
 	return gqlhandler.NewDefaultServer(schema)
 }

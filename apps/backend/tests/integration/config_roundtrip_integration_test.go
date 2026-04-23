@@ -153,7 +153,7 @@ func TestConfigRoundTrip_OpenAI(t *testing.T) {
 		"databaseMaxIdleConns": 2,
 
 		// Memory
-		"memoryBackend":       "neo4j",
+		"memoryBackend":       "openlobster-memory-neo4j",
 		"memoryFilePath":      "./mem.gml",
 		"memoryNeo4jURI":      "bolt://neo4j:7687",
 		"memoryNeo4jUser":     "neo4j",
@@ -174,15 +174,15 @@ func TestConfigRoundTrip_OpenAI(t *testing.T) {
 		"loggingPath":  "./integ.log",
 
 		// Secrets
-		"secretsBackend":      "openbao",
+		"secretsBackend":      "openlobster-secrets-openbao",
 		"secretsFilePath":     "./integ-secrets.json",
 		"secretsOpenbaoURL":   "https://vault.integ.test",
 		"secretsOpenbaoToken": "hvs.integ",
 
 		// Plugin defaults
-		"pluginDefaultAi":      "openlobster-ai-anthropic",
+		"pluginDefaultAi":      "openai",
 		"pluginDefaultMemory":  "openlobster-memory-neo4j",
-		"pluginDefaultSecrets": "openlobster-secrets-file",
+		"pluginDefaultSecrets": "openlobster-secrets-openbao",
 		"pluginDefaultAudio":   "openlobster-audio-elevenlabs",
 		"a2aEnabled":           false,
 		"webEnabled":           false,
@@ -256,7 +256,7 @@ func TestConfigRoundTrip_OpenAI(t *testing.T) {
 	assert.EqualValues(t, 2, db["maxIdleConns"], "database.maxIdleConns")
 
 	// ── memory ──
-	assert.Equal(t, "neo4j", str(mem, "backend"), "memory.backend")
+	assert.Equal(t, "openlobster-memory-neo4j", str(mem, "backend"), "memory.backend")
 	assert.Equal(t, "./mem.gml", str(mem, "filePath"), "memory.filePath")
 	assert.Equal(t, "bolt://neo4j:7687", str(neo4j, "uri"), "memory.neo4j.uri")
 	assert.Equal(t, "neo4j", str(neo4j, "user"), "memory.neo4j.user")
@@ -277,15 +277,15 @@ func TestConfigRoundTrip_OpenAI(t *testing.T) {
 	assert.Equal(t, "./integ.log", str(log, "path"), "logging.path")
 
 	// ── secrets ──
-	assert.Equal(t, "openbao", str(sec, "backend"), "secrets.backend")
+	assert.Equal(t, "openlobster-secrets-openbao", str(sec, "backend"), "secrets.backend")
 	assert.Equal(t, "./integ-secrets.json", str(secFile, "path"), "secrets.file.path")
 	assert.Equal(t, "https://vault.integ.test", str(secBao, "url"), "secrets.openbao.url")
 	assert.Equal(t, "hvs.integ", str(secBao, "token"), "secrets.openbao.token")
 
 	// ── plugin defaults ──
-	assert.Equal(t, "openlobster-ai-anthropic", str(pluginDefaults, "ai"), "pluginDefaults.ai")
+	assert.Equal(t, "openai", str(pluginDefaults, "ai"), "pluginDefaults.ai")
 	assert.Equal(t, "openlobster-memory-neo4j", str(pluginDefaults, "memory"), "pluginDefaults.memory")
-	assert.Equal(t, "openlobster-secrets-file", str(pluginDefaults, "secrets"), "pluginDefaults.secrets")
+	assert.Equal(t, "openlobster-secrets-openbao", str(pluginDefaults, "secrets"), "pluginDefaults.secrets")
 	assert.Equal(t, "openlobster-audio-elevenlabs", str(pluginDefaults, "audio"), "pluginDefaults.audio")
 
 	// ── scheduler ──

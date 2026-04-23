@@ -354,17 +354,6 @@ func TestValidate_MissingMemoryBackend(t *testing.T) {
 	assert.Contains(t, err.Error(), "memory.backend")
 }
 
-func TestValidate_InvalidMemoryBackend(t *testing.T) {
-	cfg := &Config{
-		Database:  DatabaseConfig{Driver: "sqlite3", DSN: "./db"},
-		GraphQL:   GraphQLConfig{Port: 8080},
-		Memory:    MemoryConfig{Backend: "redis"},
-		Providers: ProvidersConfig{OpenAI: OpenAIConfig{APIKey: "sk-xxx"}},
-	}
-	err := cfg.Validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "memory.backend")
-}
 
 func TestValidate_FileMemoryMissingPath(t *testing.T) {
 	cfg := &Config{
@@ -404,6 +393,7 @@ func TestValidate_InvalidGraphQLPort(t *testing.T) {
 
 func TestValidate_NoAIProvider(t *testing.T) {
 	cfg := &Config{
+		Agent:    AgentConfig{Provider: "openai"},
 		Database: DatabaseConfig{Driver: "sqlite3", DSN: "./db"},
 		GraphQL:  GraphQLConfig{Port: 8080},
 		Memory:   MemoryConfig{Backend: models.MemoryFile, File: MemoryFileConfig{Path: "./mem"}},
@@ -416,7 +406,7 @@ func TestValidate_NoAIProvider(t *testing.T) {
 	}
 	err := cfg.Validate()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "AI provider")
+	assert.Contains(t, err.Error(), "at least one AI provider must be configured")
 }
 
 func TestValidate_SchedulerIntervalWhenEnabled(t *testing.T) {

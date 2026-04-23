@@ -34,12 +34,12 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/graphql": "http://localhost:8081",
-      "/oauth": "http://localhost:8081",
-      "/ws": { target: "ws://localhost:8081", ws: true },
-      "/health": "http://localhost:8081",
-      "/metrics": "http://localhost:8081",
-      "/logs": "http://localhost:8081",
+      "/graphql": "http://localhost:8080",
+      "/oauth": "http://localhost:8080",
+      "/ws": { target: "ws://localhost:8080", ws: true },
+      "/health": "http://localhost:8080",
+      "/metrics": "http://localhost:8080",
+      "/logs": "http://localhost:8080",
     },
   },
 });

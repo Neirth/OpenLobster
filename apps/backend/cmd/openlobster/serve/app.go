@@ -65,6 +65,7 @@ type App struct {
 
 	// Infrastructure
 	AIProvider    ports.AIProviderPort
+	AIModel       string
 	AudioProvider ports.AudioProviderPort
 	MemoryAdapter ports.MemoryPort
 
@@ -115,6 +116,7 @@ type App struct {
 
 	reloadMu               sync.Mutex
 	messagingRuntimeCancel context.CancelFunc
+	channelCancels         map[string]context.CancelFunc
 }
 
 // New returns an uninitialised App. Call Run() to start the daemon.

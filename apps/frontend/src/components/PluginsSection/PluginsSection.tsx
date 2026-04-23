@@ -40,9 +40,22 @@ const PLUGIN_TYPE_ICON: Record<string, string> = {
   messaging: "chat",
   memory: "database",
   tool: "build",
+  secrets: "key",
+  audio: "mic",
 };
 
-const PluginsSection: Component = () => {
+interface PluginsSectionProps {
+  pluginDefaults?: {
+    ai: string;
+    memory: string;
+    secrets: string;
+    audio: string;
+  };
+  onDefaultChange?: (type: string, id: string) => void;
+  onConfigSave?: () => void;
+}
+
+const PluginsSection: Component<PluginsSectionProps> = (props) => {
   const [plugins, setPlugins] = createSignal<Plugin[]>([]);
   const [loading, setLoading] = createSignal(true);
   const [reloading, setReloading] = createSignal(false);
@@ -50,8 +63,21 @@ const PluginsSection: Component = () => {
   const [expandedPlugin, setExpandedPlugin] = createSignal<string | null>(null);
   const [configValues, setConfigValues] = createSignal<Record<string, Record<string, string>>>({});
   const [savingPlugin, setSavingPlugin] = createSignal<string | null>(null);
-  const [pluginDefaults, setPluginDefaults] = createSignal<{ai?: string, memory?: string, secrets?: string, audio?: string}>({});
+  const [pluginDefaults, setPluginDefaults] = createSignal({
+    ai: "",
+    memory: "",
+    secrets: "",
+    audio: "",
+  });
   const [settingDefault, setSettingDefault] = createSignal<string | null>(null);
+  const [toggling, setToggling] = createSignal<string | null>(null);
+
+  const effectiveDefaults = () => ({
+    ai: props.pluginDefaults?.ai ?? pluginDefaults().ai,
+    memory: props.pluginDefaults?.memory ?? pluginDefaults().memory,
+    secrets: props.pluginDefaults?.secrets ?? pluginDefaults().secrets,
+    audio: props.pluginDefaults?.audio ?? pluginDefaults().audio,
+  });
 
   const showMessage = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
@@ -84,7 +110,7 @@ const PluginsSection: Component = () => {
       }
 
       if (!configData.errors && configData.data?.config) {
-        const defaults = configData.data.config.pluginDefaults;
+        const defaults = configData.data.config.pluginDefaults || {};
         setPluginDefaults({
           ai: defaults.ai,
           memory: defaults.memory,
@@ -92,6 +118,20 @@ const PluginsSection: Component = () => {
           audio: defaults.audio,
         });
       }
+
+      // Initialize config values from plugins
+      const values: Record<string, Record<string, string>> = {};
+      const pluginsList = pluginsData.data?.plugins ?? [];
+      for (const p of pluginsList) {
+        try {
+          if (p.configJson) {
+            values[p.id] = JSON.parse(p.configJson);
+          }
+        } catch (e) {
+          console.error(`Failed to parse config for plugin ${p.id}`, e);
+        }
+      }
+      setConfigValues(values);
     } catch (e) {
       showMessage("error", e instanceof Error ? e.message : "Failed to load requirements");
     } finally {
@@ -156,10 +196,41 @@ const PluginsSection: Component = () => {
         return;
       }
       showMessage("success", t("plugins.configSaved"));
+      props.onConfigSave?.();
     } catch (e) {
       showMessage("error", e instanceof Error ? e.message : "Save failed");
     } finally {
       setSavingPlugin(null);
+    }
+  };
+
+  const handleTogglePlugin = async (pluginId: string, currentEnabled: boolean) => {
+    setToggling(pluginId);
+    try {
+      const res = await fetch(GRAPHQL_ENDPOINT, {
+        method: "POST",
+        headers: graphqlHeaders(),
+        body: JSON.stringify({
+          query: `mutation SetPluginEnabled($pluginId: String!, $enabled: Boolean!) {
+            setPluginEnabled(pluginId: $pluginId, enabled: $enabled)
+          }`,
+          variables: { pluginId, enabled: !currentEnabled },
+        }),
+      });
+      const data = await res.json();
+      if (data.errors) {
+        showMessage("error", data.errors[0]?.message ?? "Toggle failed");
+        return;
+      }
+      
+      // Update local state and trigger refresh
+      setPlugins(prev => prev.map(p => p.id === pluginId ? { ...p, enabled: !currentEnabled } : p));
+      showMessage("success", t("plugins.stateSaved"));
+      props.onConfigSave?.(); // Refresh settings to reflect channel enable/disable
+    } catch (e) {
+      showMessage("error", e instanceof Error ? e.message : "Toggle failed");
+    } finally {
+      setToggling(null);
     }
   };
 
@@ -196,6 +267,9 @@ const PluginsSection: Component = () => {
         secrets: newDefaults.pluginDefaultSecrets,
         audio: newDefaults.pluginDefaultAudio,
       });
+      if (props.onDefaultChange) {
+        props.onDefaultChange(type, pluginId);
+      }
       showMessage("success", t("plugins.defaultSaved"));
     } catch (e) {
       showMessage("error", e instanceof Error ? e.message : "Request failed");
@@ -212,11 +286,27 @@ const PluginsSection: Component = () => {
     }
   };
 
-  const getSchemaFields = (schemaJson: string): Array<{ key: string; title: string; type: string; description?: string; default?: string; required: boolean }> => {
+  const getSchemaFields = (schemaJson: string): Array<{ 
+    key: string; 
+    title: string; 
+    type: string; 
+    description?: string; 
+    default?: string; 
+    required: boolean;
+    enum?: string[];
+    labels?: string[];
+  }> => {
     const schema = parseSchema(schemaJson);
     if (!schema?.properties) return [];
     const required: string[] = schema.required ?? [];
-    return Object.entries(schema.properties as Record<string, { title?: string; type?: string; description?: string; default?: string }>).map(
+    return Object.entries(schema.properties as Record<string, { 
+      title?: string; 
+      type?: string; 
+      description?: string; 
+      default?: string;
+      enum?: string[];
+      "x-enum-labels"?: string[];
+    }>).map(
       ([key, def]) => ({
         key,
         title: def.title ?? key,
@@ -224,6 +314,8 @@ const PluginsSection: Component = () => {
         description: def.description,
         default: def.default,
         required: required.includes(key),
+        enum: def.enum,
+        labels: def["x-enum-labels"],
       })
     );
   };
@@ -275,6 +367,13 @@ const PluginsSection: Component = () => {
               const fields = getSchemaFields(plugin.schemaJson);
               const isExpanded = () => expandedPlugin() === plugin.id;
               const isSaving = () => savingPlugin() === plugin.id;
+              const isDefault = () => {
+                const defaults = effectiveDefaults();
+                const def = defaults[plugin.pluginType as keyof typeof defaults];
+                if (!def) return false;
+                // Match full ID (ai:ollama === ai:ollama) or short ID (ai:ollama includes :ollama)
+                return plugin.id === def || plugin.id === `${plugin.pluginType}:${def}` || plugin.id.split(":")[1] === def;
+              };
 
               return (
                 <div class="plugin-card" classList={{ "plugin-card--expanded": isExpanded() }}>
@@ -295,12 +394,7 @@ const PluginsSection: Component = () => {
                       <span class="plugin-card__desc">{plugin.description}</span>
                     </div>
                     <div class="plugin-card__status">
-                      <Show when={
-                        (plugin.pluginType === "ai" && pluginDefaults().ai === plugin.id) ||
-                        (plugin.pluginType === "memory" && pluginDefaults().memory === plugin.id) ||
-                        (plugin.pluginType === "secrets" && pluginDefaults().secrets === plugin.id) ||
-                        (plugin.pluginType === "audio" && pluginDefaults().audio === plugin.id)
-                      }>
+                      <Show when={isDefault()}>
                         <span class="plugin-card__badge plugin-card__badge--default">
                           {t("plugins.defaultBadge")}
                         </span>
@@ -334,20 +428,51 @@ const PluginsSection: Component = () => {
                                 <p class="setting-description">{field.description}</p>
                               </Show>
                             </div>
-                            <input
-                              class="settings-input"
-                              type={field.key.includes("token") || field.key.includes("key") || field.key.includes("password") || field.key.includes("secret") ? "password" : "text"}
-                              placeholder={field.default ?? ""}
-                              value={getConfigValue(plugin.id, field.key)}
-                              onInput={(e) => setConfigValue(plugin.id, field.key, e.currentTarget.value)}
-                            />
+                            <Show
+                              when={field.enum && field.enum.length > 0}
+                              fallback={
+                                <input
+                                  class="settings-input"
+                                  type={field.key.includes("token") || field.key.includes("key") || field.key.includes("password") || field.key.includes("secret") ? "password" : "text"}
+                                  placeholder={field.default ?? ""}
+                                  value={getConfigValue(plugin.id, field.key)}
+                                  onInput={(e) => setConfigValue(plugin.id, field.key, e.currentTarget.value)}
+                                />
+                              }
+                            >
+                              <select
+                                class="settings-input"
+                                value={getConfigValue(plugin.id, field.key) || field.default || ""}
+                                onChange={(e) => setConfigValue(plugin.id, field.key, e.currentTarget.value)}
+                              >
+                                <For each={field.enum}>
+                                  {(option, index) => (
+                                    <option value={option}>
+                                      {field.labels && field.labels[index()] ? field.labels[index()] : option}
+                                    </option>
+                                  )}
+                                </For>
+                              </select>
+                            </Show>
                           </div>
                         )}
                       </For>
                       <div class="plugin-card__footer">
+                        <button
+                          class="save-btn save-btn--secondary"
+                          classList={{ "save-btn--danger": plugin.enabled }}
+                          onClick={() => handleTogglePlugin(plugin.id, plugin.enabled)}
+                          disabled={toggling() === plugin.id}
+                        >
+                          <span class="material-symbols-outlined" aria-hidden={true}>
+                            {plugin.enabled ? "power_settings_new" : "power_settings_new"}
+                          </span>
+                          {toggling() === plugin.id ? t("settings.saving") : plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
+                        </button>
+
                         <Show when={
                           ["ai", "memory", "secrets", "audio"].includes(plugin.pluginType) && 
-                          pluginDefaults()[plugin.pluginType as keyof ReturnType<typeof pluginDefaults>] !== plugin.id
+                          effectiveDefaults()[plugin.pluginType as keyof ReturnType<typeof effectiveDefaults>] !== plugin.id
                         }>
                           <button
                             class="save-btn save-btn--secondary"

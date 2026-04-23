@@ -37,10 +37,27 @@ fn metadata_schema() -> Value {
             },
             "default_voice_id": {
                 "type": "string",
-                "title": "Default Voice ID",
-                "description": "ID of the voice to use by default for TTS",
-                "default": "21m00Tcm4TlvDq8ikWAM",
-                "placeholder": "e.g., 21m00Tcm4TlvDq8ikWAM"
+                "title": "Default Voice",
+                "description": "Select the default high-quality voice for TTS",
+                "default": "HmCe1ONH6vWxNYuZpe8K",
+                "enum": [
+                    "Ir1QNHvhaJXbAGhT50w3",
+                    "Nh2zY9kknu6z4pZy6FhD",
+                    "PcAHoDMdlTbdDxdz24IK",
+                    "h3l1RP4XfcWsPwoRp9G6",
+                    "gI3qgA0k3Ab38AoIEGXI",
+                    "o0SveC0zgHFuCsEO3vHR",
+                    "HmCe1ONH6vWxNYuZpe8K"
+                ],
+                "x-enum-labels": [
+                    "Sara Martin",
+                    "Brian",
+                    "David Gaspar",
+                    "Sheila",
+                    "Carla",
+                    "Gabo",
+                    "Sam"
+                ]
             },
             "default_model_id": {
                 "type": "string",
@@ -48,6 +65,13 @@ fn metadata_schema() -> Value {
                 "description": "ElevenLabs model ID (e.g., v1, v2, multilingual)",
                 "default": "eleven_multilingual_v2",
                 "placeholder": "eleven_multilingual_v2"
+            },
+            "base_url": {
+                "type": "string",
+                "title": "Base URL",
+                "description": "Optional ElevenLabs API base URL override (must include https:// or http://)",
+                "default": "https://api.elevenlabs.io",
+                "placeholder": "https://api.elevenlabs.io"
             }
         },
         "required": ["api_key"]
@@ -85,8 +109,9 @@ fn str_field<'a>(v: &'a Value, k: &str) -> &'a str {
 // TTS
 // ---------------------------------------------------------------------------
 
-async fn first_voice(client: &reqwest::Client, api_key: &str) -> Result<String, String> {
-    let resp = client.get("https://api.elevenlabs.io/v1/voices")
+async fn first_voice(client: &reqwest::Client, api_key: &str, base_url: &str) -> Result<String, String> {
+    let url = format!("{}/v1/voices", base_url.trim_end_matches('/'));
+    let resp = client.get(&url)
         .header("xi-api-key", api_key)
         .send().await
         .map_err(|e| format!("voices request failed: {}", e))?;
@@ -106,8 +131,11 @@ async fn first_voice(client: &reqwest::Client, api_key: &str) -> Result<String, 
 }
 
 async fn fn_tts(input: &Value) -> CallResponse {
+    openlobster_sdk_base::emit_log("info", "ElevenLabs: Processing TTS request...");
     let api_key = resolve(input, "api_key", "");
     if api_key.is_empty() { return CallResponse::err("api_key required"); }
+
+    let base_url = resolve(input, "base_url", "https://api.elevenlabs.io");
 
     let text = str_field(input, "text").to_string();
     if text.is_empty() { return CallResponse::err("text required"); }
@@ -117,11 +145,11 @@ async fn fn_tts(input: &Value) -> CallResponse {
         if v.is_empty() { resolve(input, "default_voice_id", "") } else { v }
     };
     let model_id      = resolve(input, "model_id",      "eleven_multilingual_v2");
-    let output_format = resolve(input, "output_format", "mp3_44100_128");
+    let output_format = resolve(input, "output_format", "pcm_16000");
 
     let client = reqwest::Client::new();
     let voice_id = if preferred_voice.is_empty() {
-        match first_voice(&client, &api_key).await {
+        match first_voice(&client, &api_key, &base_url).await {
             Ok(v)  => v,
             Err(e) => return CallResponse::err(e),
         }
@@ -129,17 +157,19 @@ async fn fn_tts(input: &Value) -> CallResponse {
         preferred_voice
     };
 
-    let url  = format!("https://api.elevenlabs.io/v1/text-to-speech/{voice_id}");
-    let body = json!({"text": text, "model_id": model_id, "output_format": output_format});
+    let url_base = base_url.trim_end_matches('/');
+    let url  = format!("{url_base}/v1/text-to-speech/{voice_id}");
+    let body = json!({"text": text, "model_id": model_id});
 
     match client.post(&url)
+        .query(&[("output_format", &output_format)])
         .header("xi-api-key", &api_key)
         .json(&body)
         .send().await
     {
         Ok(resp) if resp.status().is_success() => {
             match resp.bytes().await {
-                Ok(b)  => CallResponse::ok(json!({"audio": BASE64.encode(&b), "format": "mp3"})),
+                Ok(b)  => CallResponse::ok(json!({"audio": BASE64.encode(&b), "format": "pcm", "sample_rate": 16000})),
                 Err(e) => CallResponse::err(format!("read failed: {}", e)),
             }
         }
@@ -154,8 +184,11 @@ async fn fn_tts(input: &Value) -> CallResponse {
 // ---------------------------------------------------------------------------
 
 async fn fn_stt(input: &Value) -> CallResponse {
+    openlobster_sdk_base::emit_log("info", "ElevenLabs: Processing STT request...");
     let api_key = resolve(input, "api_key", "");
     if api_key.is_empty() { return CallResponse::err("api_key required"); }
+
+    let base_url = resolve(input, "base_url", "https://api.elevenlabs.io");
 
     let audio_b64 = str_field(input, "audio");
     if audio_b64.is_empty() { return CallResponse::err("audio (base64) required"); }
@@ -184,7 +217,8 @@ async fn fn_stt(input: &Value) -> CallResponse {
         .text("model_id", model_id);
 
     let client = reqwest::Client::new();
-    match client.post("https://api.elevenlabs.io/v1/speech-to-text")
+    let url = format!("{}/v1/speech-to-text", base_url.trim_end_matches('/'));
+    match client.post(&url)
         .header("xi-api-key", &api_key)
         .multipart(form)
         .send().await

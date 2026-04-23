@@ -3,6 +3,8 @@
 package dto
 
 import (
+	"strings"
+
 	"github.com/neirth/openlobster/internal/infrastructure/config"
 )
 
@@ -10,7 +12,7 @@ import (
 // It is called at startup and again on every config save so the resolver
 // always reflects the current state without a process restart.
 func BuildConfigSnapshot(cfg *config.Config, providerNameFn func(*config.Config) string) *AppConfigSnapshot {
-	provider := providerNameFn(cfg)
+	provider := strings.ToLower(providerNameFn(cfg))
 	var apiKey, baseURL, ollamaHost, ollamaApiKey, anthropicApiKey, model string
 	switch provider {
 	case "openrouter":
@@ -101,24 +103,24 @@ func BuildConfigSnapshot(cfg *config.Config, providerNameFn func(*config.Config)
 		},
 		PluginDefaults: &PluginDefaultsSnapshot{
 			AI: func() string {
-				if cfg.Plugins.Defaults["ai"] != "" {
-					return cfg.Plugins.Defaults["ai"]
+				if cfg.Agent.Provider != "" {
+					return cfg.Agent.Provider
 				}
 				return "ollama"
 			}(),
 			Memory: func() string {
-				if cfg.Plugins.Defaults["memory"] != "" {
-					return cfg.Plugins.Defaults["memory"]
+				if cfg.Memory.Backend != "" {
+					return string(cfg.Memory.Backend)
 				}
-				return "gml"
+				return "file"
 			}(),
 			Secrets: func() string {
-				if cfg.Plugins.Defaults["secrets"] != "" {
-					return cfg.Plugins.Defaults["secrets"]
+				if cfg.Secrets.Backend != "" {
+					return cfg.Secrets.Backend
 				}
-				return "secrets-json"
+				return "file"
 			}(),
-			Audio: cfg.Plugins.Defaults["audio"],
+			Audio: cfg.Audio.Backend,
 		},
 		WebEnabled:      cfg.Web.Enabled,
 		A2aEnabled:      cfg.A2A.Enabled,

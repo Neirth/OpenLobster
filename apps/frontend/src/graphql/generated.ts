@@ -89,6 +89,13 @@ export type ApprovePairingResult = {
   success: Scalars['Boolean']['output'];
 };
 
+export type AudioContent = {
+  __typename?: 'AudioContent';
+  durationMs?: Maybe<Scalars['Int']['output']>;
+  format?: Maybe<Scalars['String']['output']>;
+  transcription?: Maybe<Scalars['String']['output']>;
+};
+
 export type CapabilitiesConfig = {
   __typename?: 'CapabilitiesConfig';
   browser?: Maybe<Scalars['Boolean']['output']>;
@@ -336,6 +343,7 @@ export type MemoryNode = {
 export type Message = {
   __typename?: 'Message';
   attachments?: Maybe<Array<MessageAttachment>>;
+  audio?: Maybe<AudioContent>;
   content: Scalars['String']['output'];
   conversationId: Scalars['String']['output'];
   createdAt: Scalars['String']['output'];
@@ -1192,7 +1200,7 @@ export type GetMessagesQueryVariables = Exact<{
 }>;
 
 
-export type GetMessagesQuery = { __typename?: 'Query', messages: Array<{ __typename?: 'Message', id: string, conversationId: string, role: string, content: string, createdAt: string, attachments?: Array<{ __typename?: 'MessageAttachment', type: string, url?: string | null | undefined, filename?: string | null | undefined, mimeType?: string | null | undefined }> | null | undefined }> };
+export type GetMessagesQuery = { __typename?: 'Query', messages: Array<{ __typename?: 'Message', id: string, conversationId: string, role: string, content: string, createdAt: string, attachments?: Array<{ __typename?: 'MessageAttachment', type: string, url?: string | null | undefined, filename?: string | null | undefined, mimeType?: string | null | undefined }> | null | undefined, audio?: { __typename?: 'AudioContent', transcription?: string | null | undefined, format?: string | null | undefined, durationMs?: number | null | undefined } | null | undefined }> };
 
 export type GetTasksQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -1569,6 +1577,11 @@ export const GetMessagesDocument = gql`
       url
       filename
       mimeType
+    }
+    audio {
+      transcription
+      format
+      durationMs
     }
   }
 }
