@@ -241,8 +241,12 @@ const WizardView: Component<WizardViewProps> = (props) => {
   const handleFieldChange = (field: string, value: unknown) => {
     setFormValues((prev) => {
       const next = { ...prev };
+      const blockedKeys = new Set(["__proto__", "constructor", "prototype"]);
       if (field.includes(".")) {
         const parts = field.split(".");
+        if (parts.some((part) => blockedKeys.has(part))) {
+          return prev;
+        }
         let target: Record<string, unknown> = next;
         for (let i = 0; i < parts.length - 1; i++) {
           const part = parts[i];
@@ -253,6 +257,9 @@ const WizardView: Component<WizardViewProps> = (props) => {
         }
         target[parts[parts.length - 1]] = value;
       } else {
+        if (blockedKeys.has(field)) {
+          return prev;
+        }
         next[field] = value;
       }
       return next;
