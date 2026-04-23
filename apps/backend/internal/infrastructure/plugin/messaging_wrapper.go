@@ -41,6 +41,7 @@ type messagingLoopRunnerFactory interface {
 
 const resolveChannelIDFn = "resolve_channel_id"
 const typingFn = "typing"
+const speakingFn = "speaking"
 const handleWebhookFn = "handle_webhook"
 const convertAudioForPlatformFn = "convert_audio_for_platform"
 const webhookNotSupportedPrefix = "webhook_not_supported"
@@ -64,11 +65,6 @@ type webhookPluginInput struct {
 	Request webhookRequestEnvelope `json:"request"`
 }
 
-func (w *MessagingWrapper) currentConfig() map[string]interface{} {
-	return liveConfigForPlugin(w.plugin.ID(), w.cfg)
-}
-
-// NewMessagingWrapper returns a MessagingWrapper backed by p.
 func NewMessagingWrapper(p ports.PluginPort, channelType string, cfg map[string]interface{}) *MessagingWrapper {
 	return &MessagingWrapper{plugin: p, channelType: channelType, cfg: cfg}
 }
@@ -121,7 +117,7 @@ type convertAudioPluginOutput struct {
 }
 
 func (w *MessagingWrapper) resolveChannelID(msg *models.Message) (string, error) {
-	raw, err := json.Marshal(sendPluginInput{Config: w.currentConfig(), Message: msg})
+	raw, err := json.Marshal(sendPluginInput{Config: w.cfg, Message: msg})
 	if err != nil {
 		return "", fmt.Errorf("messaging plugin %s: marshal resolve_channel_id input: %w", w.plugin.ID(), err)
 	}
@@ -129,7 +125,12 @@ func (w *MessagingWrapper) resolveChannelID(msg *models.Message) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("messaging plugin %s: %s: %w", w.plugin.ID(), resolveChannelIDFn, err)
 	}
-	resolvedChannelID := strings.TrimSpace(string(out))
+	var resolved string
+	if err := json.Unmarshal(out, &resolved); err != nil {
+		// Fallback for non-string JSON values if necessary, though it should be a string
+		resolved = strings.Trim(string(out), "\"")
+	}
+	resolvedChannelID := strings.TrimSpace(resolved)
 	if resolvedChannelID == "" {
 		return "", fmt.Errorf("messaging plugin %s: %s returned empty channel_id", w.plugin.ID(), resolveChannelIDFn)
 	}
@@ -150,11 +151,38 @@ func (w *MessagingWrapper) SendMessage(ctx context.Context, msg *models.Message)
 	outbound := *msg
 	outbound.ChannelID = resolvedChannelID
 
-	raw, err := json.Marshal(sendPluginInput{Config: w.currentConfig(), Message: &outbound})
+	raw, err := json.Marshal(sendPluginInput{Config: w.cfg, Message: &outbound})
 	if err != nil {
 		return fmt.Errorf("messaging plugin %s: marshal: %w", w.plugin.ID(), err)
 	}
 	_, err = w.plugin.Call("send", raw)
+	return err
+}
+
+func (w *MessagingWrapper) SendVoice(ctx context.Context, msg *models.Message) error {
+	_ = ctx
+	if msg == nil {
+		return nil
+	}
+
+	resolvedChannelID, err := w.resolveChannelID(msg)
+	if err != nil {
+		return err
+	}
+
+	outbound := *msg
+	outbound.ChannelID = resolvedChannelID
+
+	raw, err := json.Marshal(sendPluginInput{Config: w.cfg, Message: &outbound})
+	if err != nil {
+		return fmt.Errorf("messaging plugin %s: marshal voice: %w", w.plugin.ID(), err)
+	}
+
+	// Try specialized send_voice first, fallback to send if not exported
+	_, err = w.plugin.Call("send_voice", raw)
+	if err != nil && isMissingPluginFunction(err, "send_voice") {
+		_, err = w.plugin.Call("send", raw)
+	}
 	return err
 }
 
@@ -182,7 +210,7 @@ func (w *MessagingWrapper) SendTyping(ctx context.Context, channelID string, dur
 	outbound.ChannelID = resolvedChannelID
 
 	input := typingPluginInput{
-		Config:     w.currentConfig(),
+		Config:     w.cfg,
 		Message:    &outbound,
 		DurationMS: duration_ms,
 	}
@@ -192,6 +220,40 @@ func (w *MessagingWrapper) SendTyping(ctx context.Context, channelID string, dur
 		return fmt.Errorf("messaging plugin %s: marshal typing: %w", w.plugin.ID(), err)
 	}
 	_, err = w.plugin.Call(typingFn, raw)
+	if err != nil && isMissingPluginFunction(err, typingFn) {
+		return nil
+	}
+	return err
+}
+
+func (w *MessagingWrapper) SendSpeaking(ctx context.Context, channelID string, duration_ms int) error {
+	_ = ctx
+	msg := &models.Message{ChannelID: channelID}
+	resolvedChannelID, err := w.resolveChannelID(msg)
+	if err != nil {
+		return err
+	}
+	outbound := *msg
+	outbound.ChannelID = resolvedChannelID
+
+	input := typingPluginInput{
+		Config:     w.cfg,
+		Message:    &outbound,
+		DurationMS: duration_ms,
+	}
+
+	raw, err := json.Marshal(input)
+	if err != nil {
+		return fmt.Errorf("messaging plugin %s: marshal speaking: %w", w.plugin.ID(), err)
+	}
+
+	// Try speaking first
+	_, err = w.plugin.Call(speakingFn, raw)
+	if err != nil && isMissingPluginFunction(err, speakingFn) {
+		// Fallback to typing if speaking is not supported
+		_, err = w.plugin.Call(typingFn, raw)
+	}
+
 	if err != nil && isMissingPluginFunction(err, typingFn) {
 		return nil
 	}
@@ -267,7 +329,7 @@ func (w *MessagingWrapper) HandleWebhook(_ context.Context, payload []byte) (*mo
 	}
 
 	raw, err := json.Marshal(webhookPluginInput{
-		Config:  w.currentConfig(),
+		Config:  w.cfg,
 		Request: envelope.Request,
 	})
 	if err != nil {
@@ -333,7 +395,7 @@ func (w *MessagingWrapper) ConvertAudioForPlatform(_ context.Context, audioData 
 	}
 
 	input := convertAudioPluginInput{
-		Config: w.currentConfig(),
+		Config: w.cfg,
 		Audio:  base64.StdEncoding.EncodeToString(audioData),
 		Format: format,
 	}
@@ -392,7 +454,13 @@ func (w *MessagingWrapper) Start(ctx context.Context, _ func(context.Context, *m
 		return nil
 	}
 
-	cfgJSON, err := json.Marshal(w.currentConfig())
+	input := struct {
+		Config map[string]interface{} `json:"config"`
+	}{
+		Config: w.cfg,
+	}
+
+	cfgJSON, err := json.Marshal(input)
 	if err != nil {
 		return fmt.Errorf("messaging plugin %s: marshal config: %w", w.plugin.ID(), err)
 	}

@@ -90,7 +90,8 @@ vi.mock("@/graphql/config", () => ({
       if (q.includes("metric") || q.includes("dashboard")) return { metrics: {
         health: "OK", sessionCount: 5, mcpServerCount: 2, messagesReceived: 100, messagesSent: 50, uptime: "24h"
       }};
-      if (q.includes("agent")) return { agent: { name: "OpenLobster", version: "0.3.0" } };
+
+      if (q.includes("agent")) return { agent: { name: "OpenLobster", version: "0.4.0" } };
       if (q.includes("config")) return { config: { wizardCompleted: true, theme: "dark" } };
       if (q.includes("mcp") || q.includes("tool")) return { 
         mcpServers: [{ id: "m1", name: "Filesystem", status: "running" }],

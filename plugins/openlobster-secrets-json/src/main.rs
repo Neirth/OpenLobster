@@ -14,12 +14,12 @@ use base64::{engine::general_purpose, Engine};
 use async_trait::async_trait;
 use openlobster_sdk_base::{run, CallResponse, Plugin, PluginInfo, HotConfig};
 use rand::RngCore;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex};
 
 // ---------------------------------------------------------------------------
 // Hot config
@@ -31,7 +31,7 @@ static CONFIG: openlobster_sdk_base::HotConfig = openlobster_sdk_base::HotConfig
 // Metadata
 // ---------------------------------------------------------------------------
 
-const PLUGIN_ID: &str = "secrets-json";
+const PLUGIN_ID: &str = "file";
 const PLUGIN_VERSION: &str = "0.1.0";
 const PLUGIN_DESC: &str = "JSON-based secret storage plugin for OpenLobster";
 const PLUGIN_TYPE: &str = "secrets";

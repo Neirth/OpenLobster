@@ -11,8 +11,10 @@ import (
 	"github.com/neirth/openlobster/internal/application/registry"
 	"github.com/neirth/openlobster/internal/domain/repositories"
 	domainservices "github.com/neirth/openlobster/internal/domain/services"
+	"github.com/neirth/openlobster/internal/domain/ports"
 	"github.com/neirth/openlobster/internal/infrastructure/adapters/filesystem"
 	"github.com/neirth/openlobster/internal/infrastructure/config"
+	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
 // initGraphQL wires the agent registry, GraphQL deps struct, config writer
@@ -36,6 +38,9 @@ func (a *App) initGraphQL() {
 	a.AgentRegistry.UpdateAgentChannels(channels)
 	appmcp.SyncToolsToRegistry(a.ToolRegistry, a.AgentRegistry)
 
+	logging.Debugf("DEBUG: GRAPHQL: Wiring Dashboard Services...")
+	logging.Debugf("DEBUG: GRAPHQL: MemoryAdapter present? %v", a.MemoryAdapter != nil)
+	
 	queryService := domainservices.NewDashboardQueryService(
 		a.TaskRepo, a.MemoryAdapter, a.MemoryAdapter, nil, nil,
 	)
@@ -85,7 +90,7 @@ func (a *App) initGraphQL() {
 		ConfigSnapshot:    configSnapshot,
 		ConfigPath:        a.CfgPath,
 		ReloadPlugins: func(_ context.Context) error {
-			a.rebuildMessagingRuntime()
+			a.SyncMessagingRuntime()
 			if a.AgentRegistry != nil {
 				a.AgentRegistry.UpdateAgentChannels(a.rebuildActiveChannels())
 			}
@@ -146,20 +151,31 @@ func (a *App) initGraphQL() {
 		ConfigPath:    a.CfgPathAbs,
 		ReloadChannel: a.reloadChannel,
 		ViperKeys:     dto.InputToViperKeyMap(),
-		OnApplied: func(providerTouched bool) {
+		OnApplied: func(touched bool) {
 			reloaded, err := config.Load(a.CfgPathAbs)
 			if err != nil {
 				log.Printf("config: failed to reload after save: %v", err)
 				return
 			}
 			a.Cfg = reloaded
+			
+			// Diagnostics: what did we actually load?
 			providerName := a.activeProviderName()
+			log.Printf("config: reloaded core settings (agent=%s provider=%s)", reloaded.Agent.Name, providerName)
+			if reloaded.Channels.Telegram.Enabled {
+				log.Printf("config: reloaded telegram channel enabled, has_token=%v", reloaded.Channels.Telegram.BotToken != "")
+			}
+
 			a.Deps.ConfigSnapshot = dto.BuildConfigSnapshot(reloaded, func(_ *config.Config) string { return providerName })
+			
+			// Always rebuild messaging runtime when config changes to pick up enabled/disabled channels
 			if a.Deps.ReloadPlugins != nil {
 				if err := a.Deps.ReloadPlugins(context.Background()); err != nil {
 					log.Printf("config: runtime plugin/channel reconciliation failed: %v", err)
 				}
 			}
+
+			// Update agent registry with fresh config data
 			if cur := a.AgentRegistry.GetAgent(); cur != nil {
 				name := reloaded.Agent.Name
 				if name == "" {
@@ -171,9 +187,26 @@ func (a *App) initGraphQL() {
 				updated.AIProvider = providerName
 				a.AgentRegistry.UpdateAgent(&updated)
 			}
-			if a.SchedulerUpdateMemoryInterval != nil && reloaded.Scheduler.MemoryInterval != cfg.Scheduler.MemoryInterval {
-				a.SchedulerUpdateMemoryInterval(reloaded.Scheduler.MemoryInterval)
-				log.Printf("config: scheduler memory interval updated to %s", reloaded.Scheduler.MemoryInterval)
+
+			if touched {
+				log.Printf("config: critical path touched, performing runtime reconciliation")
+				
+				// Propagation: Update config on live wrappers
+				if c, ok := a.AIProvider.(ports.Configurable); ok {
+					if wp, ok := a.AIProvider.(interface{ Plugin() ports.PluginPort }); ok {
+						c.UpdateConfig(liveConfigForPluginFromApp(a, wp.Plugin()))
+					}
+				}
+				if c, ok := a.MemoryAdapter.(ports.Configurable); ok {
+					if wp, ok := a.MemoryAdapter.(interface{ Plugin() ports.PluginPort }); ok {
+						c.UpdateConfig(liveConfigForPluginFromApp(a, wp.Plugin()))
+					}
+				}
+				if c, ok := a.SecretsProvider.(ports.Configurable); ok {
+					if wp, ok := a.SecretsProvider.(interface{ Plugin() ports.PluginPort }); ok {
+						c.UpdateConfig(liveConfigForPluginFromApp(a, wp.Plugin()))
+					}
+				}
 			}
 		},
 	}
@@ -186,6 +219,9 @@ func (a *App) initGraphQL() {
 // activeProviderName returns the human-readable name of the current AI provider.
 // When backed by a plugin, it uses the plugin's Name(); otherwise "none".
 func (a *App) activeProviderName() string {
+	if a.Cfg != nil && a.Cfg.Agent.Provider != "" {
+		return a.Cfg.Agent.Provider
+	}
 	if a.PluginRegistry != nil {
 		aiPlugins := a.PluginRegistry.GetByType("ai")
 		if len(aiPlugins) > 0 {

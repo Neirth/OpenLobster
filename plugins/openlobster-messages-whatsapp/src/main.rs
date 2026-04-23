@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use whatsapp_business_rs::{Client, Draft};
+use whatsapp_business_rs::message::{Media, MediaType, MediaSource, AudioExtension};
+use opus_rs::{OpusEncoder, Application};
+use ogg::PacketWriter;
 
 // ---------------------------------------------------------------------------
 // Hot config
@@ -54,6 +57,7 @@ struct AudioContent {
     data: String, // Base64
     format: Option<String>,
     duration: Option<u64>,
+    sample_rate: Option<u32>,
     platform_format: Option<String>,
 }
 
@@ -237,12 +241,11 @@ async fn handle_webhook(input: Option<Value>) -> CallResponse {
         None    => return CallResponse::err("handle_webhook requires payload"),
     };
 
-    let cfg = CONFIG.merge(None);
-    let access_token = HotConfig::get_str(&cfg, "access_token");
-    let api_version = HotConfig::get_str(&cfg, "api_version");
-    let api_version = if api_version.is_empty() { "v18.0" } else { &api_version };
+    // Note: Media downloading on WhatsApp still requires an HTTP client. 
+    // Since we are removing reqwest, we'll log it as a limitation for now 
+    // or use the SDK if it adds download support in future.
+    // For now, we process the metadata and emit the message.
 
-    // WhatsApp Webhook structure check
     if let Some(entry) = payload.get("entry").and_then(|e| e.as_array()).and_then(|a| a.first()) {
         if let Some(change) = entry.get("changes").and_then(|c| c.as_array()).and_then(|a| a.first()) {
             if let Some(value) = change.get("value") {
@@ -254,7 +257,6 @@ async fn handle_webhook(input: Option<Value>) -> CallResponse {
                         let mut text_content = String::new();
                         let mut attachments = Vec::new();
                         let mut media_id = None;
-                        let mut media_filename = "file".to_string();
                         let mut media_mime = "application/octet-stream".to_string();
 
                         match msg_type {
@@ -265,21 +267,13 @@ async fn handle_webhook(input: Option<Value>) -> CallResponse {
                                 let image = msg.get("image");
                                 text_content = image.and_then(|i| i.get("caption")).and_then(|c| c.as_str()).unwrap_or_default().to_string();
                                 media_id = image.and_then(|i| i.get("id")).and_then(|i| i.as_str());
-                                media_filename = "photo.jpg".to_string();
                                 media_mime = image.and_then(|i| i.get("mime_type")).and_then(|m| m.as_str()).unwrap_or("image/jpeg").to_string();
                             }
                             "document" => {
                                 let doc = msg.get("document");
                                 text_content = doc.and_then(|d| d.get("caption")).and_then(|c| c.as_str()).unwrap_or_default().to_string();
                                 media_id = doc.and_then(|d| d.get("id")).and_then(|i| i.as_str());
-                                media_filename = doc.and_then(|d| d.get("filename")).and_then(|f| f.as_str()).unwrap_or("document").to_string();
                                 media_mime = doc.and_then(|d| d.get("mime_type")).and_then(|m| m.as_str()).unwrap_or("application/octet-stream").to_string();
-                            }
-                            "video" => {
-                                let video = msg.get("video");
-                                text_content = video.and_then(|v| v.get("caption")).and_then(|c| c.as_str()).unwrap_or_default().to_string();
-                                media_id = video.and_then(|v| v.get("id")).and_then(|i| i.as_str());
-                                media_mime = video.and_then(|v| v.get("mime_type")).and_then(|m| m.as_str()).unwrap_or("video/mp4").to_string();
                             }
                             "audio" | "voice" => {
                                 let audio = msg.get("audio").or(msg.get("voice"));
@@ -289,34 +283,13 @@ async fn handle_webhook(input: Option<Value>) -> CallResponse {
                             _ => {}
                         }
 
-                        let mut audio_content_standard = None;
-                        if audio_content.is_none() && (msg_type == "audio" || msg_type == "voice") {
-                            // In a real scenario, we'd wait for download to finish to get the b64
-                            // but for now we'll populate it if the download succeeds below.
-                        }
-
-                        // Download media if detected
+                        // Emit message to core (media bytes skipped to avoid reqwest)
                         if let Some(id) = media_id {
-                            if !access_token.is_empty() {
-                                if let Ok(bytes) = download_whatsapp_media(id, api_version, &access_token).await {
-                                    let b64 = BASE64.encode(&bytes);
-                                    if msg_type == "audio" || msg_type == "voice" {
-                                        audio_content_standard = Some(serde_json::json!({
-                                            "data": b64.clone(),
-                                            "format": media_mime.split('/').last().unwrap_or("ogg").to_string(),
-                                            "platform_format": msg_type
-                                        }));
-                                    }
-
-                                    attachments.push(serde_json::json!({
-                                        "type": "binary",
-                                        "filename": media_filename,
-                                        "size": bytes.len(),
-                                        "mime_type": media_mime,
-                                        "data": b64
-                                    }));
-                                }
-                            }
+                            attachments.push(serde_json::json!({
+                                "type": "id_reference",
+                                "id": id,
+                                "mime_type": media_mime
+                            }));
                         }
 
                         return CallResponse::ok(serde_json::json!({
@@ -324,7 +297,6 @@ async fn handle_webhook(input: Option<Value>) -> CallResponse {
                             "sender_id":   from,
                             "content":     text_content,
                             "attachments": attachments,
-                            "audio":       audio_content_standard,
                             "metadata":    payload
                         }));
                     }
@@ -334,37 +306,6 @@ async fn handle_webhook(input: Option<Value>) -> CallResponse {
     }
 
     CallResponse::ok(serde_json::json!({"ok": true}))
-}
-
-// ---------------------------------------------------------------------------
-// Helper: download_whatsapp_media
-// ---------------------------------------------------------------------------
-
-async fn download_whatsapp_media(media_id: &str, api_version: &str, access_token: &str) -> Result<Vec<u8>, String> {
-    let client = reqwest::Client::new();
-    let metadata_url = format!("https://graph.facebook.com/{}/{}", api_version, media_id);
-    
-    let resp = client.get(&metadata_url)
-        .header("Authorization", format!("Bearer {}", access_token))
-        .send().await
-        .map_err(|e| format!("WhatsApp media metadata fetch failed: {}", e))?;
-
-    let meta_json: Value = resp.json().await.map_err(|e| format!("Failed to parse WhatsApp media metadata: {}", e))?;
-    
-    let download_url = meta_json.get("url").and_then(|u| u.as_str())
-        .ok_or_else(|| "WhatsApp media metadata missing URL".to_string())?;
-
-    let file_resp = client.get(download_url)
-        .header("Authorization", format!("Bearer {}", access_token))
-        .send().await
-        .map_err(|e| format!("WhatsApp file download failed: {}", e))?;
-
-    if !file_resp.status().is_success() {
-        return Err(format!("WhatsApp file download HTTP error: {}", file_resp.status()));
-    }
-
-    let bytes = file_resp.bytes().await.map_err(|e| format!("WhatsApp file read error: {}", e))?;
-    Ok(bytes.to_vec())
 }
 
 // ---------------------------------------------------------------------------
@@ -407,27 +348,47 @@ async fn send(input: Option<Value>) -> CallResponse {
     };
 
     // Audio support
-    if let Some(audio) = &payload.message.audio {
-        // WhatsApp Business API usually requires a URL for media. 
-        // If we only have bytes, we might need a temporary upload, but the current 
-        // SDK 'Draft::audio' expects a URL. We'll check if the core provided one.
+    if let Some(_audio) = &payload.message.audio {
         if let Some(url) = payload.message.media_url.clone() {
             emit_log("info", &format!("WhatsApp: Sending audio note via URL: {}", url));
-            match wa_client.message(&phone_number_id).send(&recipient, Draft::audio(url)).await {
+            let media = Media::new(MediaSource::Link(url.into()), MediaType::Audio(AudioExtension::Ogg));
+            match wa_client.message(&phone_number_id).send(&recipient, Draft::media(media)).await {
                 Ok(_)  => return CallResponse::ok(serde_json::json!({"ok": true})),
                 Err(e) => return CallResponse::err(format!("whatsapp audio send failed: {}", e)),
             }
-        } else {
-            emit_log("warn", "WhatsApp: Audio received but no media_url provided (byte upload not yet implemented for WhatsApp), falling back to text.");
         }
     }
 
-    let draft = Draft::text(&payload.message.content);
+    let formatted_content = convert_markdown_to_whatsapp(&payload.message.content);
+    let draft = Draft::text(&formatted_content);
 
     match wa_client.message(&phone_number_id).send(&recipient, draft).await {
-        Ok(_response) => CallResponse::ok(serde_json::json!({"ok": true, "recipient": recipient})),
+        Ok(_response) => CallResponse::ok(serde_json::json!({ "ok": true, "recipient": recipient })),
         Err(e)        => CallResponse::err(format!("whatsapp send failed: {}", e)),
     }
+}
+
+fn convert_markdown_to_whatsapp(text: &str) -> String {
+    use regex::Regex;
+    // WhatsApp Dialect: *bold*, _italic_, ~strike~
+    // Standard MD: **bold**, *italic*
+    
+    // 1. **bold** -> *bold*
+    let re_bold = Regex::new(r"\*\*([^\*]+)\*\*").unwrap();
+    let text = re_bold.replace_all(text, "*$1*");
+    
+    // 2. *italic* -> _italic_
+    // Need to be careful with existing _ and headers.
+    let re_italic = Regex::new(r"([^\*])\*([^\*]+)\*([^\*])").unwrap();
+    let text = re_italic.replace_all(&text, "$1_$2_$3");
+    
+    // Handle start/end
+    let re_italic_start = Regex::new(r"^\*([^\*]+)\*").unwrap();
+    let text = re_italic_start.replace_all(&text, "_$1_");
+    let re_italic_end = Regex::new(r"\*([^\*]+)\*$").unwrap();
+    let text = re_italic_end.replace_all(&text, "_$1_");
+    
+    text.to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -458,37 +419,8 @@ async fn typing(input: Option<Value>) -> CallResponse {
         None    => return CallResponse { output: None, error: resolved.error.or(Some("failed to resolve recipient".to_string())) },
     };
 
-    emit_log("debug", &format!("WhatsApp typing requested for {} during {}ms (Cloud API semi-supported via read-receipts but skipping for now)", recipient, duration));
+    emit_log("debug", &format!("WhatsApp typing requested for {} during {}ms", recipient, duration));
     CallResponse::ok(serde_json::json!({"ok": true}))
-}
-
-// ---------------------------------------------------------------------------
-// start
-// ---------------------------------------------------------------------------
-
-async fn start(input: Option<Value>) -> CallResponse {
-    let payload: StartInput = match input {
-        Some(v) => serde_json::from_value(v).unwrap_or_default(),
-        None    => return CallResponse::err("start requires input"),
-    };
-
-    let cfg             = CONFIG.merge(payload.config);
-    let phone_number_id = HotConfig::get_str(&cfg, "phone_number_id");
-    let access_token    = HotConfig::get_str(&cfg, "access_token");
-
-    if phone_number_id.is_empty() { return CallResponse::err("whatsapp phone_number_id required"); }
-    if access_token.is_empty()    { return CallResponse::err("whatsapp access_token required"); }
-
-    match Client::new(&access_token).await {
-        Ok(wa_client) => {
-            let _ = wa_client;
-            CallResponse::ok(serde_json::json!({
-                "status": "webhook_mode",
-                "note": "WhatsApp uses webhook-based inbound - configure webhook URL in Meta Developer Console"
-            }))
-        }
-        Err(e) => CallResponse::err(format!("whatsapp credentials invalid: {}", e)),
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -509,7 +441,7 @@ impl Plugin for WhatsAppPlugin {
             schema: metadata_schema(),
             properties: metadata_properties(),
             exports: vec!["inbound_mode", "capabilities", "resolve_channel_id",
-                          "send", "start", "configure", "get_metadata", "handle_webhook", "typing"],
+                          "send", "send_voice", "configure", "get_metadata", "handle_webhook", "typing", "speaking"],
         }
     }
 
@@ -521,15 +453,167 @@ impl Plugin for WhatsAppPlugin {
             "capabilities"       => capabilities(),
             "resolve_channel_id" => resolve_channel_id(input),
             "send"               => send(input).await,
+            "send_voice"         => fn_send_voice(input).await,
             "typing"             => typing(input).await,
-            "start"              => start(input).await,
+            "speaking"           => speaking(input).await,
             "handle_webhook"     => handle_webhook(input).await,
             other                => CallResponse::err(format!("unknown function: {}", other)),
         }
     }
 }
 
+async fn speaking(input: Option<Value>) -> CallResponse {
+    let payload: TypingInput = match input {
+        Some(v) => serde_json::from_value(v).unwrap_or_default(),
+        None    => return CallResponse::err("speaking requires input"),
+    };
+    emit_log("debug", &format!("WhatsApp speaking indicator (recording_audio) requested but not supported via public API – skipping. Duration: {}ms", payload.duration_ms));
+    CallResponse::ok(serde_json::json!({"ok": true}))
+}
+
 #[tokio::main]
 async fn main() {
     run(WhatsAppPlugin).await;
+}
+
+fn resolve(input: &Value, key: &str, fallback: &str) -> String {
+    if let Some(v) = input.get("config").and_then(|c| c.get(key))
+        .and_then(Value::as_str).filter(|s| !s.is_empty())
+    {
+        return v.to_string();
+    }
+    if let Some(v) = input.get(key).and_then(Value::as_str).filter(|s| !s.is_empty()) {
+        return v.to_string();
+    }
+    let hot = CONFIG.merge(None);
+    let v = HotConfig::get_str(&hot, key);
+    if !v.is_empty() { return v; }
+    fallback.to_string()
+}
+
+async fn fn_send_voice(input: Option<Value>) -> CallResponse {
+    let input = match input {
+        Some(v) => v,
+        None    => return CallResponse::err("input required"),
+    };
+
+    let phone_number_id = resolve(&input, "phone_number_id", "");
+    let access_token    = resolve(&input, "access_token", "");
+
+    if phone_number_id.is_empty() || access_token.is_empty() {
+        return CallResponse::err("whatsapp credentials required for send_voice");
+    }
+
+    let payload: SendInput = match serde_json::from_value(input.clone()) {
+        Ok(p)  => p,
+        Err(e) => return CallResponse::err(format!("invalid input: {}", e)),
+    };
+
+    let resolved = resolve_channel_id(Some(serde_json::json!({
+        "config": &payload.config,
+        "message": {
+            "channel_id":   payload.message.channel_id,
+            "recipient_id": payload.message.recipient_id,
+            "sender_id":    payload.message.sender_id,
+            "metadata":     payload.message.metadata
+        }
+    })));
+
+    let recipient = match resolved.output {
+        Some(v) => v.as_str().unwrap_or("").to_string(),
+        None    => return CallResponse::err("failed to resolve WhatsApp recipient"),
+    };
+
+    let wa_client = match Client::new(&access_token).await {
+        Ok(c)  => c,
+        Err(e) => return CallResponse::err(format!("whatsapp client init failed: {}", e)),
+    };
+
+    if let Some(audio) = &payload.message.audio {
+        if let Ok(bytes) = BASE64.decode(&audio.data) {
+            // PCM to Ogg/Opus
+            let mut pcm_s16 = Vec::with_capacity(bytes.len() / 2);
+            for chunk in bytes.chunks_exact(2) {
+                pcm_s16.push(i16::from_le_bytes([chunk[0], chunk[1]]));
+            }
+
+            let pcm_resampled = if audio.sample_rate.unwrap_or(16000) == 16000 {
+                resample_16k_to_48k(&pcm_s16)
+            } else {
+                pcm_s16
+            };
+
+            match encode_opus_ogg(&pcm_resampled, 48000) {
+                Ok(ogg_data) => {
+                    // Using SDK's upload_media instead of manual reqwest
+                    let mime = "audio/ogg".parse().unwrap();
+                    match wa_client.message(&phone_number_id).upload_media(ogg_data, mime, "voice.ogg").await {
+                        Ok(upload_resp) => {
+                            let media = Media::new(MediaSource::Id(upload_resp), MediaType::Audio(AudioExtension::Ogg));
+                            match wa_client.message(&phone_number_id).send(&recipient, Draft::media(media)).await {
+                                Ok(_) => return CallResponse::ok(serde_json::json!({"ok": true})),
+                                Err(e) => return CallResponse::err(format!("whatsapp voice message failed: {}", e)),
+                            }
+                        },
+                        Err(e) => return CallResponse::err(format!("whatsapp media upload failed: {}", e)),
+                    }
+                },
+                Err(e) => return CallResponse::err(format!("opus encoding failed: {}", e)),
+            }
+        }
+    }
+
+    CallResponse::err("send_voice failed")
+}
+
+fn resample_16k_to_48k(input: &[i16]) -> Vec<i16> {
+    if input.len() < 2 { return input.to_vec(); }
+    let mut output = Vec::with_capacity(input.len() * 3);
+    for i in 0..input.len() - 1 {
+        let s0 = input[i] as i32;
+        let s1 = input[i+1] as i32;
+        output.push(s0 as i16);
+        output.push(((s0 * 2 + s1) / 3) as i16);
+        output.push(((s0 + s1 * 2) / 3) as i16);
+    }
+    let last = input[input.len()-1];
+    output.push(last); output.push(last); output.push(last);
+    output
+}
+
+fn encode_opus_ogg(pcm: &[i16], sample_rate: u32) -> Result<Vec<u8>, String> {
+    let mut encoder = OpusEncoder::new(sample_rate as i32, 1, Application::Voip)
+        .map_err(|e| format!("encoder init failed: {:?}", e))?;
+    let mut output_ogg = Vec::new();
+    {
+        let mut writer = PacketWriter::new(&mut output_ogg);
+        let mut id_header = Vec::new();
+        id_header.extend_from_slice(b"OpusHead");
+        id_header.push(1); id_header.push(1);
+        id_header.extend_from_slice(&0u16.to_le_bytes());
+        id_header.extend_from_slice(&(sample_rate).to_le_bytes());
+        id_header.extend_from_slice(&0i16.to_le_bytes());
+        id_header.push(0);
+        writer.write_packet(id_header, 1, ogg::PacketWriteEndInfo::EndPage, 0).map_err(|e| e.to_string())?;
+        
+        let mut comment_header = Vec::new();
+        comment_header.extend_from_slice(b"OpusTags");
+        let vendor = b"openlobster-rs";
+        comment_header.extend_from_slice(&(vendor.len() as u32).to_le_bytes());
+        comment_header.extend_from_slice(vendor);
+        comment_header.extend_from_slice(&0u32.to_le_bytes());
+        writer.write_packet(comment_header, 1, ogg::PacketWriteEndInfo::EndPage, 0).map_err(|e| e.to_string())?;
+
+        let frame_size = 960;
+        let mut abs_granule = 0;
+        for chunk in pcm.chunks_exact(frame_size) {
+            let f32_chunk: Vec<f32> = chunk.iter().map(|&s| s as f32 / 32768.0).collect();
+            let mut encoded = vec![0u8; 1024];
+            let len = encoder.encode(&f32_chunk, frame_size, &mut encoded).map_err(|e| format!("{:?}", e))?;
+            encoded.truncate(len);
+            abs_granule += frame_size as u64;
+            writer.write_packet(encoded, 1, ogg::PacketWriteEndInfo::EndPage, abs_granule).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(output_ogg)
 }

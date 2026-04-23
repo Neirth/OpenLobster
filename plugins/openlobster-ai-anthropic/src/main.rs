@@ -9,8 +9,8 @@ use std::collections::{HashMap, HashSet};
 
 use anthropic::{
     types::{
-        ContentBlock, Message, MessagesRequestBuilder, Role, StopReason, SystemPrompt,
-        Tool, ToolResultContent,
+        ContentBlock as ContentBlockAnthropic, Message, MessagesRequestBuilder, Role, StopReason,
+        SystemPrompt, Tool, ToolResultContent,
     },
     ClientBuilder,
 };
@@ -52,9 +52,18 @@ struct InputPayload {
 struct ChatMsg {
     #[serde(default)] role: String,
     #[serde(default)] content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")] blocks: Option<Vec<ContentBlock>>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_calls: Option<Vec<ToolCallMsg>>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")] tool_name: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct ContentBlock {
+    r#type: String,
+    #[serde(default)] text: Option<String>,
+    #[serde(default)] data: Option<String>,
+    #[serde(default)] mime_type: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -223,9 +232,9 @@ async fn chat(input: Option<Value>) -> CallResponse {
                 system_text.push_str(&m.content);
             }
             "assistant" => {
-                let mut blocks: Vec<ContentBlock> = Vec::new();
+                let mut blocks: Vec<ContentBlockAnthropic> = Vec::new();
                 if !m.content.is_empty() {
-                    blocks.push(ContentBlock::Text {
+                    blocks.push(ContentBlockAnthropic::Text {
                         text: m.content.clone(),
                         cache_control: None,
                     });
@@ -234,7 +243,7 @@ async fn chat(input: Option<Value>) -> CallResponse {
                     for tc in tcs {
                         let input: Value = serde_json::from_str(&tc.function.arguments)
                             .unwrap_or(Value::Object(Default::default()));
-                        blocks.push(ContentBlock::ToolUse {
+                        blocks.push(ContentBlockAnthropic::ToolUse {
                             id: tc.id.clone(),
                             name: encode_tool_name(&tc.function.name),
                             input,
@@ -243,7 +252,7 @@ async fn chat(input: Option<Value>) -> CallResponse {
                     }
                 }
                 if blocks.is_empty() {
-                    blocks.push(ContentBlock::Text {
+                    blocks.push(ContentBlockAnthropic::Text {
                         text: String::new(),
                         cache_control: None,
                     });
@@ -254,20 +263,57 @@ async fn chat(input: Option<Value>) -> CallResponse {
                 let tool_use_id = m.tool_call_id.clone().unwrap_or_default();
                 messages.push(Message {
                     role: Role::User,
-                    content: vec![ContentBlock::ToolResult {
+                    content: vec![ContentBlockAnthropic::ToolResult {
                         tool_use_id, is_error: None,
                         content: ToolResultContent::Text(m.content.clone()),
                         cache_control: None,
                     }],
                 });
             }
-            _ => {
-                messages.push(Message {
-                    role: Role::User,
-                    content: vec![ContentBlock::Text {
+            "user" | _ => {
+                let mut anthropic_blocks: Vec<ContentBlockAnthropic> = Vec::new();
+                
+                if let Some(blocks) = &m.blocks {
+                    // DEPRECATED: Do NOT add m.content if blocks are present to avoid duplication.
+
+                    for b in blocks {
+                        match b.r#type.as_str() {
+                            "text" => if let Some(t) = &b.text {
+                                anthropic_blocks.push(ContentBlockAnthropic::Text {
+                                    text: t.clone(),
+                                    cache_control: None,
+                                });
+                            },
+                            "image" => if let Some(data) = &b.data {
+                                let mime = b.mime_type.as_deref().unwrap_or("image/jpeg").to_string();
+                                anthropic_blocks.push(ContentBlockAnthropic::Image {
+                                    source: anthropic::types::ImageSource::Base64 {
+                                        media_type: mime,
+                                        data: data.clone(),
+                                    },
+                                    cache_control: None,
+                                });
+                            },
+                            _ => {}
+                        }
+                    }
+                } else if !m.content.is_empty() {
+                    anthropic_blocks.push(ContentBlockAnthropic::Text {
                         text: m.content.clone(),
                         cache_control: None,
-                    }],
+                    });
+                }
+
+                if anthropic_blocks.is_empty() {
+                    anthropic_blocks.push(ContentBlockAnthropic::Text {
+                        text: String::new(),
+                        cache_control: None,
+                    });
+                }
+
+                messages.push(Message {
+                    role: Role::User,
+                    content: anthropic_blocks,
                 });
             }
         }
@@ -318,8 +364,8 @@ async fn chat(input: Option<Value>) -> CallResponse {
 
             for block in resp.content {
                 match block {
-                    ContentBlock::Text { text, .. } => content.push_str(&text),
-                    ContentBlock::ToolUse { id, name, input, .. } => {
+                    ContentBlockAnthropic::Text { text, .. } => content.push_str(&text),
+                    ContentBlockAnthropic::ToolUse { id, name, input, .. } => {
                         tool_calls.push(ToolCallMsg {
                             id,
                             r#type: "function".to_string(),

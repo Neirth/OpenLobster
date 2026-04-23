@@ -40,9 +40,45 @@ func bindEnvFromOS() {
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
-		key := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(name, prefix), "_", "."))
 
-		_ = viper.BindEnv(key, name)
+		// OPENLOBSTER_CHANNELS_TELEGRAM_BOT_TOKEN
+		// 1. Remove prefix -> CHANNELS_TELEGRAM_BOT_TOKEN
+		trimmed := strings.TrimPrefix(name, prefix)
+		segments := strings.SplitN(trimmed, "_", 3)
+		if len(segments) < 2 {
+			continue
+		}
+
+		// 2. Determine if this is a plugin category (category.id.prop) or a flat category (category.prop)
+		category := strings.ToLower(segments[0])
+		isPluginCategory := false
+		for _, cat := range []string{"providers", "channels", "memory", "secrets", "audio"} {
+			if category == cat {
+				isPluginCategory = true
+				break
+			}
+		}
+
+		var key string
+		if isPluginCategory && len(segments) >= 2 {
+			// e.g. OPENLOBSTER_PROVIDERS_OLLAMA_DEFAULT_MODEL -> providers.ollama.default_model
+			id := strings.ToLower(segments[1])
+			prop := ""
+			if len(segments) > 2 {
+				prop = strings.ToLower(segments[2])
+			}
+			key = category + "." + id
+			if prop != "" {
+				key += "." + prop
+			}
+		} else {
+			// e.g. OPENLOBSTER_DATABASE_MAX_OPEN_CONNS -> database.max_open_conns
+			prop := strings.TrimPrefix(trimmed, segments[0]+"_")
+			key = category + "." + strings.ToLower(prop)
+		}
+
+		// Use Set to ensure the key is visible to viper.Sub/AllSettings
+		viper.Set(key, parts[1])
 	}
 }
 
@@ -120,12 +156,13 @@ func (c *Config) Validate() error {
 			errs = append(errs, "memory.neo4j.password is required when memory.backend is \"neo4j\"")
 		}
 	case "":
-		errs = append(errs, "memory.backend is required (\"file\" or \"neo4j\")")
+		errs = append(errs, "memory.backend is required (e.g. \"file\" or \"neo4j\")")
 	default:
-		errs = append(errs, fmt.Sprintf("memory.backend %q is not supported; use \"file\" or \"neo4j\"", c.Memory.Backend))
+		// Allow unknown backends (plugins)
 	}
 
-	// AI provider: at least one must be configured.
+	// AI provider: at least one must be configured (or we have AI plugins).
+	// We keep this check as a safety net, but it could be expanded for AI plugins too.
 	hasOpenAI := !isPlaceholder(c.Providers.OpenAI.APIKey)
 	hasOpenRouter := !isPlaceholder(c.Providers.OpenRouter.APIKey)
 	hasOllama := c.Providers.Ollama.Endpoint != ""
@@ -133,8 +170,18 @@ func (c *Config) Validate() error {
 	hasAnthropic := !isPlaceholder(c.Providers.Anthropic.APIKey)
 	hasDockerModelRunner := c.Providers.DockerModelRunner.Endpoint != ""
 	hasOpenCode := !isPlaceholder(c.Providers.OpenCode.APIKey)
-	if !hasOpenAI && !hasOpenRouter && !hasOllama && !hasOpenAICompat && !hasAnthropic && !hasDockerModelRunner && !hasOpenCode {
-		errs = append(errs, "at least one AI provider must be configured: providers.openai.api_key, providers.openrouter.api_key, providers.ollama.endpoint, providers.openaicompat (api_key + base_url), providers.anthropic.api_key, providers.docker_model_runner.endpoint, or providers.opencode.api_key")
+	
+	// We allow skipping this if we have a non-standard provider set in Agent.Provider
+	isStandardProvider := false
+	for _, p := range []string{"openai", "openrouter", "ollama", "openaicompat", "anthropic", "docker-model-runner", "opencode"} {
+		if c.Agent.Provider == p {
+			isStandardProvider = true
+			break
+		}
+	}
+
+	if isStandardProvider && !hasOpenAI && !hasOpenRouter && !hasOllama && !hasOpenAICompat && !hasAnthropic && !hasDockerModelRunner && !hasOpenCode {
+		errs = append(errs, "at least one AI provider must be configured correctly for the selected standard provider")
 	}
 
 	// Scheduler: interval must be positive when enabled.
@@ -170,6 +217,7 @@ func (c *Config) ResolvePaths() {
 	c.Logging.Path = makeAbs(c.Logging.Path)
 	c.Secrets.File.Path = makeAbs(c.Secrets.File.Path)
 	c.Workspace.Path = makeAbs(c.Workspace.Path)
+	c.Plugins.Dir = makeAbs(c.Plugins.Dir)
 	c.Plugins.DataDir = makeAbs(c.Plugins.DataDir)
 }
 
@@ -178,15 +226,11 @@ type PluginsConfig struct {
 	// Dir is the directory scanned for native plugin binaries at startup.
 	// Defaults to $HOME/.openlobster/plugins.
 	Dir string `mapstructure:"dir"`
-	// Defaults maps plugin categories to preferred plugin IDs.
-	// Supported keys: "memory", "secrets", "audio".
-	Defaults map[string]string `mapstructure:"defaults"`
+	// Enabled maps plugin IDs to activation state. If a plugin ID is absent,
+	// it is considered enabled by default for backward compatibility.
 	// Enabled maps plugin IDs to activation state. If a plugin ID is absent,
 	// it is considered enabled by default for backward compatibility.
 	Enabled map[string]bool `mapstructure:"enabled"`
-	// Settings maps plugin IDs to their per-plugin configuration key/value pairs.
-	// These are forwarded to the plugin as the "config" field in every call.
-	Settings map[string]map[string]interface{} `mapstructure:"settings"`
 	// Builtins is the curated builtin catalog allowed by the core.
 	Builtins []string `mapstructure:"builtins"`
 	// CallTimeout is the timeout for a single plugin call.
@@ -214,6 +258,7 @@ type Config struct {
 	Logging     LoggingConfig     `mapstructure:"logging"`
 	Permissions PermissionsConfig `mapstructure:"permissions"`
 	Secrets     SecretsConfig     `mapstructure:"secrets"`
+	Audio       AudioConfig       `mapstructure:"audio"`
 	Workspace   WorkspaceConfig   `mapstructure:"workspace"`
 	Wizard      WizardConfig      `mapstructure:"wizard"`
 	Plugins     PluginsConfig     `mapstructure:"plugins"`
@@ -451,6 +496,10 @@ type SecretsConfig struct {
 	Openbao *OpenbaoSecretsConfig `mapstructure:"openbao"`
 }
 
+type AudioConfig struct {
+	Backend string `mapstructure:"backend"`
+}
+
 type SecretsFileConfig struct {
 	Path string `mapstructure:"path"`
 }
@@ -494,7 +543,7 @@ func setDefaults() {
 	viper.SetDefault("graphql.auth_enabled", true)
 	viper.SetDefault("graphql.auth_token", "")
 	viper.SetDefault("web.enabled", true)
-	viper.SetDefault("a2a.enabled", true)
+	viper.SetDefault("a2a.enabled", false)
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.path", "./logs")
 	viper.SetDefault("subagents.max_concurrent", 3)
@@ -506,42 +555,23 @@ func setDefaults() {
 	viper.SetDefault("permissions.tool_permissions.list_content.mode", "always")
 	viper.SetDefault("permissions.tool_permissions.terminal_exec.mode", "ask")
 	viper.SetDefault("permissions.tool_permissions.send_message.mode", "always")
-	// Default AI provider: Ollama (configurable from frontend)
 	viper.SetDefault("providers.ollama.endpoint", "http://localhost:11434")
-	viper.SetDefault("providers.ollama.default_model", "")
+	viper.SetDefault("providers.ollama.default_model", "qwen3.5:4b")
 	viper.SetDefault("providers.ollama.api_key", "")
-	viper.SetDefault("providers.openrouter.api_key", "")
-	viper.SetDefault("providers.openrouter.default_model", "")
-	viper.SetDefault("providers.opencode.api_key", "")
-	viper.SetDefault("providers.opencode.model", "")
 	viper.SetDefault("providers.openai.api_key", "")
 	viper.SetDefault("providers.openai.model", "")
 	viper.SetDefault("providers.openai.base_url", "")
-	viper.SetDefault("providers.openaicompat.api_key", "")
-	viper.SetDefault("providers.openaicompat.model", "")
-	viper.SetDefault("providers.openaicompat.base_url", "")
 	viper.SetDefault("providers.anthropic.api_key", "")
 	viper.SetDefault("providers.anthropic.model", "")
-	viper.SetDefault("providers.docker_model_runner.endpoint", "http://host.docker.internal:12434/engines/v1")
-	viper.SetDefault("providers.docker_model_runner.default_model", "")
 	viper.SetDefault("channels.telegram.enabled", false)
 	viper.SetDefault("channels.telegram.bot_token", "")
 	viper.SetDefault("channels.discord.enabled", false)
 	viper.SetDefault("channels.discord.bot_token", "")
-	viper.SetDefault("channels.whatsapp.enabled", false)
-	viper.SetDefault("channels.whatsapp.phone_id", "")
-	viper.SetDefault("channels.whatsapp.api_token", "")
-	viper.SetDefault("channels.twilio.enabled", false)
-	viper.SetDefault("channels.twilio.account_sid", "")
-	viper.SetDefault("channels.twilio.auth_token", "")
-	viper.SetDefault("channels.twilio.from_number", "")
-	viper.SetDefault("channels.twilio.webhook_path", "")
 	viper.SetDefault("channels.slack.enabled", false)
 	viper.SetDefault("channels.slack.bot_token", "")
 	viper.SetDefault("channels.slack.app_token", "")
 	// Default agent name (shown in navbar)
 	viper.SetDefault("agent.name", "OpenLobster")
-	viper.SetDefault("agent.provider", "ollama")
 	viper.SetDefault("agent.reasoning_level", "medium")
 	// Default capabilities: all enabled except browser and terminal (opt-in)
 	viper.SetDefault("agent.capabilities.browser", false)
@@ -552,20 +582,26 @@ func setDefaults() {
 	viper.SetDefault("agent.capabilities.filesystem", true)
 	viper.SetDefault("agent.capabilities.sessions", true)
 	viper.SetDefault("wizard.completed", false)
-	viper.SetDefault("plugins.dir", filepath.Join(home, ".openlobster", "plugins"))
-	viper.SetDefault("plugins.data_dir", filepath.Join(home, ".openlobster"))
+	viper.SetDefault("plugins.dir", "plugins")
+	viper.SetDefault("plugins.data_dir", ".")
 	viper.SetDefault("plugins.call_timeout", "10s")
-	viper.SetDefault("plugins.defaults", map[string]string{
-		"ai":      "ollama",
-		"memory":  "gml",
-		"secrets": "secrets-json",
-		"audio":   "",
+
+	viper.SetDefault("plugins.enabled", map[string]bool{
+		"openlobster-messages-telegram": true,
+		"openLobster-messages-discord": true,
+		"openLobster-ai-anthropic": true,
+		"openLobster-ai-openai": true,
+		"openLobster-ai-ollama": true,
+		"openLobster-audio-elevenlabs": true,
+		"openLobster-memory-gml": true,
+		"openLobster-memory-neo4j": true,
+		"openLobster-secrets-json": true,
+		"openLobster-secrets-openbao": true,
 	})
-	viper.SetDefault("plugins.enabled", map[string]bool{})
 	viper.SetDefault("plugins.builtins", []string{
 		"openlobster-messages-telegram",
-		"openlobster-messages-discord",
-		"openlobster-ai-anthropic",
+		"openLobster-messages-discord",
+		"openLobster-ai-anthropic",
 		"openlobster-ai-openai",
 		"openlobster-ai-ollama",
 		"openlobster-audio-elevenlabs",
@@ -621,6 +657,7 @@ func bootstrapEncryptedConfig(path string) error {
 	v.SetDefault("subagents.default_timeout", "5m")
 	v.SetDefault("permissions.default_mode", "deny")
 	v.SetDefault("providers.ollama.endpoint", "http://localhost:11434")
+	v.SetDefault("providers.ollama.default_model", "qwen3.5:4b")
 	v.SetDefault("agent.name", "OpenLobster")
 	v.SetDefault("agent.provider", "ollama")
 	v.SetDefault("agent.capabilities.browser", false)
@@ -631,12 +668,6 @@ func bootstrapEncryptedConfig(path string) error {
 	v.SetDefault("agent.capabilities.filesystem", true)
 	v.SetDefault("agent.capabilities.sessions", true)
 	v.SetDefault("wizard.completed", false)
-	v.Set("plugins.defaults", map[string]string{
-		"ai":      "ollama",
-		"memory":  "gml",
-		"secrets": "secrets-json",
-		"audio":   "",
-	})
 	v.SetDefault("plugins.enabled", map[string]bool{})
 	return WriteEncryptedConfigFromViper(v, absPath)
 }
@@ -745,7 +776,7 @@ func DefaultConfig() *Config {
 			},
 			Ollama: OllamaConfig{
 				Endpoint:     "http://localhost:11434",
-				DefaultModel: "llama3",
+				DefaultModel: "qwen3.5:4b",
 			},
 			Anthropic: AnthropicConfig{
 				APIKey: "YOUR_API_KEY_HERE",
@@ -768,6 +799,18 @@ func DefaultConfig() *Config {
 				AuthToken:  "YOUR_AUTH_TOKEN",
 				FromNumber: "+1234567890",
 			},
+		},
+		Secrets: SecretsConfig{
+			Backend: "file",
+			File: SecretsFileConfig{
+				Path: "./data/secrets.json",
+			},
+		},
+		Audio: AudioConfig{
+			Backend: "",
+		},
+		Workspace: WorkspaceConfig{
+			Path: "./workspace",
 		},
 		SubAgents: SubAgentsConfig{
 			MaxConcurrent:  3,

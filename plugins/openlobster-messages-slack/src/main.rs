@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use slack_morphism::prelude::*;
+use slack_morphism::hyper_tokio::*;
 
 // ---------------------------------------------------------------------------
 // Hot config
@@ -50,6 +51,15 @@ struct SendMessage {
     #[serde(default)] content: String,
     #[serde(default)] thread_ts: Option<String>,
     #[serde(default)] audio: Option<AudioContent>,
+    #[serde(default)] attachments: Vec<Attachment>,
+}
+
+#[derive(Deserialize, Debug, Default)]
+struct Attachment {
+    #[serde(rename = "type")] r#type: String,
+    filename: String,
+    mime_type: String,
+    #[serde(default)] data: String, // Base64
 }
 
 #[derive(Deserialize, Debug, Default)]
@@ -57,6 +67,7 @@ struct AudioContent {
     data: String, // Base64
     format: Option<String>,
     duration: Option<u64>,
+    sample_rate: Option<u32>,
     platform_format: Option<String>,
 }
 
@@ -275,7 +286,8 @@ async fn send(input: Option<Value>) -> CallResponse {
     let token   = SlackApiToken::new(SlackApiTokenValue::from(bot_token));
     let session = client.open_session(&token);
 
-    let content = SlackMessageContent::new().with_text(payload.message.content);
+    let slack_content = convert_markdown_to_slack(&payload.message.content);
+    let content = SlackMessageContent::new().with_text(slack_content);
 
     let mut req = SlackApiChatPostMessageRequest::new(SlackChannelId::from(channel.clone()), content);
     if let Some(ref ts) = payload.message.thread_ts {
@@ -294,12 +306,32 @@ async fn send(input: Option<Value>) -> CallResponse {
                         .with_filename(filename)
                         .with_content(String::from_utf8_lossy(&bytes).to_string());
                     
-                    if let Some(ts) = payload.message.thread_ts {
+                    if let Some(ref ts) = payload.message.thread_ts {
                         upload_req = upload_req.with_thread_ts(SlackTs::from(ts));
                     }
                     
                     if let Err(e) = session.files_upload(&upload_req).await {
                         emit_log("warn", &format!("Slack: Audio upload failed: {}", e));
+                    }
+                }
+            }
+
+            // Multimedia / Attachments support
+            for att in &payload.message.attachments {
+                if let Ok(bytes) = BASE64.decode(&att.data) {
+                    emit_log("info", &format!("Slack: Uploading attachment {}...", att.filename));
+                    
+                    let mut upload_req = SlackApiFilesUploadRequest::new()
+                        .with_channels(vec![SlackChannelId::from(channel.clone())])
+                        .with_filename(att.filename.clone())
+                        .with_content(String::from_utf8_lossy(&bytes).to_string());
+                    
+                    if let Some(ref ts) = payload.message.thread_ts {
+                        upload_req = upload_req.with_thread_ts(SlackTs::from(ts));
+                    }
+                    
+                    if let Err(e) = session.files_upload(&upload_req).await {
+                        emit_log("warn", &format!("Slack: Attachment upload failed: {}", e));
                     }
                 }
             }
@@ -312,6 +344,35 @@ async fn send(input: Option<Value>) -> CallResponse {
         }
         Err(e) => CallResponse::err(format!("slack API error: {}", e)),
     }
+}
+
+/// Converts standard Markdown to Slack's 'mrkdwn' format.
+/// Handles links: [text](url) -> <url|text>
+/// Handles bold: **text** -> *text*
+fn convert_markdown_to_slack(text: &str) -> String {
+    use regex::Regex;
+    
+    // 1. Convert links: [label](url) -> <url|label>
+    let re_links = Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap();
+    let text = re_links.replace_all(text, "<$2|$1>");
+    
+    // 2. Convert bold: **text** -> *text*
+    let re_bold = Regex::new(r"\*\*([^\*]+)\*\*").unwrap();
+    let text = re_bold.replace_all(&text, "*$1*");
+
+    // 3. Convert italics: *text* -> _text_ (only if not already bold)
+    // We use a lookaround-like approach or just careful regex. 
+    // Standard markdown *italic* -> _italic_
+    let re_italic = Regex::new(r"([^\*])\*([^\*]+)\*([^\*])").unwrap();
+    let text = re_italic.replace_all(&text, "$1_$2_$3");
+    
+    // 4. Handle edge case for italics at start/end of string
+    let re_italic_start = Regex::new(r"^\*([^\*]+)\*").unwrap();
+    let text = re_italic_start.replace_all(&text, "_$1_");
+    let re_italic_end = Regex::new(r"\*([^\*]+)\*$").unwrap();
+    let text = re_italic_end.replace_all(&text, "_$1_");
+
+    text.to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -444,19 +505,31 @@ async fn on_push_event(
 
                     emit_log("info", &format!("Downloading Slack file: {}", file.name.as_deref().unwrap_or("unknown")));
                     
-                    let client = reqwest::Client::new();
-                    match client.get(url.to_string())
+                    // Use a legacy client to handle arbitrary URLs in hyper 1.0
+                    let https = hyper_rustls::HttpsConnectorBuilder::new()
+                        .with_native_roots()
+                        .expect("no native roots")
+                        .https_or_http()
+                        .enable_http1()
+                        .build();
+                    let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build(https);
+
+                    let req = hyper::Request::builder()
+                        .uri(url.to_string())
                         .header("Authorization", format!("Bearer {}", bot_token))
-                        .send().await 
-                    {
+                        .body(http_body_util::Full::new(hyper::body::Bytes::new()))
+                        .unwrap();
+
+                    match client.request(req).await {
                         Ok(resp) => {
                             if resp.status().is_success() {
-                                match resp.bytes().await {
-                                    Ok(bytes) => {
+                                use http_body_util::BodyExt;
+                                match resp.into_body().collect().await {
+                                    Ok(collected) => {
+                                        let bytes = collected.to_bytes();
                                         let b64 = BASE64.encode(&bytes);
                                         let mime = file.mimetype.clone().unwrap_or_else(|| slack_morphism::SlackMimeType("application/octet-stream".to_string()));
                                         
-                                        // Identify if this is the primary audio/voice content
                                         if audio_content.is_none() && mime.0.starts_with("audio/") {
                                             audio_content = Some(serde_json::json!({
                                                 "data": b64.clone(),
@@ -468,8 +541,8 @@ async fn on_push_event(
                                         attachments.push(serde_json::json!({
                                             "type": "binary",
                                             "filename": file.name,
-                                            "size": size,
-                                            "mime_type": mime,
+                                            "size": bytes.len(),
+                                            "mime_type": mime.0,
                                             "data": b64
                                         }));
                                     }
@@ -543,7 +616,7 @@ impl Plugin for SlackPlugin {
             schema: metadata_schema(),
             properties: metadata_properties(),
             exports: vec!["inbound_mode", "capabilities", "resolve_channel_id",
-                          "send", "start", "configure", "typing"],
+                          "send", "send_voice", "start", "configure", "typing"],
         }
     }
 
@@ -555,6 +628,7 @@ impl Plugin for SlackPlugin {
             "handle_webhook"     => handle_webhook(input),
             "resolve_channel_id" => resolve_channel_id(input),
             "send"               => send(input).await,
+            "send_voice"         => fn_send_voice(input).await,
             "typing"             => typing(input).await,
             "start"              => start(input).await,
             other                => CallResponse::err(format!("unknown function: {}", other)),
@@ -565,4 +639,118 @@ impl Plugin for SlackPlugin {
 #[tokio::main]
 async fn main() {
     run(SlackPlugin).await;
+}
+
+fn resolve(input: &Value, key: &str, fallback: &str) -> String {
+    if let Some(v) = input.get("config").and_then(|c| c.get(key))
+        .and_then(Value::as_str).filter(|s| !s.is_empty())
+    {
+        return v.to_string();
+    }
+    if let Some(v) = input.get(key).and_then(Value::as_str).filter(|s| !s.is_empty()) {
+        return v.to_string();
+    }
+    let hot = CONFIG.merge(None);
+    let v = HotConfig::get_str(&hot, key);
+    if !v.is_empty() { return v; }
+    fallback.to_string()
+}
+
+async fn fn_send_voice(input: Option<Value>) -> CallResponse {
+    let input = match input {
+        Some(v) => v,
+        None    => return CallResponse::err("input required"),
+    };
+
+    let cfg       = CONFIG.merge(input.get("config").and_then(|v| serde_json::from_value(v.clone()).ok()));
+    let bot_token = resolve(&input, "bot_token", "");
+
+    if bot_token.is_empty() {
+        return CallResponse::err("slack bot_token required");
+    }
+
+    let resolved = resolve_channel_id(Some(serde_json::json!({
+        "config": &cfg,
+        "message": {
+            "channel_id":   input.get("message").and_then(|m| m.get("channel_id")),
+            "recipient_id": input.get("message").and_then(|m| m.get("recipient_id")),
+            "sender_id":    input.get("message").and_then(|m| m.get("sender_id")),
+            "metadata":     input.get("message").and_then(|m| m.get("metadata")),
+        }
+    })));
+
+    let channel = match resolved.output {
+        Some(v) => v.as_str().unwrap_or("").to_string(),
+        None    => return CallResponse::err("failed to resolve channel id"),
+    };
+
+    if channel.is_empty() {
+        return CallResponse::err("slack send_voice: missing destination");
+    }
+
+    let payload: SendInput = match serde_json::from_value(input) {
+        Ok(p)  => p,
+        Err(e) => return CallResponse::err(format!("invalid input: {}", e)),
+    };
+
+    let client = match build_client() {
+        Ok(c)  => c,
+        Err(e) => return CallResponse::err(e),
+    };
+
+    let token   = SlackApiToken::new(SlackApiTokenValue::from(bot_token));
+    let session = client.open_session(&token);
+
+    if let Some(audio) = &payload.message.audio {
+        if let Ok(mut bytes) = BASE64.decode(&audio.data) {
+            // Core Unified Format: PCM. We wrap it in WAV for Slack compatibility.
+            if audio.format.as_deref() == Some("pcm") || audio.format.is_none() {
+                let sample_rate = audio.sample_rate.unwrap_or(16000);
+                bytes = wrap_pcm_as_wav(bytes, sample_rate);
+            }
+
+            let filename = "voice.wav".to_string();
+            let upload_req = SlackApiFilesUploadRequest::new()
+                .with_channels(vec![SlackChannelId::from(channel)])
+                .with_filename(filename)
+                .with_content(String::from_utf8_lossy(&bytes).to_string());
+            
+            // Note: Modern Slack API for files is multi-step, but files.upload is still working in many SDKs.
+            match session.files_upload(&upload_req).await {
+                Ok(_) => return CallResponse::ok(serde_json::json!({"ok": true})),
+                Err(e) => return CallResponse::err(format!("slack audio upload failed: {}", e)),
+            }
+        }
+    }
+
+    CallResponse::err("send_voice failed")
+}
+
+fn wrap_pcm_as_wav(pcm_data: Vec<u8>, sample_rate: u32) -> Vec<u8> {
+    let mut wav = Vec::with_capacity(44 + pcm_data.len());
+    let data_len = pcm_data.len() as u32;
+    let file_size = 36 + data_len;
+    let byte_rate = sample_rate * 1 * 2; // rate * channels * bytes_per_sample
+
+    // RIFF Header
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&file_size.to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+
+    // FMT chunk
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes()); // Subchunk1Size
+    wav.extend_from_slice(&1u16.to_le_bytes());  // AudioFormat (PCM = 1)
+    wav.extend_from_slice(&1u16.to_le_bytes());  // NumChannels (Mono = 1)
+    wav.extend_from_slice(&sample_rate.to_le_bytes());
+    wav.extend_from_slice(&byte_rate.to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());  // BlockAlign
+    wav.extend_from_slice(&16u16.to_le_bytes()); // BitsPerSample
+
+    // Data chunk
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    wav.extend_from_slice(&pcm_data);
+
+    wav
 }

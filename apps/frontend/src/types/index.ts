@@ -90,6 +90,13 @@ export interface MessageAttachment {
   mimeType?: string;
 }
 
+/** An audio payload (voice note) included in a message. */
+export interface AudioContent {
+  transcription?: string;
+  format?: string;
+  durationMs?: number;
+}
+
 /** A single message within a conversation. */
 export interface Message {
   id: string;
@@ -98,6 +105,7 @@ export interface Message {
   content: string;
   createdAt: string;
   attachments?: MessageAttachment[];
+  audio?: AudioContent;
 }
 
 // ─── Tasks (Cron) ────────────────────────────────────────────────────────────

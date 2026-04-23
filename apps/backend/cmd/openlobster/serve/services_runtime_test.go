@@ -21,7 +21,9 @@ type blockingMessagingAdapter struct {
 
 func (b *blockingMessagingAdapter) SendMessage(context.Context, *models.Message) error { return nil }
 func (b *blockingMessagingAdapter) SendMedia(context.Context, *ports.Media) error      { return nil }
-func (b *blockingMessagingAdapter) SendTyping(context.Context, string, int) error           { return nil }
+func (b *blockingMessagingAdapter) SendTyping(context.Context, string, int) error { return nil }
+func (b *blockingMessagingAdapter) SendSpeaking(context.Context, string, int) error { return nil }
+func (b *blockingMessagingAdapter) SendVoice(context.Context, *models.Message) error { return nil }
 func (b *blockingMessagingAdapter) HandleWebhook(context.Context, []byte) (*models.Message, error) {
 	return nil, nil
 }

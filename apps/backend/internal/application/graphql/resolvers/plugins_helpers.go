@@ -2,11 +2,11 @@ package resolvers
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
 	"github.com/neirth/openlobster/internal/domain/ports"
+	"github.com/neirth/openlobster/internal/infrastructure/plugin"
 	"github.com/spf13/viper"
 )
 
@@ -20,15 +20,15 @@ func pluginsFromRegistry(plugins []ports.PluginPort) []*generated.Plugin {
 			schemaStr = string(schemaBytes)
 		}
 		result = append(result, &generated.Plugin{
-			ID:          p.ID(),
+			ID:          p.Type() + ":" + p.ID(),
 			Name:        p.Name(),
 			Version:     p.Version(),
 			Description: p.Description(),
 			PluginType:  p.Type(),
 			SchemaJSON:  schemaStr,
-			ConfigJSON:  pluginConfigJSON(p.ID()),
-			Enabled:     pluginEnabled(p.ID()),
-			Available:   pluginEnabled(p.ID()) && pluginAvailable(p),
+			ConfigJSON:  pluginConfigJSON(p.Type(), p.ID()),
+			Enabled:     pluginEnabled(p),
+			Available:   pluginAvailable(p),
 			LastError:   pluginLastError(p),
 			Builtin:     pluginBuiltin(p),
 		})
@@ -61,19 +61,24 @@ func pluginBuiltin(p ports.PluginPort) bool {
 	return false
 }
 
-func pluginEnabled(pluginID string) bool {
+func pluginEnabled(p ports.PluginPort) bool {
+	pluginID := p.ID()
 	if strings.HasPrefix(strings.TrimSpace(pluginID), "openlobster-messages-") {
 		return true
 	}
-	key := fmt.Sprintf("plugins.enabled.%s", pluginID)
+	root := plugin.GetViperRoot(p.Type(), pluginID)
+	key := root + ".enabled"
+
+	// Special cases for core backward compatibility
 	if !viper.IsSet(key) {
 		return true
 	}
 	return viper.GetBool(key)
 }
 
-func pluginConfigJSON(pluginID string) string {
-	cfg := viper.GetStringMap(fmt.Sprintf("plugins.settings.%s", pluginID))
+func pluginConfigJSON(pluginType, pluginID string) string {
+	root := plugin.GetViperRoot(pluginType, pluginID)
+	cfg := viper.GetStringMap(root)
 	if len(cfg) == 0 {
 		return "{}"
 	}
@@ -82,21 +87,4 @@ func pluginConfigJSON(pluginID string) string {
 		return "{}"
 	}
 	return string(raw)
-}
-
-func messagingChannelInputKeyForPluginID(pluginID string) string {
-	switch pluginID {
-	case "openlobster-messages-telegram":
-		return "channelTelegramEnabled"
-	case "openlobster-messages-discord":
-		return "channelDiscordEnabled"
-	case "openlobster-messages-slack":
-		return "channelSlackEnabled"
-	case "openlobster-messages-whatsapp":
-		return "channelWhatsAppEnabled"
-	case "openlobster-messages-twilio":
-		return "channelTwilioEnabled"
-	default:
-		return ""
-	}
 }

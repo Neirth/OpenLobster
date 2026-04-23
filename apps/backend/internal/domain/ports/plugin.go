@@ -2,6 +2,12 @@
 // and all plugin wrapper adapters.
 package ports
 
+// Configurable represents a component (like a plugin wrapper) whose internal
+// configuration state can be updated at runtime without a full restart.
+type Configurable interface {
+	UpdateConfig(cfg map[string]interface{})
+}
+
 // PluginPort is the interface every loaded plugin must satisfy.
 // The host communicates with plugins by calling exported function names
 // through the active plugin runtime transport.

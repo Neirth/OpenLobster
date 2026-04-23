@@ -184,7 +184,7 @@ func TestMessageHandler_SetSkillsProvider(t *testing.T) {
 
 func TestMessageHandler_SetAIProvider(t *testing.T) {
 	h := &MessageHandler{}
-	h.SetAIProvider(nil)
+	h.SetAIProvider(nil, "")
 	assert.Nil(t, h.runner.aiProvider)
 }
 

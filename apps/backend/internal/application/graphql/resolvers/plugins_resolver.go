@@ -12,7 +12,9 @@ import (
 	"strings"
 
 	"github.com/neirth/openlobster/internal/application/graphql/generated"
-	pluginadapter "github.com/neirth/openlobster/internal/infrastructure/plugin"
+	"github.com/neirth/openlobster/internal/infrastructure/plugin"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // ReloadPlugins is the resolver for the reloadPlugins field.
@@ -41,11 +43,13 @@ func (r *mutationResolver) SetPluginEnabled(ctx context.Context, pluginID string
 
 	payload := map[string]interface{}{}
 	if p.Type() != "messaging" {
-		payload["pluginsEnabled"] = map[string]interface{}{pluginID: enabled}
+		root := plugin.GetViperRoot(p.Type(), p.ID())
+		payload[root+".enabled"] = enabled
 	} else {
-		if key := messagingChannelInputKeyForPluginID(pluginID); key != "" {
-			payload[key] = enabled
-		}
+		// Use the camelCase key expected by the ConfigUpdateAdapter map for standard channels.
+		t := cases.Title(language.Und, cases.NoLower)
+		key := "channel" + t.String(p.ID()) + "Enabled"
+		payload[key] = enabled
 	}
 
 	// Single atomic persistence call.
@@ -77,7 +81,7 @@ func (r *mutationResolver) UpdatePluginConfig(ctx context.Context, pluginID stri
 		return false, err
 	}
 	if schema, err := p.Schema(); err == nil {
-		if err := pluginadapter.ValidateConfigSchema(schema, cfg); err != nil {
+		if err := plugin.ValidateConfigSchema(schema, cfg); err != nil {
 			return false, err
 		}
 	}
@@ -96,10 +100,14 @@ func (r *mutationResolver) UpdatePluginConfig(ctx context.Context, pluginID stri
 		}
 	}
 	if r.Deps != nil && r.Deps.ConfigWriter != nil {
-		if _, err := r.Deps.ConfigWriter.Apply(ctx, map[string]interface{}{
-			"pluginsSettings": map[string]interface{}{pluginID: cfg},
-		}); err != nil {
-			log.Printf("plugins: persist config %s failed: %v", pluginID, err)
+		root := plugin.GetViperRoot(p.Type(), p.ID())
+		payload := make(map[string]interface{})
+		for k, v := range cfg {
+			payload[root+"."+k] = v
+		}
+
+		if _, err := r.Deps.ConfigWriter.Apply(ctx, payload); err != nil {
+			log.Printf("plugins: persist config %s to %s failed: %v", pluginID, root, err)
 			return false, err
 		}
 	}

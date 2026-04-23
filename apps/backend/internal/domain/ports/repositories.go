@@ -45,22 +45,22 @@ type Knowledge struct {
 }
 
 type Graph struct {
-	Nodes []GraphNode
-	Edges []GraphEdge
+	Nodes []GraphNode `json:"nodes"`
+	Edges []GraphEdge `json:"edges"`
 }
 
 type GraphNode struct {
-	ID         string
-	Label      string
-	Type       string
-	Value      string
-	Properties map[string]string
+	ID         string            `json:"id"`
+	Label      string            `json:"label"`
+	Type       string            `json:"type"`
+	Value      string            `json:"value"`
+	Properties map[string]string `json:"properties"`
 }
 
 type GraphEdge struct {
-	Source string
-	Target string
-	Label  string
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Label  string `json:"label"`
 }
 
 type GraphResult struct {

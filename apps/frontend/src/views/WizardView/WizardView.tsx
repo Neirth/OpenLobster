@@ -124,7 +124,7 @@ export function setWizardCompleted(): void {
 function getDefaultFormValues(): Record<string, unknown> {
   return {
     agentName: "OpenLobster",
-    model: "llama3.2:latest",
+    model: "qwen3.5:4b",
     capabilities: {
       browser: false,
       terminal: false,
@@ -154,7 +154,7 @@ function getValueAtPath(obj: Record<string, unknown> | undefined, path: string):
   return path.split(".").reduce((acc, part) => (acc && typeof acc === "object") ? (acc as Record<string, unknown>)[part] : undefined, obj as unknown);
 }
 
-const WizardView: Component<WizardViewProps> = (props) => {
+const WizardView: Component<WizardViewProps> = (_props) => {
   const queryClient = useQueryClient();
   const [step, setStep] = createSignal(0);
   const [formValues, setFormValues] = createSignal<Record<string, unknown>>(
@@ -241,8 +241,12 @@ const WizardView: Component<WizardViewProps> = (props) => {
   const handleFieldChange = (field: string, value: unknown) => {
     setFormValues((prev) => {
       const next = { ...prev };
+      const blockedKeys = new Set(["__proto__", "constructor", "prototype"]);
       if (field.includes(".")) {
         const parts = field.split(".");
+        if (parts.some((part) => blockedKeys.has(part))) {
+          return prev;
+        }
         let target: Record<string, unknown> = next;
         for (let i = 0; i < parts.length - 1; i++) {
           const part = parts[i];
@@ -253,6 +257,9 @@ const WizardView: Component<WizardViewProps> = (props) => {
         }
         target[parts[parts.length - 1]] = value;
       } else {
+        if (blockedKeys.has(field)) {
+          return prev;
+        }
         next[field] = value;
       }
       return next;
@@ -277,7 +284,7 @@ const WizardView: Component<WizardViewProps> = (props) => {
         setFormValues({
           ...getDefaultFormValues(),
           agentName: config.agent?.name ?? "OpenLobster",
-          model: config.agent?.model ?? "llama3.2:latest",
+          model: config.agent?.model ?? "qwen3.5:4b",
           pluginDefaultAi: config.plugins?.defaultAi ?? "",
           pluginDefaultMemory: config.plugins?.defaultMemory ?? "",
           pluginDefaultSecrets: config.plugins?.defaultSecrets ?? "",
@@ -328,11 +335,8 @@ const WizardView: Component<WizardViewProps> = (props) => {
       setSaveError(null);
 
       const values = formValues();
-      const pluginsProp = values.plugins as Record<string, Record<string, Record<string, unknown>>> | undefined;
-      const enabled = pluginsProp?.enabled || {};
-      const settings = pluginsProp?.settings || {};
-
-      const variables = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const variables: Record<string, any> = {
         input: {
           agentName: values.agentName,
           model: values.model,
@@ -342,21 +346,51 @@ const WizardView: Component<WizardViewProps> = (props) => {
           pluginDefaultSecrets: values.pluginDefaultSecrets,
           pluginDefaultAudio: values.pluginDefaultAudio,
           capabilities: values.capabilities,
-          
-          // Messaging channels mapping
-          channelTelegramEnabled: !!enabled["openlobster-messages-telegram"],
-          channelTelegramToken: settings["openlobster-messages-telegram"]?.token || "",
-          
-          channelDiscordEnabled: !!enabled["openlobster-messages-discord"],
-          channelDiscordToken: settings["openlobster-messages-discord"]?.token || "",
-          
-          channelSlackEnabled: !!enabled["openlobster-messages-slack"],
-          channelSlackBotToken: settings["openlobster-messages-slack"]?.botToken || "",
-          channelSlackAppToken: settings["openlobster-messages-slack"]?.appToken || "",
-          
           wizardCompleted: true,
         },
       };
+
+      const normalizeId = (id: string) => {
+        let clean = id.includes(":") ? id.split(":")[1] : id;
+        const prefixes = ["openlobster-messages-", "openlobster-ai-", "openlobster-memory-", "openlobster-secrets-", "openlobster-audio-"];
+        for (const pfx of prefixes) {
+          if (clean.startsWith(pfx)) {
+            clean = clean.slice(pfx.length);
+            break;
+          }
+        }
+        return clean;
+      };
+
+      // Channels Category (Explicit Mapping for Stability)
+      const telegramId = "messaging:telegram";
+      if (getValueAtPath(values, `plugins.enabled.${telegramId}`)) {
+          variables.input.channelTelegramEnabled = true;
+          variables.input.channelTelegramToken = getValueAtPath(values, `pluginSettings.${telegramId}.bot_token`) || "";
+      }
+
+      const discordId = "messaging:discord";
+      if (getValueAtPath(values, `plugins.enabled.${discordId}`)) {
+          variables.input.channelDiscordEnabled = true;
+          variables.input.channelDiscordToken = getValueAtPath(values, `pluginSettings.${discordId}.bot_token`) || "";
+      }
+
+      const slackId = "messaging:slack";
+      if (getValueAtPath(values, `plugins.enabled.${slackId}`)) {
+          variables.input.channelSlackEnabled = true;
+          variables.input.channelSlackBotToken = getValueAtPath(values, `pluginSettings.${slackId}.bot_token`) || "";
+          variables.input.channelSlackAppToken = getValueAtPath(values, `pluginSettings.${slackId}.app_token`) || "";
+      }
+
+      // AI Provider Key Mapping
+      const selectedAI = values.pluginDefaultAi as string | undefined;
+      if (selectedAI && selectedAI.length > 0) {
+        variables.input.provider = normalizeId(selectedAI).toLowerCase();
+        variables.input.apiKey = getValueAtPath(values, `pluginSettings.${selectedAI}.api_key`) || "";
+      }
+
+
+      variables.input.wizardCompleted = true;
 
       const res = await fetch(GRAPHQL_ENDPOINT, {
         method: "POST",
@@ -374,7 +408,9 @@ const WizardView: Component<WizardViewProps> = (props) => {
       }
 
       setWizardCompleted();
-      props.onComplete();
+      // Force hard reload to ensure all system managers (plugins, etc) 
+      // are re-initialized with the new categorical config
+      window.location.href = "/";
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -481,9 +517,9 @@ const WizardView: Component<WizardViewProps> = (props) => {
                             <For each={Object.entries(schema().properties || {})}>
                               {([key, prop]) => (
                                 <WizardSchemaField
-                                  field={`plugins.settings.${selectedId()}.${key}`}
+                                  field={`pluginSettings.${selectedId()}.${key}`}
                                   schema={prop as unknown as SchemaProperty}
-                                  values={(getValueAtPath(formValues(), `plugins.settings.${selectedId()}`) as Record<string, unknown>) || {}}
+                                  values={(getValueAtPath(formValues(), `pluginSettings.${selectedId()}`) as Record<string, unknown>) || {}}
                                   onChange={handleFieldChange}
                                 />
                               )}

@@ -19,14 +19,15 @@ func NewRegistry() *Registry {
 	return &Registry{plugins: make(map[string]ports.PluginPort)}
 }
 
-// Register adds a plugin. Replaces any existing plugin with the same ID.
+// Register adds a plugin. Replaces any existing plugin with the same Type:ID.
 func (r *Registry) Register(p ports.PluginPort) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, exists := r.plugins[p.ID()]; !exists {
-		r.order = append(r.order, p.ID())
+	key := p.Type() + ":" + p.ID()
+	if _, exists := r.plugins[key]; !exists {
+		r.order = append(r.order, key)
 	}
-	r.plugins[p.ID()] = p
+	r.plugins[key] = p
 }
 
 // All returns all registered plugins in insertion order.
@@ -82,11 +83,12 @@ func (r *Registry) Remove(id string) {
 	}
 }
 
-// Close calls Close on every registered plugin and logs errors.
+// Close calls Close on every registered plugin and logs results.
 func (r *Registry) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for id, p := range r.plugins {
+		log.Printf("plugins: closing %s...", id)
 		if err := p.Close(); err != nil {
 			log.Printf("plugins: close %s: %v", id, err)
 		}

@@ -1,289 +1,194 @@
 // Copyright (c) OpenLobster contributors.
 // SPDX-License-Identifier: Apache-2.0
 
-//! OpenLobster GML (Graph Memory Language) memory plugin (Rust).
-//!
-//! In-memory graph store: knowledge nodes + user-to-user relations.
-//! Optionally persists to a .gml file when `path` is configured.
-
 use async_trait::async_trait;
-use openlobster_sdk_base::{run, CallResponse, HotConfig, Plugin, PluginInfo};
-use serde::{Deserialize, Serialize};
+use openlobster_sdk_base::{
+    run, CallResponse, HotConfig, Plugin, PluginInfo,
+};
 use serde_json::{json, Value};
 use std::fs;
-use std::io::{Read, Write};
-use std::sync::{Arc, LazyLock, Mutex};
-
-mod gml_serde;
-
-// ---------------------------------------------------------------------------
-// Hot config
-// ---------------------------------------------------------------------------
-
-static CONFIG: HotConfig = HotConfig::new();
+use std::io::{BufRead, BufReader, Write};
+use std::sync::Mutex;
+use once_cell::sync::Lazy;
 
 // ---------------------------------------------------------------------------
-// Domain types
+// GML Domain Models
 // ---------------------------------------------------------------------------
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-struct KnowledgeNode {
-    id: u64,
-    user_id: String,
-    content: String,
-    label: String,
-    entity_type: String,
+#[derive(Debug, Clone)]
+pub struct Node {
+    pub id: u64,
+    pub user_id: String,
+    pub content: String,
+    pub label: String,
+    pub entity_type: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-struct Relation {
-    from: String,
-    to: String,
-    label: String,
+#[derive(Debug, Clone)]
+pub struct Relation {
+    pub source: String,
+    pub target: String,
+    pub label: String,
 }
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
-struct Graph {
-    #[serde(default = "default_directed")]
-    directed: i32,
-    node: Vec<KnowledgeNode>,
-    edge: Vec<Relation>,
-}
-
-fn default_directed() -> i32 { 1 }
 
 // ---------------------------------------------------------------------------
-// Global state (graph data only)
+// Plugin State
 // ---------------------------------------------------------------------------
 
 struct GraphState {
-    nodes: Vec<KnowledgeNode>,
+    nodes: Vec<Node>,
     relations: Vec<Relation>,
     next_id: u64,
 }
 
 impl GraphState {
     fn new() -> Self {
-        Self { nodes: Vec::new(), relations: Vec::new(), next_id: 1 }
-    }
-
-    fn clear(&mut self) {
-        self.nodes.clear();
-        self.relations.clear();
-        self.next_id = 1;
+        Self {
+            nodes: Vec::new(),
+            relations: Vec::new(),
+            next_id: 1,
+        }
     }
 
     fn resolve_path(path: &str) -> String {
-        if !path.is_empty() {
-            return path.to_string();
+        if path.is_empty() {
+             if let Ok(base) = std::env::var("OPENLOBSTER_BASE_DIR") {
+                 return format!("{}/data/memory.gml", base);
+             }
+             return "/data/memory.gml".to_string();
         }
-        // Default fallback to ~/.openlobster/data/memory.gml
-        if let Ok(home) = std::env::var("HOME") {
-            let dir = format!("{}/.openlobster/data", home);
-            let _ = fs::create_dir_all(&dir);
-            format!("{}/memory.gml", dir)
-        } else {
-            "memory.gml".to_string() // Absolute fallback to current dir
-        }
+        path.to_string()
     }
 
     fn save(&self, path: &str) {
-        let effective_path = Self::resolve_path(path);
-        
-        let graph = Graph {
-            directed: 1,
-            node: self.nodes.clone(),
-            edge: self.relations.clone(),
+        let ep = Self::resolve_path(path);
+        let mut f = match fs::File::create(&ep) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("[gml:error] Save error creating file {}: {}", ep, e);
+                return;
+            }
         };
 
-        if let Ok(gml_string) = gml_serde::to_string(&graph) {
-            if let Ok(mut file) = fs::File::create(effective_path) {
-                let _ = file.write_all(gml_string.as_bytes());
-            }
+        writeln!(f, "graph [").unwrap();
+        writeln!(f, "  directed 1").unwrap();
+        for n in &self.nodes {
+            writeln!(f, "  node [").unwrap();
+            writeln!(f, "    id {}", n.id).unwrap();
+            writeln!(f, "    user_id \"{}\"", n.user_id).unwrap();
+            writeln!(f, "    content \"{}\"", n.content.replace("\"", "\\\"")).unwrap();
+            writeln!(f, "    label \"{}\"", n.label).unwrap();
+            writeln!(f, "    entity_type \"{}\"", n.entity_type).unwrap();
+            writeln!(f, "  ]").unwrap();
         }
+        for r in &self.relations {
+            writeln!(f, "  edge [").unwrap();
+            writeln!(f, "    source \"{}\"", r.source).unwrap();
+            writeln!(f, "    target \"{}\"", r.target).unwrap();
+            writeln!(f, "    label \"{}\"", r.label).unwrap();
+            writeln!(f, "  ]").unwrap();
+        }
+        writeln!(f, "]").unwrap();
+        eprintln!("[gml:info] SUCCESSFULLY SAVED {} nodes to {}", self.nodes.len(), ep);
     }
 
     fn load(&mut self, path: &str) {
-        let effective_path = Self::resolve_path(path);
-        let mut content = String::new();
-        if let Ok(mut file) = fs::File::open(effective_path) {
-            if file.read_to_string(&mut content).is_err() { return; }
-        } else {
-            return;
+        let ep = Self::resolve_path(path);
+        if !std::path::Path::new(&ep).exists() {
+             eprintln!("[gml:info] Load skipped, file does not exist: {}", ep);
+             return;
         }
 
-        if content.is_empty() { return; }
+        let file = match fs::File::open(&ep) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("[gml:error] Load error opening file {}: {}", ep, e);
+                return;
+            }
+        };
 
-        if let Ok(graph) = gml_serde::from_str::<Graph>(&content) {
-            self.clear();
-            self.nodes = graph.node;
-            self.relations = graph.edge;
-            for n in &self.nodes {
-                if n.id >= self.next_id { self.next_id = n.id + 1; }
+        let reader = BufReader::new(file);
+        let mut nodes = Vec::new();
+        let mut relations = Vec::new();
+        
+        let mut current_block: Option<String> = None;
+        let mut temp_node = json!({});
+        let mut temp_edge = json!({});
+
+        for line_res in reader.lines() {
+            let line = match line_res {
+                Ok(l) => l.trim().to_string(),
+                Err(_) => continue,
+            };
+
+            if line.ends_with('[') {
+                let block_type = line.trim_end_matches('[').trim().to_lowercase();
+                current_block = Some(block_type);
+                continue;
+            }
+
+            if line == "]" {
+                if let Some(ref bt) = current_block {
+                    if bt == "node" {
+                        nodes.push(Node {
+                            id: temp_node["id"].as_u64().unwrap_or(0),
+                            user_id: temp_node["user_id"].as_str().unwrap_or("").to_string(),
+                            content: temp_node["content"].as_str().unwrap_or("").to_string(),
+                            label: temp_node["label"].as_str().unwrap_or("").to_string(),
+                            entity_type: temp_node["entity_type"].as_str().unwrap_or("").to_string(),
+                        });
+                        temp_node = json!({});
+                    } else if bt == "edge" {
+                        relations.push(Relation {
+                            source: temp_edge["source"].as_str().unwrap_or("").to_string(),
+                            target: temp_edge["target"].as_str().unwrap_or("").to_string(),
+                            label: temp_edge["label"].as_str().unwrap_or("").to_string(),
+                        });
+                        temp_edge = json!({});
+                    }
+                }
+                current_block = None;
+                continue;
+            }
+
+            // Key value parsing
+            if let Some(space_idx) = line.find(' ') {
+                let key = line[..space_idx].trim().to_lowercase();
+                let value_raw = line[space_idx..].trim();
+                let value = if value_raw.starts_with('"') && value_raw.ends_with('"') {
+                    value_raw[1..value_raw.len()-1].replace("\\\"", "\"")
+                } else {
+                    value_raw.to_string()
+                };
+
+                if let Some(ref bt) = current_block {
+                    if bt == "node" {
+                        if key == "id" {
+                            if let Ok(id) = value.parse::<u64>() {
+                                temp_node["id"] = json!(id);
+                            }
+                        } else {
+                            temp_node[key] = json!(value);
+                        }
+                    } else if bt == "edge" {
+                        temp_edge[key] = json!(value);
+                    }
+                }
             }
         }
+
+        self.nodes = nodes;
+        self.relations = relations;
+        self.next_id = self.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
+        eprintln!("[gml:info] SUCCESSFULLY LOADED {} nodes from {}", self.nodes.len(), ep);
     }
 }
 
-static STATE: LazyLock<Arc<Mutex<GraphState>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(GraphState::new())));
+static STATE: Lazy<Mutex<GraphState>> = Lazy::new(|| Mutex::new(GraphState::new()));
+static CONFIG: HotConfig = HotConfig::new();
 
 // ---------------------------------------------------------------------------
-// Metadata
-// ---------------------------------------------------------------------------
-
-const PLUGIN_ID: &str = "gml";
-const PLUGIN_VERSION: &str = "0.1.0";
-const PLUGIN_DESC: &str = "Lightweight Graph Memory Layer (GML) for persistent knowledge storage";
-const PLUGIN_TYPE: &str = "memory";
-
-fn metadata_schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "title": "GML Storage Path",
-                "description": "Local path for graph persistence. Defaults to ~/.openlobster/data/memory.gml",
-                "placeholder": "~/.openlobster/data/memory.gml"
-            }
-        }
-    })
-}
-
-fn metadata_properties() -> Value { json!({}) }
-
-// ---------------------------------------------------------------------------
-// Plugin discovery
-// ---------------------------------------------------------------------------
-
-fn str_field<'a>(v: &'a Value, key: &str) -> &'a str {
-    v.get(key).and_then(Value::as_str).unwrap_or("")
-}
-
-// ---------------------------------------------------------------------------
-// store
-// ---------------------------------------------------------------------------
-
-fn fn_store(input: &Value) -> CallResponse {
-    let op = str_field(input, "op");
-    match op {
-        "add_relation"     => store_add_relation(input),
-        "delete_relation"  => store_delete_relation(input),
-        "invalidate_cache" => CallResponse::ok(json!({"ok": true})),
-        _                  => store_add_knowledge(input),
-    }
-}
-
-fn store_add_knowledge(input: &Value) -> CallResponse {
-    let user_id     = str_field(input, "user_id").to_string();
-    let content     = str_field(input, "content").to_string();
-    let label       = str_field(input, "label").to_string();
-    let entity_type = str_field(input, "entity_type").to_string();
-
-    let mut state = STATE.lock().unwrap();
-    let node_id = state.next_id;
-    state.next_id += 1;
-    state.nodes.push(KnowledgeNode { id: node_id, user_id, content, label, entity_type });
-    CallResponse::ok(json!([node_id.to_string()]))
-}
-
-fn store_add_relation(input: &Value) -> CallResponse {
-    let from     = str_field(input, "from").to_string();
-    let to       = str_field(input, "to").to_string();
-    let rel_type = str_field(input, "rel_type").to_string();
-
-    if from.is_empty() || to.is_empty() {
-        return CallResponse::err("from and to are required for add_relation");
-    }
-    let mut state = STATE.lock().unwrap();
-    state.relations.push(Relation {
-        from,
-        to,
-        label: rel_type,
-    });
-    CallResponse::ok(json!({"ok": true}))
-}
-
-fn store_delete_relation(input: &Value) -> CallResponse {
-    let from = str_field(input, "from");
-    let to   = str_field(input, "to");
-
-    let norm = |s: &str| s.trim_start_matches("user:").to_string();
-    let from_n = norm(from);
-    let to_n   = norm(to);
-
-    let mut state = STATE.lock().unwrap();
-    state.relations.retain(|r| !(norm(&r.from) == from_n && norm(&r.to) == to_n));
-    CallResponse::ok(json!({"ok": true}))
-}
-
-// ---------------------------------------------------------------------------
-// retrieve
-// ---------------------------------------------------------------------------
-
-fn fn_retrieve(input: &Value) -> CallResponse {
-    let query = str_field(input, "query").to_lowercase();
-    let limit = input.get("limit").and_then(Value::as_u64).unwrap_or(64) as usize;
-
-    let state = STATE.lock().unwrap();
-    let results: Vec<Value> = state.nodes.iter()
-        .filter(|n| n.content.to_lowercase().contains(&query))
-        .take(limit)
-        .map(|n| json!({"id": n.id.to_string(), "content": n.content}))
-        .collect();
-
-    CallResponse::ok(Value::Array(results))
-}
-
-// ---------------------------------------------------------------------------
-// query
-// ---------------------------------------------------------------------------
-
-fn fn_query(input: &Value) -> CallResponse {
-    let op = str_field(input, "op");
-    match op {
-        "user_graph" => query_user_graph(input),
-        "cypher"     => query_cypher(input),
-        _            => query_user_graph(input),
-    }
-}
-
-fn query_user_graph(input: &Value) -> CallResponse {
-    let user_id = str_field(input, "user_id");
-    let norm = |s: &str| s.trim_start_matches("user:").to_string();
-    let uid = norm(user_id);
-
-    let state = STATE.lock().unwrap();
-    let edges: Vec<Value> = state.relations.iter()
-        .filter(|r| norm(&r.from) == uid || norm(&r.to) == uid)
-        .map(|r| json!({"source": r.from, "target": r.to, "label": r.label}))
-        .collect();
-
-    CallResponse::ok(json!({"edges": edges}))
-}
-
-fn query_cypher(_input: &Value) -> CallResponse {
-    let state = STATE.lock().unwrap();
-
-    let data: Vec<Value> = if !state.relations.is_empty() {
-        state.relations.iter()
-            .map(|r| json!({"a": r.from, "r": r.label, "b": r.to}))
-            .collect()
-    } else {
-        state.nodes.iter().map(|n| {
-            json!({"a": {"id": n.id.to_string(), "content": n.content}, "r": {}, "b": {}})
-        }).collect()
-    };
-
-    CallResponse::ok(json!({"data": data, "errors": []}))
-}
-
-// ---------------------------------------------------------------------------
-// Plugin implementation
+// Plugin Lifecycle
 // ---------------------------------------------------------------------------
 
 struct GmlPlugin;
@@ -292,46 +197,134 @@ struct GmlPlugin;
 impl Plugin for GmlPlugin {
     fn info(&self) -> PluginInfo {
         PluginInfo {
-            id: PLUGIN_ID,
-            name: "GML",
-            version: PLUGIN_VERSION,
-            description: PLUGIN_DESC,
-            plugin_type: PLUGIN_TYPE,
-            schema: metadata_schema(),
-            properties: metadata_properties(),
-            exports: vec!["configure", "store", "retrieve", "query", "list", "delete"],
+            id: "memory:file",
+            name: "GML Memory",
+            version: "0.1.0",
+            description: "GML-based graph memory plugin",
+            plugin_type: "memory",
+            schema: json!({
+                "type": "object",
+                "properties": {
+                    "data_dir": { "type": "string" },
+                    "path": { "type": "string" }
+                }
+            }),
+            properties: json!({}),
+            exports: vec!["configure", "store", "retrieve", "query"],
         }
     }
 
     async fn call(&mut self, function: &str, input: Option<Value>) -> CallResponse {
         match function {
             "configure" => {
-                let res = CONFIG.configure(input.clone());
+                let res = CONFIG.configure(input);
                 let hot = CONFIG.merge(None);
-                let path = HotConfig::get_str(&hot, "path");
-                if !path.is_empty() {
-                  let mut state = STATE.lock().unwrap();
-                  state.load(&path);
+                let data_dir = hot.get("data_dir").and_then(Value::as_str).unwrap_or("");
+                let mut path = hot.get("path").and_then(Value::as_str).unwrap_or("").to_string();
+                if path.is_empty() && !data_dir.is_empty() {
+                    path = format!("{}/memory.gml", data_dir);
                 }
+                
+                let mut state = STATE.lock().unwrap();
+                state.load(&path);
                 res
             },
-            "store"     => {
-              let res = fn_store(&input.unwrap_or(Value::Null));
-              let hot = CONFIG.merge(None);
-              let path = HotConfig::get_str(&hot, "path");
-              if !path.is_empty() {
-                let state = STATE.lock().unwrap();
-                state.save(&path);
-              }
-              res
+            "store" | "add_memory" => {
+                let input_val = input.unwrap_or(json!({}));
+                fn_store(&input_val)
             },
-            "retrieve"  => fn_retrieve(&input.unwrap_or(Value::Null)),
-            "query"     => fn_query(&input.unwrap_or(Value::Null)),
-            "list"      => CallResponse::err("not implemented"),
-            "delete"    => CallResponse::err("not implemented"),
-            other       => CallResponse::err(format!("unknown function: {}", other)),
+            "retrieve" => {
+                let input_val = input.unwrap_or(json!({}));
+                fn_retrieve(&input_val)
+            },
+            "query" => {
+                let input_val = input.unwrap_or(json!({}));
+                fn_query(&input_val)
+            },
+            _ => CallResponse::err(format!("unknown function: {}", function)),
         }
     }
+}
+
+fn fn_store(input: &Value) -> CallResponse {
+    let mut state = STATE.lock().unwrap();
+    let uid = str_field(input, "user_id");
+    let content = str_field(input, "content");
+    let label = str_field(input, "label");
+    let etype = str_field(input, "entity_type");
+
+    eprintln!("[gml:info] Storing node for user '{}'. Raw: label='{}', type='{}', content_len={}", uid, label, etype, content.len());
+
+    let node = Node {
+        id: state.next_id,
+        user_id: uid.to_string(),
+        content: content.to_string(),
+        label: if label.is_empty() { "fact".to_string() } else { label.to_string() },
+        entity_type: if etype.is_empty() { "fact".to_string() } else { etype.to_string() },
+    };
+    state.next_id += 1;
+    state.nodes.push(node.clone());
+
+    let hot = CONFIG.merge(None);
+    let mut path = input.get("config").and_then(|c| c.get("path")).and_then(Value::as_str).unwrap_or("").to_string();
+    if path.is_empty() {
+        path = hot.get("path").and_then(Value::as_str).unwrap_or("").to_string();
+    }
+
+    eprintln!("[gml:info] Saving to path '{}'. Node ID: {}", path, node.id);
+    state.save(&path);
+    CallResponse::ok(json!({"success": true, "id": node.id.to_string()}))
+}
+
+fn fn_retrieve(input: &Value) -> CallResponse {
+    let query = str_field(input, "query").to_lowercase();
+    let limit = input.get("limit").and_then(Value::as_u64).unwrap_or(10) as usize;
+    let state = STATE.lock().unwrap();
+    let results: Vec<Value> = state.nodes.iter()
+        .filter(|n| n.content.to_lowercase().contains(&query))
+        .take(limit)
+        .map(|n| json!({"id": n.id.to_string(), "content": n.content}))
+        .collect();
+    CallResponse::ok(Value::Array(results))
+}
+
+fn fn_query(input: &Value) -> CallResponse {
+    let user_id = input.get("user_id").and_then(Value::as_str).unwrap_or("");
+    let hot = CONFIG.merge(None);
+    let path_val = input.get("config").and_then(|c| c.get("path")).and_then(Value::as_str).unwrap_or("");
+    let mut path = path_val.to_string();
+    if path.is_empty() {
+         path = hot.get("path").and_then(Value::as_str).unwrap_or("").to_string();
+    }
+
+    let mut state = STATE.lock().unwrap();
+    if state.nodes.is_empty() && !path.is_empty() {
+         state.load(&path);
+    }
+
+    eprintln!("[gml:info] Querying User Graph for '{}' via path '{}'. Total nodes in state: {}.", user_id, path, state.nodes.len());
+
+    let nodes: Vec<Value> = state.nodes.iter()
+        .filter(|n| user_id.is_empty() || n.user_id == user_id)
+        .map(|n| json!({
+            "id": n.id.to_string(),
+            "label": n.label,
+            "type": n.entity_type,
+            "value": n.content,
+        }))
+        .collect();
+
+    let edges: Vec<Value> = state.relations.iter()
+        .filter(|r| user_id.is_empty() || r.source.contains(user_id) || r.target.contains(user_id))
+        .map(|r| json!({"source": r.source, "target": r.target, "label": r.label}))
+        .collect();
+
+    eprintln!("[gml:info] Returning {} nodes and {} edges.", nodes.len(), edges.len());
+    CallResponse::ok(json!({"nodes": nodes, "edges": edges}))
+}
+
+fn str_field<'a>(v: &'a Value, key: &str) -> &'a str {
+    v.get(key).and_then(Value::as_str).unwrap_or("")
 }
 
 #[tokio::main]

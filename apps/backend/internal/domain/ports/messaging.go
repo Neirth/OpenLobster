@@ -30,9 +30,14 @@ const (
 type MessagingPort interface {
 	SendMessage(ctx context.Context, msg *models.Message) error
 	SendMedia(ctx context.Context, media *Media) error
+	// SendVoice sends specialized voice notes (bubbles) to the platform.
+	SendVoice(ctx context.Context, msg *models.Message) error
 	// SendTyping shows a typing indicator to the user for approximately the
 	// given duration. No-op if not supported.
 	SendTyping(ctx context.Context, channelID string, duration_ms int) error
+	// SendSpeaking shows a recording/speaking indicator to the user.
+	// Useful for voice message pipeline.
+	SendSpeaking(ctx context.Context, channelID string, duration_ms int) error
 	// HandleWebhook processes inbound HTTP webhook payloads.
 	// Payload is a JSON-serialized webhook envelope produced by the host
 	// (method, path, query, headers, body).
@@ -68,21 +73,21 @@ func GetCapabilitiesForType(channelType string) ChannelCapabilities {
 	case "discord":
 		return ChannelCapabilities{
 			HasVoiceMessage: true,
-			HasCallStream:   true,
+			HasCallStream:   false,
 			HasTextStream:   true,
 			HasMediaSupport: true,
 		}
 	case "whatsapp":
 		return ChannelCapabilities{
 			HasVoiceMessage: true,
-			HasCallStream:   true,
+			HasCallStream:   false,
 			HasTextStream:   true,
 			HasMediaSupport: true,
 		}
 	case "twilio":
 		return ChannelCapabilities{
-			HasVoiceMessage: true,
-			HasCallStream:   true,
+			HasVoiceMessage: false,
+			HasCallStream:   false,
 			HasTextStream:   true,
 			HasMediaSupport: true,
 		}

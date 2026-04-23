@@ -65,6 +65,12 @@ type AttachmentSnapshot struct {
 	MIMEType string
 }
 
+type AudioSnapshot struct {
+	Transcription string
+	Format        string
+	DurationMs    int
+}
+
 type MessageSnapshot struct {
 	ID             string
 	ConversationID string
@@ -72,6 +78,7 @@ type MessageSnapshot struct {
 	Content        string
 	CreatedAt      string
 	Attachments    []AttachmentSnapshot
+	Audio          *AudioSnapshot
 }
 
 type ToolSnapshot struct {

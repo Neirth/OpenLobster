@@ -2,8 +2,11 @@
 package dto
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log"
+	"strings"
 	"sync"
 
 	"github.com/neirth/openlobster/internal/infrastructure/config"
@@ -58,32 +61,15 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 		if inputKey == "capabilities" || a.isProviderInputKey(inputKey) {
 			continue
 		}
-		if inputKey == "pluginsEnabled" {
-			if enabledMap, ok := val.(map[string]interface{}); ok {
-				for pluginID, rawEnabled := range enabledMap {
-					enabled, ok := rawEnabled.(bool)
-					if !ok {
-						continue
-					}
-					viper.Set(fmt.Sprintf("plugins.enabled.%s", pluginID), enabled)
-				}
-			}
-			continue
-		}
-		if inputKey == "pluginsSettings" {
-			if cfgMap, ok := val.(map[string]interface{}); ok {
-				for pluginID, rawCfg := range cfgMap {
-					cfg, ok := rawCfg.(map[string]interface{})
-					if !ok {
-						continue
-					}
-					viper.Set(fmt.Sprintf("plugins.settings.%s", pluginID), cfg)
-				}
-			}
-			continue
-		}
+
+		// Standard field mapping via ViperKeys
 		viperKey, ok := a.ViperKeys[inputKey]
 		if !ok {
+			// If it's not a mapped field, but it's a dotted key (likely from a dynamic plugin),
+			// allow it to be set directly in Viper.
+			if strings.Contains(inputKey, ".") {
+				viper.Set(inputKey, val)
+			}
 			continue
 		}
 		viper.Set(viperKey, val)
@@ -105,10 +91,18 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 	}
 
 	providerTouched := false
+	memoryTouched := false
+	secretsTouched := false
+
 	for k := range input {
-		if a.isProviderInputKey(k) {
+		if a.isProviderInputKey(k) || strings.HasPrefix(k, "providers.") {
 			providerTouched = true
-			break
+		}
+		if strings.HasPrefix(k, "memory.") {
+			memoryTouched = true
+		}
+		if strings.HasPrefix(k, "secrets.") {
+			secretsTouched = true
 		}
 	}
 
@@ -117,11 +111,20 @@ func (a *ConfigUpdateAdapter) Apply(ctx context.Context, input map[string]interf
 			return nil, fmt.Errorf("persisting config to %s: %w", a.ConfigPath, err)
 		}
 
+		// Ensure Viper state is flushed and re-synced with disk through our decryption layer.
+		data, err := config.ReadConfigBytes(a.ConfigPath)
+		if err == nil {
+			viper.SetConfigType("yaml")
+			if err := viper.ReadConfig(bytes.NewReader(data)); err != nil {
+				log.Printf("adapter: warning: re-parsing config after write failed: %v", err)
+			}
+		} else {
+			log.Printf("adapter: warning: decrypting config after write failed: %v", err)
+		}
+
 		// Keep a single runtime reconciliation path when OnApplied is available.
-		// ReloadChannel is retained as a compatibility fallback for legacy setups
-		// that do not wire OnApplied.
 		if a.OnApplied != nil {
-			a.OnApplied(providerTouched)
+			a.OnApplied(providerTouched || memoryTouched || secretsTouched)
 		} else if a.ReloadChannel != nil {
 			for _, ch := range changedChannels {
 				a.ReloadChannel(ch)
@@ -157,10 +160,14 @@ func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
 			viper.Set("providers.openrouter.default_model", v)
 		}
 	case "ollama":
-		if v, ok := input["ollamaHost"].(string); ok && v != "" {
+		if v, ok := input["baseURL"].(string); ok && v != "" {
+			viper.Set("providers.ollama.endpoint", v)
+		} else if v, ok := input["ollamaHost"].(string); ok && v != "" {
 			viper.Set("providers.ollama.endpoint", v)
 		}
-		if v, ok := input["ollamaApiKey"].(string); ok && v != "" {
+		if v, ok := input["apiKey"].(string); ok && v != "" {
+			viper.Set("providers.ollama.api_key", v)
+		} else if v, ok := input["ollamaApiKey"].(string); ok && v != "" {
 			viper.Set("providers.ollama.api_key", v)
 		}
 		if v, ok := input["model"].(string); ok && v != "" {
@@ -176,6 +183,15 @@ func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
 		if v, ok := input["baseURL"].(string); ok && v != "" {
 			viper.Set("providers.openai.base_url", v)
 		}
+	case "anthropic":
+		if v, ok := input["apiKey"].(string); ok && v != "" {
+			viper.Set("providers.anthropic.api_key", v)
+		} else if v, ok := input["anthropicApiKey"].(string); ok && v != "" {
+			viper.Set("providers.anthropic.api_key", v)
+		}
+		if v, ok := input["model"].(string); ok && v != "" {
+			viper.Set("providers.anthropic.model", v)
+		}
 	case "openai-compatible":
 		if v, ok := input["apiKey"].(string); ok && v != "" {
 			viper.Set("providers.openaicompat.api_key", v)
@@ -185,16 +201,6 @@ func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
 		}
 		if v, ok := input["baseURL"].(string); ok && v != "" {
 			viper.Set("providers.openaicompat.base_url", v)
-		}
-	case "anthropic":
-		if v, ok := input["anthropicApiKey"].(string); ok && v != "" {
-			viper.Set("providers.anthropic.api_key", v)
-		}
-		if v, ok := input["apiKey"].(string); ok && v != "" {
-			viper.Set("providers.anthropic.api_key", v)
-		}
-		if v, ok := input["model"].(string); ok && v != "" {
-			viper.Set("providers.anthropic.model", v)
 		}
 	case "opencode-zen":
 		if v, ok := input["apiKey"].(string); ok && v != "" {
@@ -211,31 +217,7 @@ func (a *ConfigUpdateAdapter) applyProviderKeys(input map[string]interface{}) {
 			viper.Set("providers.docker_model_runner.default_model", v)
 		}
 	default:
-		// Intelligent Bridge: If the provider is an unknown plugin, map common fields
-		// into its generic plugins.settings entry. This supports dynamic plugins
-		// while maintaining a stable configuration schema.
-		if provider != "" {
-			settings := viper.GetStringMap(fmt.Sprintf("plugins.settings.%s", provider))
-			if settings == nil {
-				settings = make(map[string]interface{})
-			}
-			touched := false
-			if v, ok := input["apiKey"].(string); ok && v != "" {
-				settings["apiKey"] = v
-				touched = true
-			}
-			if v, ok := input["baseURL"].(string); ok && v != "" {
-				settings["baseURL"] = v
-				touched = true
-			}
-			if v, ok := input["model"].(string); ok && v != "" {
-				settings["model"] = v
-				touched = true
-			}
-			if touched {
-				viper.Set(fmt.Sprintf("plugins.settings.%s", provider), settings)
-			}
-		}
+		// Dynamic plugins are now handled via direct dotted keys in the main Apply loop.
 	}
 
 	if v, ok := input["reasoningLevel"].(string); ok && v != "" {
@@ -271,10 +253,10 @@ func InputToViperKeyMap() map[string]string {
 		"secretsFilePath":         "secrets.file.path",
 		"secretsOpenbaoURL":       "secrets.openbao.url",
 		"secretsOpenbaoToken":     "secrets.openbao.token",
-		"pluginDefaultMemory":     "plugins.defaults.memory",
-		"pluginDefaultSecrets":    "plugins.defaults.secrets",
-		"pluginDefaultAudio":      "plugins.defaults.audio",
-		"pluginDefaultAi":         "plugins.defaults.ai",
+		"pluginDefaultMemory":     "memory.backend",
+		"pluginDefaultSecrets":    "secrets.backend",
+		"pluginDefaultAudio":      "audio.backend",
+		"pluginDefaultAi":         "agent.provider",
 		"a2aEnabled":              "a2a.enabled",
 		"schedulerEnabled":        "scheduler.enabled",
 		"schedulerMemoryEnabled":  "scheduler.memory_enabled",

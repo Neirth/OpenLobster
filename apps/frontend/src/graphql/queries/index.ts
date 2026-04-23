@@ -93,6 +93,11 @@ export const MESSAGES_QUERY = /* GraphQL */ `
         filename
         mimeType
       }
+      audio {
+        transcription
+        format
+        durationMs
+      }
     }
   }
 `;

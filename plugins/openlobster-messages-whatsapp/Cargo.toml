@@ -9,9 +9,14 @@ openlobster-sdk-base = { path = "../openlobster-sdk-base" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "sync"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 whatsapp-business-rs = "0.5"
 base64 = "0.22"
+opus-rs = "0.1"
+ogg = "0.9"
+regex = "1.10"
+
+[patch.crates-io]
+reqwest = { path = ".cargo/patches/reqwest" }
 
 [profile.release]
 opt-level = "z"

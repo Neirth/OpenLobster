@@ -31,20 +31,18 @@ type aiMetadata struct {
 	Properties map[string]any `json:"properties"`
 }
 
-func (w *AIWrapper) currentConfig() map[string]interface{} {
-	live := liveConfigForPlugin(w.plugin.ID(), w.cfg)
-	out := make(map[string]interface{}, len(live)+1)
-	for k, v := range live {
-		out[k] = v
-	}
-	// Internal hint for WASI plugins that need a writable HOME.
-	out["__plugin_home"] = "plugin-home"
-	return out
-}
 
 // NewAIWrapper returns an AIWrapper backed by p.
 func NewAIWrapper(p ports.PluginPort, cfg map[string]interface{}) *AIWrapper {
 	return &AIWrapper{plugin: p, cfg: cfg}
+}
+
+func (w *AIWrapper) UpdateConfig(cfg map[string]interface{}) {
+	w.cfg = cfg
+}
+
+func (w *AIWrapper) Plugin() ports.PluginPort {
+	return w.plugin
 }
 
 type chatPluginInput struct {
@@ -96,7 +94,7 @@ func (w *AIWrapper) Chat(ctx context.Context, req ports.ChatRequest) (ports.Chat
 		Messages:  req.Messages,
 		Tools:     req.Tools,
 		MaxTokens: req.MaxTokens,
-		Config:    w.currentConfig(),
+		Config:    w.cfg,
 	}
 	raw, err := json.Marshal(input)
 	if err != nil {
@@ -130,7 +128,7 @@ func (w *AIWrapper) ChatWithAudio(_ context.Context, req ports.ChatRequestWithAu
 		Messages:  req.Messages,
 		AudioData: req.AudioData,
 		Tools:     req.Tools,
-		Config:    w.currentConfig(),
+		Config:    w.cfg,
 	}
 	raw, err := json.Marshal(input)
 	if err != nil {
@@ -167,7 +165,7 @@ func (w *AIWrapper) ChatToAudio(_ context.Context, req ports.ChatRequest) (ports
 		Messages:  req.Messages,
 		Tools:     req.Tools,
 		MaxTokens: req.MaxTokens,
-		Config:    w.currentConfig(),
+		Config:    w.cfg,
 	}
 	raw, err := json.Marshal(input)
 	if err != nil {

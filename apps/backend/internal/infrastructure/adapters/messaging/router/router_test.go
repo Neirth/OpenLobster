@@ -26,6 +26,14 @@ func (s *stubMessagingPort) SendTyping(ctx context.Context, channelID string, du
 	return nil
 }
 
+func (s *stubMessagingPort) SendSpeaking(ctx context.Context, channelID string, duration_ms int) error {
+	return nil
+}
+
+func (s *stubMessagingPort) SendVoice(ctx context.Context, msg *models.Message) error {
+	return nil
+}
+
 func (s *stubMessagingPort) HandleWebhook(ctx context.Context, payload []byte) (*models.Message, error) {
 	return nil, nil
 }

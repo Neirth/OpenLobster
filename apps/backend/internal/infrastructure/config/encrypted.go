@@ -91,7 +91,8 @@ func WriteEncryptedConfigFromSettings(settings map[string]interface{}, path stri
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, encrypted, 0600)
+	err = os.WriteFile(path, encrypted, 0600)
+	return err
 }
 
 // WriteEncryptedConfigFromViper writes the given viper instance's settings to

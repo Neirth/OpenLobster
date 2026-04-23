@@ -288,32 +288,52 @@ func (a *Adapter) stopLocked() error {
 
 	var closeErr error
 	if a.conn != nil {
-		closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		err := a.conn.call(closeCtx, methodClose, &closeRequest{}, nil)
-		cancel()
-		if err != nil {
-			closeErr = err
+		// Attempt clean RPC close only if the process is still known to be running
+		isAlive := a.cmd != nil && a.cmd.Process != nil
+		if isAlive && a.cmd.ProcessState == nil {
+			closeCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			err := a.conn.call(closeCtx, methodClose, &closeRequest{}, nil)
+			cancel()
+			if err != nil && !isSafeCloseError(err) {
+				closeErr = err
+			}
 		}
 		a.conn = nil
 	}
+
 	if a.stdin != nil {
-		if err := a.stdin.Close(); err != nil && closeErr == nil {
+		if err := a.stdin.Close(); err != nil && closeErr == nil && !isSafeCloseError(err) {
 			closeErr = err
 		}
 		a.stdin = nil
 	}
 	if a.stdout != nil {
-		if err := a.stdout.Close(); err != nil && closeErr == nil {
+		if err := a.stdout.Close(); err != nil && closeErr == nil && !isSafeCloseError(err) {
 			closeErr = err
 		}
 		a.stdout = nil
 	}
 	if a.cmd != nil && a.cmd.Process != nil {
 		_ = a.cmd.Process.Kill()
+		_, _ = a.cmd.Process.Wait()
 	}
 	a.cmd = nil
 
 	return closeErr
+}
+
+func isSafeCloseError(err error) bool {
+	if err == nil {
+		return true
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "broken pipe") ||
+		strings.Contains(s, "closed pipe") ||
+		strings.Contains(s, "file already closed") ||
+		strings.Contains(s, "os: process already finished") ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, context.Canceled)
 }
 
 func (a *Adapter) monitorProcess(cmd *exec.Cmd, eventCtx context.Context) {

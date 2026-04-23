@@ -158,7 +158,7 @@ func TestChannelCapabilities(t *testing.T) {
 	t.Run("discord", func(t *testing.T) {
 		caps := GetCapabilitiesForType("discord")
 		assert.True(t, caps.HasVoiceMessage)
-		assert.True(t, caps.HasCallStream)
+		assert.False(t, caps.HasCallStream)
 		assert.True(t, caps.HasTextStream)
 		assert.True(t, caps.HasMediaSupport)
 	})
@@ -166,15 +166,15 @@ func TestChannelCapabilities(t *testing.T) {
 	t.Run("whatsapp", func(t *testing.T) {
 		caps := GetCapabilitiesForType("whatsapp")
 		assert.True(t, caps.HasVoiceMessage)
-		assert.True(t, caps.HasCallStream)
+		assert.False(t, caps.HasCallStream)
 		assert.True(t, caps.HasTextStream)
 		assert.True(t, caps.HasMediaSupport)
 	})
 
 	t.Run("twilio", func(t *testing.T) {
 		caps := GetCapabilitiesForType("twilio")
-		assert.True(t, caps.HasVoiceMessage)
-		assert.True(t, caps.HasCallStream)
+		assert.False(t, caps.HasVoiceMessage)
+		assert.False(t, caps.HasCallStream)
 		assert.True(t, caps.HasTextStream)
 		assert.True(t, caps.HasMediaSupport)
 	})

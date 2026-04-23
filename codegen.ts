@@ -23,6 +23,7 @@ const config: CodegenConfig = {
 
   documents: [
     join(__dirname, "apps/frontend/src/graphql/**/*.ts"),
+    "!" + join(__dirname, "apps/frontend/src/graphql/generated.ts"),
   ],
 
   generates: {
