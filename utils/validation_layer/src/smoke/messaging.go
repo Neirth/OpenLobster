@@ -61,6 +61,17 @@ func runMessagingSmoke(client protocol.PluginClient, report *types.PluginReport,
 
 	runTypingSmoke(client, report, file, cfg, "smoke-channel")
 
+	// Only run voice smokes if capabilities claim support
+	if info.Properties != nil {
+		var caps struct {
+			HasVoiceMessage bool `json:"HasVoiceMessage"`
+		}
+		if err := json.Unmarshal(info.Properties, &caps); err == nil && caps.HasVoiceMessage {
+			runSpeakingSmoke(client, report, file, cfg, "smoke-channel")
+			runSendVoiceSmoke(client, report, file, cfg, "smoke-channel")
+		}
+	}
+
 	// Pre-start: if exported, must call it.
 	if client.HasFunction("start") {
 		_, err := client.CallJSON("start", map[string]any{"config": cfg})
@@ -109,6 +120,7 @@ func runMessagingSmoke(client protocol.PluginClient, report *types.PluginReport,
 
 func runTypingSmoke(client protocol.PluginClient, report *types.PluginReport, file string, cfg map[string]any, channelID string) {
 	if !client.HasFunction("typing") {
+		addSmokeFailure(report, "messaging.typing", "missing mandatory 'typing' export", file)
 		return
 	}
 	payload := map[string]any{
@@ -124,6 +136,46 @@ func runTypingSmoke(client protocol.PluginClient, report *types.PluginReport, fi
 	}
 }
 
+func runSpeakingSmoke(client protocol.PluginClient, report *types.PluginReport, file string, cfg map[string]any, channelID string) {
+	if !client.HasFunction("speaking") {
+		addSmokeFailure(report, "messaging.speaking", "missing mandatory 'speaking' export for voice-enabled plugin", file)
+		return
+	}
+	payload := map[string]any{
+		"config": cfg,
+		"message": map[string]any{
+			"channel_id": channelID,
+		},
+		"duration_ms": 1000,
+	}
+	_, err := client.CallJSON("speaking", payload)
+	if err != nil && isTransportFailure(err.Error()) {
+		addSmokeFailure(report, "messaging.speaking", err.Error(), file)
+	}
+}
+
+func runSendVoiceSmoke(client protocol.PluginClient, report *types.PluginReport, file string, cfg map[string]any, channelID string) {
+	if !client.HasFunction("send_voice") {
+		addSmokeFailure(report, "messaging.send_voice", "missing mandatory 'send_voice' export for voice-enabled plugin", file)
+		return
+	}
+	// Minimal voice payload
+	payload := map[string]any{
+		"config": cfg,
+		"message": map[string]any{
+			"channel_id": channelID,
+			"audio": map[string]any{
+				"data":   "AAA=", // invalid base64 is fine for ABI probe
+				"format": "pcm",
+			},
+		},
+	}
+	_, err := client.CallJSON("send_voice", payload)
+	if err != nil && isTransportFailure(err.Error()) {
+		addSmokeFailure(report, "messaging.send_voice", err.Error(), file)
+	}
+}
+
 func isInboundModeValid(mode string) bool {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "polling", "gateway", "webhook", "disabled":
@@ -131,4 +183,9 @@ func isInboundModeValid(mode string) bool {
 	default:
 		return false
 	}
+}
+
+func isTransportFailure(errMsg string) bool {
+	msg := strings.ToLower(errMsg)
+	return strings.Contains(msg, "broken pipe") || strings.Contains(msg, "eof")
 }

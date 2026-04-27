@@ -135,3 +135,14 @@ func (rs *rpcScanner) scan() (*rpcMessage, error) {
 	}
 	return nil, nil
 }
+
+// scanLine reads the next raw line from the scanner.
+func (rs *rpcScanner) scanLine() (string, error) {
+	if rs.s.Scan() {
+		return rs.s.Text(), nil
+	}
+	if err := rs.s.Err(); err != nil {
+		return "", err
+	}
+	return "", io.EOF
+}

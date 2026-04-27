@@ -1,0 +1,32 @@
+{
+  "name": "openlobster",
+  "env": {
+    "OPENLOBSTER_GRAPHQL_AUTH_TOKEN": {
+      "description": "The secret token for GraphQL Dashboard authentication.",
+      "required": true
+    },
+    "NEO4J_PASSWORD": {
+      "description": "Password for the Neo4j database.",
+      "required": true
+    },
+    "VAULT_ROOT_TOKEN": {
+      "description": "Initial root token for Vault (Dev Mode).",
+      "required": true
+    },
+    "OPENAI_API_KEY": {
+      "description": "Optional: OpenAI API Key.",
+      "required": false
+    },
+    "GCS_BUCKET_NAME": {
+      "description": "Name of an existing Cloud Storage bucket for persistent data.",
+      "required": true
+    }
+  },
+  "hooks": {
+    "prebuild": {
+      "commands": [
+        "echo 'Skipping custom build, using pre-built image from GHCR via Dockerfile'"
+      ]
+    }
+  }
+}

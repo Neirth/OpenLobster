@@ -1,26 +1,79 @@
-# Secrets Plugins
-Secrets plugins provide secure storage for API keys, tokens, and sensitive configuration.
-## Identification
-- **Type**: `secrets`
-## Dispatch Mode (`Call`)
+---
+description: "Specification for secret storage and vault plugins in OpenLobster."
+icon: key
+---
 
-### `get_info`
-Returns general plugin metadata.
+# Secrets Plugins
+
+Secrets plugins provide secure storage for API keys, tokens, and sensitive configuration. They act as a bridge between the OpenLobster Core and external vaults or local encrypted storage.
+
+## Identification
+
+- **Type**: `secrets`
+- **Required Functions**: `get`, `set`, `delete`, `list`
 
 ---
 
 ## Exported Functions
 
 ### `get`
-Retrieves a secret.
+Retrieves a secret value by its key.
 
-**Request (`params`):**
+**Request Parameters:**
 ```json
 {
-  "key": "api_key"
+  "config": { ... },
+  "key": "anthropic_api_key"
 }
 ```
-- `set`: Store a secret value.
-- `delete`: Remove a secret.
-- `list`: List available secret keys.
-- `configure`: Update settings.
+
+**Response:**
+```json
+{
+  "value": "sk-ant-...",
+  "found": true,
+  "error": null
+}
+```
+
+### `set`
+Persists a secret value.
+
+**Request Parameters:**
+```json
+{
+  "config": { ... },
+  "key": "anthropic_api_key",
+  "value": "sk-ant-..."
+}
+```
+
+### `delete`
+Removes a secret from storage.
+
+**Request Parameters:**
+```json
+{
+  "config": { ... },
+  "key": "anthropic_api_key"
+}
+```
+
+### `list`
+Lists all keys currently stored in the vault or secret backend.
+
+**Request Parameters:**
+```json
+{
+  "config": { ... },
+  "prefix": "optional-prefix"
+}
+```
+
+**Response:**
+```json
+{
+  "keys": ["key1", "key2", ...],
+  "error": null
+}
+```

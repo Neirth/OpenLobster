@@ -150,6 +150,27 @@ func runAISmoke(client protocol.PluginClient, report *types.PluginReport, opts t
 	if !hasAIChatSignal(historyOut) {
 		addSmokeFailure(report, "ai.chat.tool-history", "empty follow-up content and no tool_calls", file)
 	}
+
+	// Multimodal validation
+	props := client.Info().Properties
+	if len(props) > 0 {
+		var aiProps struct {
+			SupportsAudioInput  bool `json:"supports_audio_input"`
+			SupportsAudioOutput bool `json:"supports_audio_output"`
+		}
+		if err := json.Unmarshal(props, &aiProps); err == nil {
+			if aiProps.SupportsAudioInput {
+				if !client.HasFunction("chat_with_audio") {
+					addSmokeFailure(report, "ai.multimodal", "claims supports_audio_input but lacks 'chat_with_audio' export", file)
+				}
+			}
+			if aiProps.SupportsAudioOutput {
+				if !client.HasFunction("chat_to_audio") {
+					addSmokeFailure(report, "ai.multimodal", "claims supports_audio_output but lacks 'chat_to_audio' export", file)
+				}
+			}
+		}
+	}
 }
 
 type aiChatOutput struct {

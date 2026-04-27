@@ -6,17 +6,23 @@ metadata:
     cloud.googleapis.com/location: us-central1
 spec:
   template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
     spec:
       containers:
         # Main Container
         - image: ghcr.io/neirth/openlobster/openlobster:latest
           ports:
             - containerPort: 8080
+          volumeMounts:
+            - name: lobster-vol
+              mountPath: /app/data
           env:
             - name: OPENLOBSTER_GRAPHQL_HOST
               value: 0.0.0.0
             - name: OPENLOBSTER_GRAPHQL_AUTH_TOKEN
-              value: REPLACE_WITH_YOUR_TOKEN
+              value: ${OPENLOBSTER_GRAPHQL_AUTH_TOKEN}
             - name: OPENLOBSTER_MEMORY_BACKEND
               value: neo4j
             - name: OPENLOBSTER_MEMORY_NEO4J_URI
@@ -24,24 +30,47 @@ spec:
             - name: OPENLOBSTER_MEMORY_NEO4J_USER
               value: neo4j
             - name: OPENLOBSTER_MEMORY_NEO4J_PASSWORD
-              value: REPLACE_WITH_NEO4J_PASSWORD
+              value: ${NEO4J_PASSWORD}
             - name: OPENLOBSTER_SECRETS_BACKEND
               value: openbao
             - name: OPENLOBSTER_SECRETS_OPENBAO_URL
               value: http://localhost:8200
             - name: OPENLOBSTER_SECRETS_OPENBAO_TOKEN
-              value: REPLACE_WITH_VAULT_ROOT_TOKEN
+              value: ${VAULT_ROOT_TOKEN}
 
         # Neo4j sidecar
         - image: neo4j:5-community
+          volumeMounts:
+            - name: neo4j-vol
+              mountPath: /data
           env:
             - name: NEO4J_AUTH
-              value: neo4j/REPLACE_WITH_NEO4J_PASSWORD
+              value: neo4j/${NEO4J_PASSWORD}
 
         # Vault sidecar
         - image: hashicorp/vault:latest
+          volumeMounts:
+            - name: vault-vol
+              mountPath: /vault/file
           env:
             - name: VAULT_DEV_ROOT_TOKEN_ID
-              value: REPLACE_WITH_VAULT_ROOT_TOKEN
+              value: ${VAULT_ROOT_TOKEN}
             - name: VAULT_ADDR
               value: http://0.0.0.0:8200
+
+      volumes:
+        - name: lobster-vol
+          csi:
+            driver: gcsfuse.run.googleapis.com
+            volumeAttributes:
+              bucketName: ${GCS_BUCKET_NAME}/lobster
+        - name: neo4j-vol
+          csi:
+            driver: gcsfuse.run.googleapis.com
+            volumeAttributes:
+              bucketName: ${GCS_BUCKET_NAME}/neo4j
+        - name: vault-vol
+          csi:
+            driver: gcsfuse.run.googleapis.com
+            volumeAttributes:
+              bucketName: ${GCS_BUCKET_NAME}/vault

@@ -149,7 +149,7 @@ fn metadata_schema() -> Value {
 }
 
 fn metadata_properties() -> Value {
-    serde_json::json!({"supports_audio_input": true, "supports_audio_output": false})
+    serde_json::json!({"supports_audio_input": false, "supports_audio_output": false})
 }
 
 // ---------------------------------------------------------------------------

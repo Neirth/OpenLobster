@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -156,7 +155,11 @@ func normalizeMetadataSchema(raw json.RawMessage) []byte {
 
 func (a *Adapter) startLocked(ctx context.Context) error {
 	cmd := exec.Command(a.binaryPath)
-	cmd.Stderr = os.Stderr
+	
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("plugin %s: stderr pipe: %w", a.id, err)
+	}
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -171,8 +174,23 @@ func (a *Adapter) startLocked(ctx context.Context) error {
 	if err := cmd.Start(); err != nil {
 		_ = stdin.Close()
 		_ = stdout.Close()
+		_ = stderr.Close()
 		return fmt.Errorf("plugin %s: start %s: %w", a.id, a.binaryPath, err)
 	}
+
+	// Capture stderr in a separate goroutine to avoid blocking the plugin
+	go func() {
+		scanner := newRPCScanner(stderr)
+		for {
+			line, err := scanner.scanLine()
+			if err != nil {
+				break
+			}
+			if line = strings.TrimSpace(line); line != "" {
+				log.Printf("plugin %s:stderr: %s", a.id, line)
+			}
+		}
+	}()
 
 	conn := newJRPCConn(stdin)
 

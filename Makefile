@@ -12,14 +12,12 @@ WHITELIST = openlobster-ai-anthropic \
             openlobster-messages-discord \
             openlobster-messages-telegram \
             openlobster-messages-slack \
-            openlobster-messages-twilio \
-            openlobster-messages-whatsapp \
             openlobster-secrets-json \
             openlobster-secrets-openbao
 
 DITTO_TYPES = ai messages memory secrets audio
 
-# Targets: linux-amd64, linux-arm64, macos-arm64 (Default: host)
+# Targets: linux-amd64, linux-arm64, darwin-arm64 (Default: host)
 TARGET ?= host
 
 # Host detection
@@ -38,7 +36,7 @@ else ifeq ($(TARGET),linux-arm64)
     GOARCH=arm64
     RUST_TARGET=aarch64-unknown-linux-musl
     OS=Linux
-else ifeq ($(TARGET),macos-arm64)
+else ifeq ($(TARGET),darwin-arm64)
     GOOS=darwin
     GOARCH=arm64
     RUST_TARGET=aarch64-apple-darwin
@@ -51,16 +49,13 @@ else
     RUST_TARGET=$(HOST_RUST_TARGET)
 endif
 
-# Decide if we are cross-compiling
-IS_CROSS = 0
-ifeq ($(OS),Linux)
-    # On Linux, musl targets for the same arch are native (if musl-tools is installed)
-    ifneq ($(RUST_TARGET),$(HOST_RUST_TARGET))
-        # It's cross if arch is different or if it's macOS
-        IS_CROSS = 1
-    endif
-else ifneq ($(RUST_TARGET),$(HOST_RUST_TARGET))
-    IS_CROSS = 1
+# Cross-compilation helpers for Rust (musl-cross)
+ifeq ($(TARGET),linux-amd64)
+    export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=x86_64-unknown-linux-musl-gcc
+    export CC_x86_64_unknown_linux_musl=x86_64-unknown-linux-musl-gcc
+else ifeq ($(TARGET),linux-arm64)
+    export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-unknown-linux-musl-gcc
+    export CC_aarch64_unknown_linux_musl=aarch64-unknown-linux-musl-gcc
 endif
 
 # Signing Configuration
@@ -72,7 +67,7 @@ else
 endif
 
 # Export vars to sub-makes
-export GOOS GOARCH RUST_TARGET IS_CROSS
+export GOOS GOARCH RUST_TARGET
 
 # Targets
 .PHONY: all build-prod build-skeleton clean frontend backend plugins ditto prepare-prod prepare-skeleton lint format codegen sign release
@@ -92,9 +87,9 @@ frontend:
 plugins:
 	@for p in $(WHITELIST); do \
 		if [ -d "plugins/$$p" ]; then \
-			$(MAKE) -C "plugins/$$p" build RUST_TARGET=$(RUST_TARGET) IS_CROSS=$(IS_CROSS) || exit 1; \
+			$(MAKE) -C "plugins/$$p" build RUST_TARGET=$(RUST_TARGET) || exit 1; \
 		elif [ -d "plugins/$$p-rust" ]; then \
-			$(MAKE) -C "plugins/$$p-rust" build RUST_TARGET=$(RUST_TARGET) IS_CROSS=$(IS_CROSS) || exit 1; \
+			$(MAKE) -C "plugins/$$p-rust" build RUST_TARGET=$(RUST_TARGET) || exit 1; \
 		fi; \
 	done
 
@@ -103,6 +98,9 @@ ditto:
 
 backend:
 	@$(MAKE) -C apps/backend build-prod
+	@if [ -f "dist/openlobster" ] && [ "dist/openlobster" != "$(DIST_EXE)" ]; then \
+		mv dist/openlobster $(DIST_EXE); \
+	fi
 
 sign-backend:
 	@echo "Signing backend binary for $(OS) (Target: $(TARGET))..."
@@ -110,8 +108,6 @@ sign-backend:
 		if [ "$(OS)" = "Darwin" ]; then \
 			if command -v codesign > /dev/null; then \
 				codesign -s $(SIGN_ID) --force --deep --options runtime $(DIST_EXE); \
-			else \
-				rcodesign sign --p12-file "$(APPLE_CERTIFICATE_P12_PATH)" --p12-password "$(APPLE_CERTIFICATE_PASSWORD)" $(DIST_EXE); \
 			fi; \
 		else \
 			echo "Linux binary signing placeholder for $(DIST_EXE)"; \
@@ -126,9 +122,7 @@ sign-plugins:
 		if [ -f "$$src" ]; then \
 			if [ "$(OS)" = "Darwin" ]; then \
 				if command -v codesign > /dev/null; then \
-					codesign -s $(SIGN_ID) --force "$$src"; \
-				else \
-					rcodesign sign --p12-file "$(APPLE_CERTIFICATE_P12_PATH)" --p12-password "$(APPLE_CERTIFICATE_PASSWORD)" "$$src"; \
+					codesign -s $(SIGN_ID) --force "$$src" || exit 1; \
 				fi; \
 			else \
 				echo "Linux binary signing placeholder for $$p ($$src)"; \
@@ -148,17 +142,18 @@ prepare-prod:
 		if [ -f "$$src" ]; then \
 			cp "$$src" "$(EMBED_DIR)/$$p_id"; \
 		else \
-			echo "Warning: Binary for $$p_id not found at $$src"; \
+			echo "Error: Binary for $$p_id not found at $$src"; \
+			exit 1; \
 		fi; \
 	done
 
 release:
-	@for t in linux-amd64 linux-arm64 macos-arm64; do \
-		$(MAKE) build-prod TARGET=$$t DIST_EXE=dist/openlobster-$$t; \
+	@for t in linux-amd64 linux-arm64 darwin-arm64; do \
+		$(MAKE) build-prod TARGET=$$t DIST_EXE=dist/openlobster-$$t || exit 1; \
 	done
 
 clean:
 	@$(MAKE) -C apps/frontend clean
 	@$(MAKE) -C apps/backend clean
-	@for d in plugins/*; do [ -f "$$d/Makefile" ] && $(MAKE) -C "$$d" clean; done
+	@for d in plugins/*; do [ -f "$$d/Makefile" ] && $(MAKE) -C "$$d" clean || exit 1; done
 	@rm -rf dist/

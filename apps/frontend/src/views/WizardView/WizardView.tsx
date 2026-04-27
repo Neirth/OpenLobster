@@ -366,29 +366,43 @@ const WizardView: Component<WizardViewProps> = (_props) => {
       const telegramId = "messaging:telegram";
       if (getValueAtPath(values, `plugins.enabled.${telegramId}`)) {
           variables.input.channelTelegramEnabled = true;
-          variables.input.channelTelegramToken = getValueAtPath(values, `pluginSettings.${telegramId}.bot_token`) || "";
+          variables.input.channelTelegramToken = getValueAtPath(values, `plugins.settings.${telegramId}.bot_token`) || "";
       }
 
       const discordId = "messaging:discord";
       if (getValueAtPath(values, `plugins.enabled.${discordId}`)) {
           variables.input.channelDiscordEnabled = true;
-          variables.input.channelDiscordToken = getValueAtPath(values, `pluginSettings.${discordId}.bot_token`) || "";
+          variables.input.channelDiscordToken = getValueAtPath(values, `plugins.settings.${discordId}.bot_token`) || "";
       }
 
       const slackId = "messaging:slack";
       if (getValueAtPath(values, `plugins.enabled.${slackId}`)) {
           variables.input.channelSlackEnabled = true;
-          variables.input.channelSlackBotToken = getValueAtPath(values, `pluginSettings.${slackId}.bot_token`) || "";
-          variables.input.channelSlackAppToken = getValueAtPath(values, `pluginSettings.${slackId}.app_token`) || "";
+          variables.input.channelSlackBotToken = getValueAtPath(values, `plugins.settings.${slackId}.bot_token`) || "";
+          variables.input.channelSlackAppToken = getValueAtPath(values, `plugins.settings.${slackId}.app_token`) || "";
       }
 
-      // AI Provider Key Mapping
+      // AI Provider Mapping (Ollama/OpenAI/Anthropic)
       const selectedAI = values.pluginDefaultAi as string | undefined;
       if (selectedAI && selectedAI.length > 0) {
-        variables.input.provider = normalizeId(selectedAI).toLowerCase();
-        variables.input.apiKey = getValueAtPath(values, `pluginSettings.${selectedAI}.api_key`) || "";
+        const providerId = normalizeId(selectedAI).toLowerCase();
+        variables.input.provider = providerId;
+        
+        // Generic API Key mapping
+        variables.input.apiKey = getValueAtPath(values, `plugins.settings.${selectedAI}.api_key`) || "";
+        
+        // Ollama Specific Mapping (Host/Endpoint)
+        if (providerId === "ollama") {
+            variables.input.ollamaHost = getValueAtPath(values, `plugins.settings.${selectedAI}.endpoint`) || "";
+            variables.input.ollamaApiKey = getValueAtPath(values, `plugins.settings.${selectedAI}.api_key`) || "";
+            variables.input.model = getValueAtPath(values, `plugins.settings.${selectedAI}.default_model`) || values.model;
+        }
+        
+        // Anthropic Specific
+        if (providerId === "anthropic") {
+            variables.input.anthropicApiKey = getValueAtPath(values, `plugins.settings.${selectedAI}.api_key`) || "";
+        }
       }
-
 
       variables.input.wizardCompleted = true;
 
@@ -517,9 +531,9 @@ const WizardView: Component<WizardViewProps> = (_props) => {
                             <For each={Object.entries(schema().properties || {})}>
                               {([key, prop]) => (
                                 <WizardSchemaField
-                                  field={`pluginSettings.${selectedId()}.${key}`}
+                                  field={`plugins.settings.${selectedId()}.${key}`}
                                   schema={prop as unknown as SchemaProperty}
-                                  values={(getValueAtPath(formValues(), `pluginSettings.${selectedId()}`) as Record<string, unknown>) || {}}
+                                  values={(getValueAtPath(formValues(), `plugins.settings.${selectedId()}`) as Record<string, unknown>) || {}}
                                   onChange={handleFieldChange}
                                 />
                               )}

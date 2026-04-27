@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Neirth/OpenLobster/actions/workflows/release.docker-images.yaml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/Neirth/OpenLobster/release.docker-images.yaml?branch=master&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/Neirth/OpenLobster/actions/workflows/release.docker-images.yaml?branch=master"><img src="https://img.shields.io/github/actions/workflow/status/Neirth/OpenLobster/release.docker-images.yaml?branch=master&style=for-the-badge" alt="CI status"></a>
   <a href="https://github.com/Neirth/OpenLobster/releases"><img src="https://img.shields.io/github/v/release/Neirth/OpenLobster?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
   <a href="https://neirth.gitbook.io/openlobster"><img src="https://img.shields.io/badge/Docs-GitBook-blue?style=for-the-badge" alt="Docs"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge" alt="GPLv3 License"></a>
@@ -38,6 +38,14 @@ OpenClaw had a moment — self-hosted AI agent, lots of hype, fast growth. Then 
 This fork started as a personal fix for all of that and grew from there.
 
 ---
+
+## One-Click Install (Local)
+
+Run the following command to download the latest binary and install it as a background service on your machine (supports Linux/systemd, macOS/launchd, and Windows/WSL2):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Neirth/OpenLobster/master/scripts/install.sh | sh
+```
 
 ## What changed (and why)
 
@@ -73,9 +81,9 @@ This fork started as a personal fix for all of that and grew from there.
 ## Quick Deploy
 
 <p align="center">
-  <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FNeirth%2FOpenLobster%2Fmain%2Finfrastructure%2Fazure%2Fazuredeploy.json"><img src="docs/assets/deploy-azure.svg" alt="Deploy to Azure" height="32"></a>
-  <a href="https://deploy.cloud.run/?git_repo=https://github.com/Neirth/OpenLobster.git"><img src="docs/assets/deploy-gcp.svg" alt="Deploy to GCP" height="32"></a>
-  <a href="https://www.digitalocean.com/manage/apps/new?config=https://github.com/Neirth/OpenLobster/blob/main/infrastructure/digitalocean/app.yaml"><img src="docs/assets/deploy-digitalocean.svg" alt="Deploy to DigitalOcean" height="32"></a>
+  <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FNeirth%2FOpenLobster%2Fmaster%2Finfrastructure%2Fazure%2Fazuredeploy.json"><img src="docs/assets/deploy-azure.svg" alt="Deploy to Azure" height="32"></a>
+  <a href="https://deploy.cloud.run/?git_repo=https://github.com/Neirth/OpenLobster.git&revision=master&dir=infrastructure/gcp"><img src="docs/assets/deploy-gcp.svg" alt="Deploy to GCP" height="32"></a>
+  <a href="https://www.digitalocean.com/manage/apps/new?config=https://github.com/Neirth/OpenLobster/blob/master/infrastructure/digitalocean/app.yaml"><img src="docs/assets/deploy-digitalocean.svg" alt="Deploy to DigitalOcean (Ephemeral)" height="32"></a>
   <br>
   <em>One-click deployment — includes automatic Neo4j (Memory) and Vault (Secrets) setup.</em>
 </p>
@@ -83,22 +91,8 @@ This fork started as a personal fix for all of that and grew from there.
 ## Manual Deploy
 
 ```bash
-# Install dependencies
-pnpm install
+make build-prod
 
-# Build frontend + backend (frontend embedded into the binary)
-pnpm build --filter=@openlobster/backend
-
-# Build only the frontend
-pnpm build --filter=@openlobster/frontend
-
-# Build both
-pnpm build
-
-# Copy the environment template and fill in your secrets
-cp .env.example .env
-
-# Run
 ./dist/openlobster
 ```
 
@@ -107,6 +101,7 @@ The web dashboard will be at `http://127.0.0.1:8080`. On first launch the setup 
 ## Docker
 
 # Recommended: use a .env file for secrets
+```bash
 docker run -p 8080:8080 \
   --env-file .env \
   -v ~/.openlobster/data:/app/data \
@@ -163,18 +158,11 @@ OPENLOBSTER_PROVIDERS_OLLAMA_DEFAULT_MODEL=llama3.2:latest
 | `OPENLOBSTER_PROVIDERS_OPENAI_API_KEY` | `providers.openai.api_key` | OpenAI key |
 | `OPENLOBSTER_PROVIDERS_OPENAI_MODEL` | `providers.openai.model` | e.g. `gpt-4o` |
 | `OPENLOBSTER_PROVIDERS_OPENAI_BASE_URL` | `providers.openai.base_url` | Custom base URL |
-| `OPENLOBSTER_PROVIDERS_OPENROUTER_API_KEY` | `providers.openrouter.api_key` | OpenRouter key |
-| `OPENLOBSTER_PROVIDERS_OPENROUTER_DEFAULT_MODEL` | `providers.openrouter.default_model` | e.g. `openai/gpt-4o` |
 | `OPENLOBSTER_PROVIDERS_OLLAMA_ENDPOINT` | `providers.ollama.endpoint` | e.g. `http://localhost:11434` |
 | `OPENLOBSTER_PROVIDERS_OLLAMA_DEFAULT_MODEL` | `providers.ollama.default_model` | e.g. `llama3.2:latest` |
 | `OPENLOBSTER_PROVIDERS_OLLAMA_API_KEY` | `providers.ollama.api_key` | Optional auth |
 | `OPENLOBSTER_PROVIDERS_ANTHROPIC_API_KEY` | `providers.anthropic.api_key` | Anthropic key |
 | `OPENLOBSTER_PROVIDERS_ANTHROPIC_MODEL` | `providers.anthropic.model` | e.g. `claude-sonnet-4-6` |
-| `OPENLOBSTER_PROVIDERS_OPENAICOMPAT_API_KEY` | `providers.openaicompat.api_key` | OpenAI-compatible key |
-| `OPENLOBSTER_PROVIDERS_OPENAICOMPAT_BASE_URL` | `providers.openaicompat.base_url` | Base URL |
-| `OPENLOBSTER_PROVIDERS_OPENAICOMPAT_MODEL` | `providers.openaicompat.model` | Model name |
-| `OPENLOBSTER_PROVIDERS_DOCKER_MODEL_RUNNER_ENDPOINT` | `providers.docker_model_runner.endpoint` | DMR endpoint |
-| `OPENLOBSTER_PROVIDERS_DOCKER_MODEL_RUNNER_DEFAULT_MODEL` | `providers.docker_model_runner.default_model` | DMR model |
 | `OPENLOBSTER_GRAPHQL_ENABLED` | `graphql.enabled` | Enable GraphQL API |
 | `OPENLOBSTER_GRAPHQL_PORT` | `graphql.port` | Default `8080` |
 | `OPENLOBSTER_GRAPHQL_HOST` | `graphql.host` | Default `127.0.0.1` |

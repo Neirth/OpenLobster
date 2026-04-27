@@ -99,10 +99,10 @@ fn metadata_schema() -> Value {
     serde_json::json!({
         "type": "object",
         "properties": {
-            "base_url": {
+            "endpoint": {
                 "type": "string",
-                "title": "Base URL",
-                "description": "Ollama API endpoint (e.g., local instance or remote server)",
+                "title": "Endpoint",
+                "description": "Ollama API endpoint (e.g., http://localhost:11434)",
                 "default": "http://localhost:11434",
                 "placeholder": "http://localhost:11434"
             },
@@ -116,7 +116,7 @@ fn metadata_schema() -> Value {
             "api_key": {
                 "type": "string",
                 "title": "API Key (Optional)",
-                "description": "Optional Bearer token for protected or cloud-hosted Ollama endpoints",
+                "description": "Optional Bearer token for protected or cloud-hosted Ollama instances",
                 "placeholder": "Enter key if required"
             }
         },
@@ -170,8 +170,8 @@ async fn chat(input: Option<Value>) -> CallResponse {
 
     let cfg = CONFIG.merge(payload.config);
 
-    let base_url = {
-        let v = HotConfig::get_str(&cfg, "base_url");
+    let endpoint = {
+        let v = HotConfig::get_str(&cfg, "endpoint");
         if v.is_empty() { "http://localhost:11434".to_string() } else { v }
     };
 
@@ -183,7 +183,7 @@ async fn chat(input: Option<Value>) -> CallResponse {
         } else { m }
     };
 
-    let parsed = match url::Url::parse(&base_url) {
+    let parsed = match url::Url::parse(&endpoint) {
         Ok(u) => u,
         Err(e) => {
             return CallResponse {
@@ -266,9 +266,9 @@ async fn chat(input: Option<Value>) -> CallResponse {
     }
 
     // MANUAL REQWEST IMPLEMENTATION: Bypassing ollama-rs to ensure ultra-minimalist JSON.
-    let base_url = input.as_ref()
+    let endpoint = input.as_ref()
         .and_then(|v| v.get("config"))
-        .and_then(|c| c.get("base_url"))
+        .and_then(|c| c.get("endpoint"))
         .and_then(|v| v.as_str())
         .unwrap_or("http://localhost:11434");
         
@@ -279,7 +279,7 @@ async fn chat(input: Option<Value>) -> CallResponse {
         .unwrap_or("");
     
     let client = reqwest::Client::new();
-    let url = format!("{}/api/chat", base_url.trim_end_matches('/'));
+    let url = format!("{}/api/chat", endpoint.trim_end_matches('/'));
     
     let request_payload = serde_json::json!({
         "model": model,

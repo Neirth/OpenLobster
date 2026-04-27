@@ -1,91 +1,86 @@
+---
+description: "Specification for messaging gateway plugins in OpenLobster."
+icon: message-dots
+---
+
 # Messaging Plugins
 
-Messaging plugins connect OpenLobster to communication platforms like Telegram, Discord, Slack, or WhatsApp.
+Messaging plugins connect OpenLobster to external communication platforms such as Telegram, Discord, Slack, and WhatsApp. They manage the bidirectional flow of text, media, and events between the user and the Core.
 
 ## Identification
 
-- **Type**: `messaging`
-- **Required Functions**: `send`, `resolve_channel_id`, `configure`
-- **Recommended Functions**: `start`, `typing`, `inbound_mode`
+*   **Type**: `messaging`
+*   **Required Functions**: `send`, `resolve_channel_id`
+*   **Recommended Functions**: `start`, `typing`
 
-## Handshake: `get_info`
+## Handshake Details
 
-Messaging plugins must return their `inbound_mode` and `capabilities` within the `properties` field.
+During the handshake phase, messaging plugins must specify their ingress strategy and capability matrix within the `properties` field.
 
-- **`inbound_mode`**: `"polling"` or `"webhook"` (identifies how the plugin receives messages).
-- **`capabilities`**: Object defining what the plugin can do (e.g., `{"supports_embedding": true}`).
+### Inbound Mode (`inbound_mode`)
+Identifies how the plugin receives messages from the upstream platform:
+- `polling`: The plugin actively fetches updates (e.g., long-polling).
+- `webhook`: The plugin expects the Host to route incoming HTTP requests to it via the `handle_webhook` function.
+- `disabled`: The plugin only supports outbound messages.
+
+### Capabilities Matrix
+A structured object defining supported features:
+- `supports_audio`: Whether the channel can handle voice messages.
+- `supports_media`: Whether the channel can handle images or document attachments.
 
 ---
 
 ## Exported Functions
 
 ### `send`
-Sends an outbound message to a specific channel.
+Dispatches an outbound message from the Core to a specific platform user or group.
 
-**Request (`params`):**
-```json
-{
-  "channel_id": "12345",
-  "content": "Hello, world!"
-}
-```
-
-**Input Payload (`input` field in `Call` request)**:
+**Request Parameters:**
 ```json
 {
   "message": {
     "channel_id": "platform-chat-id",
-    "content": "Message text",
-    "audio": { "data": "base64", "format": "ogg" },
-    "metadata": { ... }
+    "content": "Message text content",
+    "audio": { "data": "base64_encoded_string", "format": "ogg" }
   },
   "config": { ... }
 }
 ```
 
-**Output**: `{"ok": true}` or `{"error": "..."}`
+**Response:**
+Returns `{"ok": true}` on success or an error object.
 
-### Function: `typing`
-Signals that the bot is "typing" on the platform.
+### `resolve_channel_id`
+Translates incoming metadata or alternative identifiers into a canonical `channel_id` recognized by the platform.
 
-**Input Payload**: `{"message": { "channel_id": "..." }, "duration_ms": 5000}`
+---
 
-## Inbound Flow (Plugin -> Core)
+## Inbound Flow (Plugin → Host)
 
-Messaging plugins are typically "autonomous": they maintain a connection (long-polling or webhook) and push events to the core.
+Messaging plugins are usually autonomous. They maintain their own connection to the platform API and push new events to the Host.
 
-### Method: `emit_message` (Callback)
-The plugin must call this core method via STDIO whenever a new message is received from the platform.
+### Callback: `emit_message`
+The plugin invokes this notification on the Host whenever a new user message arrives.
 
-**Params (JSON-RPC Request to core)**:
+**Payload Specification:**
 ```json
 {
   "jsonrpc": "2.0",
   "method": "emit_message",
   "params": {
-    "type": "emit_message",
     "payload": {
-      "channel_id": "...",
-      "sender_id": "...",
-      "sender_name": "...",
-      "content": "...",
-      "attachments": [...],
+      "channel_id": "123456789",
+      "sender_id": "@username",
+      "sender_name": "John Doe",
+      "content": "Hello OpenLobster!",
       "metadata": { ... }
     }
   }
 }
 ```
 
-## Methods for Core Discovery
+## Technical Considerations
 
-### `inbound_mode`
-Returns how the plugin handles incoming messages: `"polling"`, `"webhook"`, or `"none"`.
-
-### `capabilities`
-Returns a boolean map of features:
-- `HasVoiceMessage`: can send/receive audio.
-- `HasTextStream`: supports real-time text tokens.
-- `HasMediaSupport`: supports images/files.
-
-### `resolve_channel_id`
-Translates ambiguous IDs or metadata into a canonical platform `channel_id`.
+1.  **Concurrency**: Messaging plugins must be able to handle multiple `send` requests while simultaneously processing inbound events.
+2.  **Graceful Recovery**: Plugins are responsible for implementing reconnection logic if the upstream platform API becomes unavailable.
+3.  **State Management**: If a plugin uses `webhook` mode, it must remain stateless as the Host may distribute ingress traffic across multiple plugin instances.

@@ -687,18 +687,6 @@ func UpdateConfigInputToMap(input generated.UpdateConfigInput) map[string]interf
 	if input.ChannelWhatsAppAPIToken != nil {
 		m["channelWhatsAppApiToken"] = *input.ChannelWhatsAppAPIToken
 	}
-	if input.ChannelTelegramEnabled != nil {
-		m["channelTelegramEnabled"] = *input.ChannelTelegramEnabled
-	}
-	if input.ChannelTelegramToken != nil {
-		m["channelTelegramToken"] = *input.ChannelTelegramToken
-	}
-	if input.ChannelDiscordEnabled != nil {
-		m["channelDiscordEnabled"] = *input.ChannelDiscordEnabled
-	}
-	if input.ChannelDiscordToken != nil {
-		m["channelDiscordToken"] = *input.ChannelDiscordToken
-	}
 	if input.ChannelTwilioEnabled != nil {
 		m["channelTwilioEnabled"] = *input.ChannelTwilioEnabled
 	}
@@ -719,30 +707,6 @@ func UpdateConfigInputToMap(input generated.UpdateConfigInput) map[string]interf
 	}
 	if input.ChannelSlackAppToken != nil {
 		m["channelSlackAppToken"] = *input.ChannelSlackAppToken
-	}
-	if input.Provider != nil {
-		m["provider"] = *input.Provider
-	}
-	if input.Model != nil {
-		m["model"] = *input.Model
-	}
-	if input.APIKey != nil {
-		m["apiKey"] = *input.APIKey
-	}
-	if input.BaseURL != nil {
-		m["baseURL"] = *input.BaseURL
-	}
-	if input.PluginDefaultAi != nil {
-		m["pluginDefaultAi"] = *input.PluginDefaultAi
-	}
-	if input.PluginDefaultMemory != nil {
-		m["pluginDefaultMemory"] = *input.PluginDefaultMemory
-	}
-	if input.PluginDefaultSecrets != nil {
-		m["pluginDefaultSecrets"] = *input.PluginDefaultSecrets
-	}
-	if input.PluginDefaultAudio != nil {
-		m["pluginDefaultAudio"] = *input.PluginDefaultAudio
 	}
 	if input.WizardCompleted != nil {
 		m["wizardCompleted"] = *input.WizardCompleted

@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Neirth/OpenLobster/actions/workflows/release.docker-images.yaml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/Neirth/OpenLobster/release.docker-images.yaml?branch=master&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/Neirth/OpenLobster/actions/workflows/release.docker-images.yaml?branch=master"><img src="https://img.shields.io/github/actions/workflow/status/Neirth/OpenLobster/release.docker-images.yaml?branch=master&style=for-the-badge" alt="CI status"></a>
   <a href="https://github.com/Neirth/OpenLobster/releases"><img src="https://img.shields.io/github/v/release/Neirth/OpenLobster?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
   <a href="https://neirth.gitbook.io/openlobster"><img src="https://img.shields.io/badge/Docs-GitBook-blue?style=for-the-badge" alt="Docs"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge" alt="GPLv3 License"></a>
@@ -37,6 +37,14 @@ OpenClaw 曾风靡一时——自托管的AI智能体，炒作热烈，增长迅
 本分支最初是为了提供针对上述所有问题的个人修复版本而开始的，后来不断发展壮大。
 
 ---
+
+## 一键本地安装
+
+运行以下命令下载最新二进制文件，并将其安装为后台服务（支持 Linux/systemd、macOS/launchd 和 Windows/WSL2）：
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Neirth/OpenLobster/master/scripts/install.sh | sh
+```
 
 ## 有什么改变（以及为什么）
 
@@ -72,9 +80,9 @@ OpenClaw 曾风靡一时——自托管的AI智能体，炒作热烈，增长迅
 ## 快速部署
 
 <p align="center">
-  <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FNeirth%2FOpenLobster%2Fmain%2Finfrastructure%2Fazure%2Fazuredeploy.json"><img src="docs/assets/deploy-azure.svg" alt="Deploy to Azure" height="32"></a>
-  <a href="https://deploy.cloud.run/?git_repo=https://github.com/Neirth/OpenLobster.git"><img src="docs/assets/deploy-gcp.svg" alt="Deploy to GCP" height="32"></a>
-  <a href="https://www.digitalocean.com/manage/apps/new?config=https://github.com/Neirth/OpenLobster/blob/main/infrastructure/digitalocean/app.yaml"><img src="docs/assets/deploy-digitalocean.svg" alt="Deploy to DigitalOcean" height="32"></a>
+  <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FNeirth%2FOpenLobster%2Fmaster%2Finfrastructure%2Fazure%2Fazuredeploy.json"><img src="docs/assets/deploy-azure.svg" alt="Deploy to Azure" height="32"></a>
+  <a href="https://deploy.cloud.run/?git_repo=https://github.com/Neirth/OpenLobster.git&revision=master&dir=infrastructure/gcp"><img src="docs/assets/deploy-gcp.svg" alt="Deploy to GCP" height="32"></a>
+  <a href="https://www.digitalocean.com/manage/apps/new?config=https://github.com/Neirth/OpenLobster/blob/master/infrastructure/digitalocean/app.yaml"><img src="docs/assets/deploy-digitalocean.svg" alt="Deploy to DigitalOcean (Ephemeral)" height="32"></a>
   <br>
   <em>一键部署 — 包含 Neo4j (内存) 和 Vault (密钥) 的自动配置。</em>
 </p>
@@ -82,22 +90,8 @@ OpenClaw 曾风靡一时——自托管的AI智能体，炒作热烈，增长迅
 ## 手动部署
 
 ```bash
-# 安装依赖
-pnpm install
+make build-prod
 
-# 构建前端 + 后端 (前端内置在可执行文件中)
-pnpm build --filter=@openlobster/backend
-
-# 仅构建前端
-pnpm build --filter=@openlobster/frontend
-
-# 全部构建
-pnpm build
-
-# 复制环境模板并填入您的机密信息
-cp .env.example .env
-
-# 运行
 ./dist/openlobster
 ```
 
@@ -106,6 +100,7 @@ Web 的控制台地址一般在 `http://127.0.0.1:8080`。首次引导将帮助�
 ## Docker
 
 # 推荐：使用 .env 文件存储机密信息
+```bash
 docker run -p 8080:8080 \
   --env-file .env \
   -v ~/.openlobster/data:/app/data \

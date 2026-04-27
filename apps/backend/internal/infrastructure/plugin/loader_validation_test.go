@@ -179,6 +179,9 @@ func TestValidateMessagingPluginABI_AcceptsWebhookWithoutStart(t *testing.T) {
 		resolveID: "whatsapp:+123",
 		exported: map[string]bool{
 			handleWebhookFn: true,
+			"send":          true,
+			"capabilities":  true,
+			"typing":        true,
 		},
 	}
 
@@ -195,6 +198,9 @@ func TestValidateMessagingPluginABI_RejectsWebhookWithStart(t *testing.T) {
 		exported: map[string]bool{
 			handleWebhookFn: true,
 			"start":         true,
+			"send":          true,
+			"capabilities":  true,
+			"typing":        true,
 		},
 	}
 

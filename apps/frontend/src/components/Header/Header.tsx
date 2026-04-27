@@ -63,9 +63,6 @@ const Header: Component<HeaderProps> = (props) => {
     <header class="header">
       {/* Left — logo */}
       <div class="header__left">
-        <span class="material-symbols-outlined header__logo-icon">
-          smart_toy
-        </span>
         <span class="header__wordmark">{t("header.brand")}</span>
       </div>
 

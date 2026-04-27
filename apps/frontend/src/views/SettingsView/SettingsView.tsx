@@ -72,8 +72,6 @@ function getDefaultFormValues(): Record<string, unknown> {
 const BOT_DOC_LINKS: { labelKey: string; href: string }[] = [
   { labelKey: "settings.docTelegram", href: "https://core.telegram.org/bots" },
   { labelKey: "settings.docDiscord", href: "https://discord.com/developers/docs" },
-  { labelKey: "settings.docWhatsApp", href: "https://developers.facebook.com/docs/whatsapp" },
-  { labelKey: "settings.docTwilio", href: "https://www.twilio.com/docs" },
   { labelKey: "settings.docSlack", href: "https://api.slack.com/" },
 ];
 

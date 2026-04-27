@@ -33,7 +33,12 @@ func runAudioSmoke(client protocol.PluginClient, report *types.PluginReport, opt
 		return
 	}
 
-	ttsRaw, err := client.CallJSON("tts", map[string]any{"text": "OpenLobster smoke test audio", "config": cfg})
+	// Smoke test step 1: TTS
+	// We expect the plugin to adhere to the OpenLobster Audio Standard (PCM 16kHz Mono)
+	ttsRaw, err := client.CallJSON("tts", map[string]any{
+		"text":   "OpenLobster smoke test audio validation",
+		"config": cfg,
+	})
 	if err != nil {
 		addSmokeFailure(report, "audio.tts", err.Error(), file)
 		return
@@ -43,19 +48,30 @@ func runAudioSmoke(client protocol.PluginClient, report *types.PluginReport, opt
 		Format string `json:"format"`
 	}
 	if err := json.Unmarshal(ttsRaw, &ttsResp); err != nil {
-		addSmokeFailure(report, "audio.tts", "invalid JSON", file)
+		addSmokeFailure(report, "audio.tts", "invalid JSON response", file)
 		return
 	}
 	if _, err := base64.StdEncoding.DecodeString(strings.TrimSpace(ttsResp.Audio)); err != nil {
-		addSmokeFailure(report, "audio.tts", "invalid base64 audio", file)
+		addSmokeFailure(report, "audio.tts", "invalid base64 audio data", file)
 		return
+	}
+
+	// Enforcement: Plugin SHOULD return pcm if no specific format is requested
+	if ttsResp.Format != "pcm" && ttsResp.Format != "mp3" && ttsResp.Format != "ogg" {
+		addSmokeFailure(report, "audio.tts", "unsupported or missing format; expected 'pcm' (16kHz Mono) for OpenLobster compliance", file)
 	}
 
 	format := ttsResp.Format
 	if format == "" {
-		format = "mp3"
+		format = "pcm"
 	}
-	sttRaw, err := client.CallJSON("stt", map[string]any{"audio": ttsResp.Audio, "format": format, "config": cfg})
+
+	// Smoke test step 2: STT
+	sttRaw, err := client.CallJSON("stt", map[string]any{
+		"audio":  ttsResp.Audio,
+		"format": format,
+		"config": cfg,
+	})
 	if err != nil {
 		addSmokeFailure(report, "audio.stt", err.Error(), file)
 		return
@@ -64,6 +80,6 @@ func runAudioSmoke(client protocol.PluginClient, report *types.PluginReport, opt
 		Text string `json:"text"`
 	}
 	if err := json.Unmarshal(sttRaw, &sttResp); err != nil || strings.TrimSpace(sttResp.Text) == "" {
-		addSmokeFailure(report, "audio.stt", "empty transcription", file)
+		addSmokeFailure(report, "audio.stt", "empty or invalid transcription response", file)
 	}
 }

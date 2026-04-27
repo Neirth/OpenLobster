@@ -290,6 +290,7 @@ $RECYCLE.BIN/
 *.lnk
 
 */assets/*
+!docs/assets/*
 apps/backend/cmd/openlobster/public/assets/*
 apps/backend/internal/infrastructure/plugin/embedded_binaries
 

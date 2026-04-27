@@ -22,12 +22,6 @@
   flex: 1;
 }
 
-.header__logo-icon {
-  font-size: 18px;
-  color: var(--color-text-muted);
-  font-variation-settings: 'FILL' 0, 'wght' 400;
-}
-
 .header__wordmark {
   font-size: var(--text-xs);
   font-weight: var(--weight-bold);

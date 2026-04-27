@@ -14,9 +14,10 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    name: Unified Build & Sign (Linux Host)
-    runs-on: ubuntu-latest
+  build-and-upload:
+    name: Build All Targets (macOS Runner)
+    runs-on: macos-latest
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -40,47 +41,25 @@ jobs:
           cache: true
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
-          target: |
-            x86_64-unknown-linux-musl
-            aarch64-unknown-linux-musl
-            aarch64-apple-darwin
+          targets: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl, aarch64-apple-darwin
 
-      - name: Install Build Tools (Zig, bsign, jq)
+      - name: Install Cross-compilation Toolchains (macOS)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zig bsign jq python3-pip
-          pip3 install cargo-zigbuild --break-system-packages
+          brew tap messense/macos-cross-toolchains
+          brew install x86_64-unknown-linux-musl aarch64-unknown-linux-musl jq
 
-      - name: Install rcodesign (Apple Codesign from Linux)
-        run: |
-          RCODESIGN_VER="0.22.0"
-          curl -L -o rcodesign.tar.gz "https://github.com/indygreg/apple-codesign/releases/download/apple-codesign%2F${RCODESIGN_VER}/apple-codesign-${RCODESIGN_VER}-x86_64-unknown-linux-musl.tar.gz"
-          tar -xzf rcodesign.tar.gz
-          mv apple-codesign-${RCODESIGN_VER}-x86_64-unknown-linux-musl/rcodesign /usr/local/bin/
-          rm -rf apple-codesign-* rcodesign.tar.gz
-
-      - name: Setup Apple Certificate
-        if: env.APPLE_CERTIFICATE_P12 != ''
-        run: |
-          echo "${{ secrets.APPLE_CERTIFICATE_P12 }}" | base64 -d > /tmp/cert.p12
-          echo "APPLE_CERTIFICATE_P12_PATH=/tmp/cert.p12" >> $GITHUB_ENV
-        env:
-          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-
-      - name: Build All Targets (Static & Signed)
+      - name: Build All Production Binaries
         run: make release
-        env:
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          BSIGN_OPTS: "-s"
 
-      - name: Upload Binaries to Release
+      - name: Upload Binaries to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.event.inputs.tag || github.event.release.tag_name }}"
-          gh release upload "${VERSION}" dist/openlobster-* --clobber
+          gh release upload "${VERSION}" \
+            dist/openlobster-linux-amd64 \
+            dist/openlobster-linux-arm64 \
+            dist/openlobster-darwin-arm64 \
+            --clobber

@@ -35,7 +35,9 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
     fi && \
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc && \
     export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc && \
-    make build-prod TARGET=$TARGET IS_CROSS=0
+    ln -s /usr/bin/musl-gcc /usr/bin/aarch64-unknown-linux-musl-gcc && \
+    ln -s /usr/bin/musl-gcc /usr/bin/x86_64-unknown-linux-musl-gcc && \
+    make build-prod TARGET=$TARGET
 
 # Generate the folders with proper permissions
 RUN mkdir -p /app/{bin,config,data,logs,.ollama} && \

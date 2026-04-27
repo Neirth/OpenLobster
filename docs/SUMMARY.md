@@ -61,4 +61,5 @@ icon: book-open
 ## Plugins
 
 * [Overview](plugins/README.md)
+* [Plugin Protocol](plugins/protocol.md)
 * [Creating Custom Plugins](plugins/create.md)

@@ -8,51 +8,89 @@
         "description": "Unique name for the Web App."
       }
     },
-    "openaiApiKey": {
-      "type": "securestring",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Optional: OpenAI API Key."
-      }
-    },
-    "openlobsterAuthToken": {
+    "OPENLOBSTER_GRAPHQL_AUTH_TOKEN": {
       "type": "securestring",
       "metadata": {
         "description": "The secret token for GraphQL Dashboard authentication."
       }
     },
-    "neo4jPassword": {
+    "NEO4J_PASSWORD": {
       "type": "securestring",
       "metadata": {
         "description": "Password for the Neo4j database."
       }
     },
-    "vaultRootToken": {
+    "VAULT_ROOT_TOKEN": {
       "type": "securestring",
       "metadata": {
         "description": "Initial root token for Vault (Dev Mode)."
       }
+    },
+    "OPENAI_API_KEY": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: OpenAI API Key."
+      }
     }
   },
   "variables": {
-    "composePart1": "version: '3.8'\nservices:\n  openlobster:\n    image: ghcr.io/neirth/openlobster/openlobster:latest\n    environment:\n      - OPENLOBSTER_GRAPHQL_HOST=0.0.0.0\n      - OPENLOBSTER_GRAPHQL_AUTH_TOKEN=",
+    "storageAccountName": "[concat('st', uniqueString(resourceGroup().id))]",
+    "composePart1": "version: '3.8'\nservices:\n  openlobster:\n    image: ghcr.io/neirth/openlobster/openlobster:latest\n    volumes:\n      - lobster-data:/app/data\n    environment:\n      - OPENLOBSTER_GRAPHQL_HOST=0.0.0.0\n      - OPENLOBSTER_GRAPHQL_AUTH_TOKEN=",
     "composePart2": "\n      - OPENLOBSTER_MEMORY_BACKEND=neo4j\n      - OPENLOBSTER_MEMORY_NEO4J_URI=bolt://neo4j:7687\n      - OPENLOBSTER_MEMORY_NEO4J_USER=neo4j\n      - OPENLOBSTER_MEMORY_NEO4J_PASSWORD=",
     "composePart3": "\n      - OPENLOBSTER_SECRETS_BACKEND=openbao\n      - OPENLOBSTER_SECRETS_OPENBAO_URL=http://vault:8200\n      - OPENLOBSTER_SECRETS_OPENBAO_TOKEN=",
     "composePart4": "\n      - OPENLOBSTER_PROVIDERS_OPENAI_API_KEY=",
-    "composePart5": "\n    networks:\n      - app-net\n  neo4j:\n    image: neo4j:5-community\n    environment:\n      - NEO4J_AUTH=neo4j/",
-    "composePart6": "\n    networks:\n      - app-net\n  vault:\n    image: hashicorp/vault:latest\n    environment:\n      - VAULT_DEV_ROOT_TOKEN_ID=",
-    "composePart7": "\n      - VAULT_ADDR=http://0.0.0.0:8200\n    networks:\n      - app-net\nnetworks:\n  app-net:\n    driver: bridge",
-    "fullCompose": "[concat(variables('composePart1'), parameters('openlobsterAuthToken'), variables('composePart2'), parameters('neo4jPassword'), variables('composePart3'), parameters('vaultRootToken'), variables('composePart4'), parameters('openaiApiKey'), variables('composePart5'), parameters('neo4jPassword'), variables('composePart6'), parameters('vaultRootToken'), variables('composePart7'))]"
+    "composePart5": "\n    networks:\n      - app-net\n  neo4j:\n    image: neo4j:5-community\n    volumes:\n      - neo4j-data:/data\n    environment:\n      - NEO4J_AUTH=neo4j/",
+    "composePart6": "\n    networks:\n      - app-net\n  vault:\n    image: hashicorp/vault:latest\n    volumes:\n      - vault-data:/vault/file\n    environment:\n      - VAULT_DEV_ROOT_TOKEN_ID=",
+    "composePart7": "\n      - VAULT_ADDR=http://0.0.0.0:8200\n    networks:\n      - app-net\nnetworks:\n  app-net:\n    driver: bridge\nvolumes:\n  lobster-data:\n    driver: local\n  neo4j-data:\n    driver: local\n  vault-data:\n    driver: local",
+    "fullCompose": "[concat(variables('composePart1'), parameters('OPENLOBSTER_GRAPHQL_AUTH_TOKEN'), variables('composePart2'), parameters('NEO4J_PASSWORD'), variables('composePart3'), parameters('VAULT_ROOT_TOKEN'), variables('composePart4'), parameters('OPENAI_API_KEY'), variables('composePart5'), parameters('NEO4J_PASSWORD'), variables('composePart6'), parameters('VAULT_ROOT_TOKEN'), variables('composePart7'))]"
   },
   "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2021-04-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "accessTier": "Hot"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+      "apiVersion": "2021-04-01",
+      "name": "[concat(variables('storageAccountName'), '/default/lobsterdata')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+      "apiVersion": "2021-04-01",
+      "name": "[concat(variables('storageAccountName'), '/default/neo4jdata')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+      "apiVersion": "2021-04-01",
+      "name": "[concat(variables('storageAccountName'), '/default/vaultdata')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
     {
       "type": "Microsoft.Web/serverfarms",
       "apiVersion": "2021-03-01",
       "name": "[concat(parameters('appName'), '-plan')]",
       "location": "[resourceGroup().location]",
       "sku": {
-        "name": "P1v2",
-        "tier": "PremiumV2"
+        "name": "B1",
+        "tier": "Basic"
       },
       "kind": "linux",
       "properties": {
@@ -66,12 +104,36 @@
       "location": "[resourceGroup().location]",
       "kind": "app,linux,container",
       "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', concat(parameters('appName'), '-plan'))]"
+        "[resourceId('Microsoft.Web/serverfarms', concat(parameters('appName'), '-plan'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
       ],
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', concat(parameters('appName'), '-plan'))]",
         "siteConfig": {
           "linuxFxVersion": "[concat('COMPOSE|', base64(variables('fullCompose')))]",
+          "azureStorageAccounts": {
+            "lobster-data": {
+              "type": "AzureFiles",
+              "accountName": "[variables('storageAccountName')]",
+              "shareName": "lobsterdata",
+              "mountPath": "/app/data",
+              "accessKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-04-01').keys[0].value]"
+            },
+            "neo4j-data": {
+              "type": "AzureFiles",
+              "accountName": "[variables('storageAccountName')]",
+              "shareName": "neo4jdata",
+              "mountPath": "/data",
+              "accessKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-04-01').keys[0].value]"
+            },
+            "vault-data": {
+              "type": "AzureFiles",
+              "accountName": "[variables('storageAccountName')]",
+              "shareName": "vaultdata",
+              "mountPath": "/vault/file",
+              "accessKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-04-01').keys[0].value]"
+            }
+          },
           "appSettings": [
             {
               "name": "WEBSITES_PORT",

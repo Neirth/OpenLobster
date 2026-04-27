@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Neirth/OpenLobster/actions/workflows/release.docker-images.yaml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/Neirth/OpenLobster/release.docker-images.yaml?branch=master&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/Neirth/OpenLobster/actions/workflows/release.docker-images.yaml?branch=master"><img src="https://img.shields.io/github/actions/workflow/status/Neirth/OpenLobster/release.docker-images.yaml?branch=master&style=for-the-badge" alt="CI status"></a>
   <a href="https://github.com/Neirth/OpenLobster/releases"><img src="https://img.shields.io/github/v/release/Neirth/OpenLobster?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
   <a href="https://neirth.gitbook.io/openlobster"><img src="https://img.shields.io/badge/Docs-GitBook-blue?style=for-the-badge" alt="Docs"></a>
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge" alt="GPLv3 License"></a>
@@ -37,6 +37,14 @@ OpenClaw tuvo su momento — agente de IA auto-alojado, mucho hype, crecimiento 
 Este fork comenzó como un arreglo personal para todo eso y creció desde ahí.
 
 ---
+
+## Instalación Rápida (Local)
+
+Ejecuta el siguiente comando para descargar el último binario e instalarlo como un servicio en segundo plano en tu máquina (soporta Linux/systemd, macOS/launchd y Windows/WSL2):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Neirth/OpenLobster/master/scripts/install.sh | sh
+```
 
 ## Qué cambió (y por qué)
 
@@ -69,12 +77,12 @@ Este fork comenzó como un arreglo personal para todo eso y creció desde ahí.
 | Canales | Telegram, Discord, WhatsApp, Slack, Twilio SMS |
 | IA | OpenAI, Anthropic, Ollama, OpenRouter, Docker Model Runner, compatibles con OpenAI |
 
-## Despliegue Rápido
+## Despliegue Rápido en la nube
 
 <p align="center">
-  <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FNeirth%2FOpenLobster%2Fmain%2Finfrastructure%2Fazure%2Fazuredeploy.json"><img src="docs/assets/deploy-azure.svg" alt="Deploy to Azure" height="32"></a>
-  <a href="https://deploy.cloud.run/?git_repo=https://github.com/Neirth/OpenLobster.git"><img src="docs/assets/deploy-gcp.svg" alt="Deploy to GCP" height="32"></a>
-  <a href="https://www.digitalocean.com/manage/apps/new?config=https://github.com/Neirth/OpenLobster/blob/main/infrastructure/digitalocean/app.yaml"><img src="docs/assets/deploy-digitalocean.svg" alt="Deploy to DigitalOcean" height="32"></a>
+  <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FNeirth%2FOpenLobster%2Fmaster%2Finfrastructure%2Fazure%2Fazuredeploy.json"><img src="docs/assets/deploy-azure.svg" alt="Deploy to Azure" height="32"></a>
+  <a href="https://deploy.cloud.run/?git_repo=https://github.com/Neirth/OpenLobster.git&revision=master&dir=infrastructure/gcp"><img src="docs/assets/deploy-gcp.svg" alt="Deploy to GCP" height="32"></a>
+  <a href="https://www.digitalocean.com/manage/apps/new?config=https://github.com/Neirth/OpenLobster/blob/master/infrastructure/digitalocean/app.yaml"><img src="docs/assets/deploy-digitalocean.svg" alt="Deploy to DigitalOcean (Ephemeral)" height="32"></a>
   <br>
   <em>Despliegue en un clic — incluye configuración automática de Neo4j (Memoria) y Vault (Secretos).</em>
 </p>
@@ -82,22 +90,8 @@ Este fork comenzó como un arreglo personal para todo eso y creció desde ahí.
 ## Despliegue Manual
 
 ```bash
-# Instalar dependencias
-pnpm install
+make build-prod
 
-# Construir frontend + backend (frontend embebido en el binario)
-pnpm build --filter=@openlobster/backend
-
-# Construir solo el frontend
-pnpm build --filter=@openlobster/frontend
-
-# Construir ambos
-pnpm build
-
-# Copia la plantilla de entorno y completa tus secretos
-cp .env.example .env
-
-# Ejecutar
 ./dist/openlobster
 ```
 
@@ -106,6 +100,7 @@ El panel de control web estará en `http://127.0.0.1:8080`. En el primer inicio,
 ## Docker
 
 # Recomendado: usar un archivo .env para los secretos
+```bash
 docker run -p 8080:8080 \
   --env-file .env \
   -v ~/.openlobster/data:/app/data \

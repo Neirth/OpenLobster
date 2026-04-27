@@ -1,6 +1,11 @@
+---
+description: "Specification for AI provider plugins in OpenLobster."
+icon: microchip
+---
+
 # AI Provider Plugins
 
-AI plugins extend OpenLobster with new Large Language Models (LLMs) or providers.
+AI plugins extend OpenLobster with new Large Language Models (LLMs) or providers. They translate the Core's requests into the specific API calls required by the provider (e.g., Anthropic, OpenAI, Ollama).
 
 ## Identification
 
@@ -8,56 +13,40 @@ AI plugins extend OpenLobster with new Large Language Models (LLMs) or providers
 - **Required Function**: `chat`
 - **Recommended Function**: `configure`
 
-## Core Methods
+## Handshake Details
 
 ### `get_info`
-Returns general plugin metadata plus AI-specific properties.
+Returns general plugin metadata plus AI-specific capabilities.
+
 - **`properties`**:
-    - `supports_audio_input` (bool): If true, `chat_with_audio` is available.
-    - `supports_audio_output` (bool): If true, `chat_to_audio` is available.
+    - `supports_audio_input` (bool): If true, the model can process audio data.
+    - `supports_audio_output` (bool): If true, the model can generate audio responses directly.
+    - `supports_images` (bool): If true, the model accepts image inputs.
 
 ---
 
 ## Exported Functions
 
 ### `chat`
-Main entry point for text-based interactions.
+Main entry point for text and tool-based interactions.
 
-**Request (`params`):**
+**Request Parameters:**
+
 ```json
 {
   "model": "gpt-4",
   "messages": [
     { "role": "user", "content": "Hello" }
-  ]
-}
-```
-
-**Input Payload:**
-```json
-{
-  "model": "model-name",
-  "messages": [
-    { "role": "system", "content": "..." },
-    { "role": "user", "content": "..." },
-    { "role": "assistant", "content": "...", "tool_calls": [...] }
   ],
-  "tools": [
-    {
-      "type": "function",
-      "function": {
-        "name": "tool_name",
-        "description": "...",
-        "parameters": { ... }
-      }
-    }
-  ],
+  "tools": [...],
   "max_tokens": 4096,
   "config": { ... }
 }
 ```
 
-**Output Payload (`output` field in `CallResponse`)**:
+**Expected Result:**
+The plugin MUST return a standard chat completion object.
+
 ```json
 {
   "content": "Text response",
@@ -80,16 +69,10 @@ Main entry point for text-based interactions.
 }
 ```
 
-## Tool Calling Protocol
+## Tool Calling Flow
 
-OpenLobster expects AI plugins to handle tool calling similarly to the OpenAI API:
+OpenLobster expects AI plugins to handle tool calling following the standard iterative pattern:
 1. Core sends available tools in the `chat` request.
 2. Plugin responds with `tool_calls` if the model decides to use them.
-3. Core executes tools and sends a new `chat` request with `role: "tool"` messages.
-4. Plugin generates the final response.
-
-## Capabilities (PluginInfo.properties)
-
-- `supports_audio_input`: boolean (whether the model accepts audio binaries).
-- `supports_audio_output`: boolean (whether the model can generate audio).
-- `supports_images`: boolean.
+3. Core executes tools and sends a new `chat` request with `role: "tool"` messages containing the results.
+4. Plugin generates the final user-facing response.

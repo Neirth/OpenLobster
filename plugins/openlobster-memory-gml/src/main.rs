@@ -205,8 +205,16 @@ impl Plugin for GmlPlugin {
             schema: json!({
                 "type": "object",
                 "properties": {
-                    "data_dir": { "type": "string" },
-                    "path": { "type": "string" }
+                    "data_dir": {
+                        "type": "string",
+                        "title": "Data Directory",
+                        "description": "Base directory for GML files (optional)"
+                    },
+                    "path": {
+                        "type": "string",
+                        "title": "GML File Path",
+                        "description": "Specific path to the .gml file (overrides Data Directory, optional)"
+                    }
                 }
             }),
             properties: json!({}),

@@ -3,7 +3,7 @@ region: nyc
 services:
   - name: backend
     image:
-      registry_type: GHCR
+      registry_type: DOCKER_HUB
       repository: ghcr.io/neirth/openlobster/openlobster
       tag: latest
     http_port: 8080
@@ -28,12 +28,16 @@ services:
         value: http://vault:8200
       - key: OPENLOBSTER_SECRETS_OPENBAO_TOKEN
         value: ${{VAULT_ROOT_TOKEN}}
+      - key: OPENLOBSTER_PROVIDERS_OPENAI_API_KEY
+        value: ${{OPENAI_API_KEY}}
 
   - name: neo4j
     image:
       registry: neo4j
       repository: neo4j
       tag: 5-community
+    instance_count: 1
+    instance_size_slug: basic-xxs
     internal_ports:
       - 7687
       - 7474
@@ -46,6 +50,8 @@ services:
       registry: hashicorp
       repository: vault
       tag: latest
+    instance_count: 1
+    instance_size_slug: basic-xxs
     internal_ports:
       - 8200
     envs:

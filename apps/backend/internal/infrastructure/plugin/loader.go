@@ -101,6 +101,30 @@ func LoadPlugins(ctx context.Context, dir string, onMessage func(pluginID string
 			}
 		}
 
+		if pluginType == "memory" {
+			if err := validateMemoryPluginABI(adapter); err != nil {
+				_ = adapter.Close()
+				log.Printf("plugins: skip %s — invalid memory ABI: %v", compositeID, err)
+				return false
+			}
+		}
+
+		if pluginType == "audio" {
+			if err := validateAudioPluginABI(adapter); err != nil {
+				_ = adapter.Close()
+				log.Printf("plugins: skip %s — invalid audio ABI: %v", compositeID, err)
+				return false
+			}
+		}
+
+		if pluginType == "secrets" {
+			if err := validateSecretsPluginABI(adapter); err != nil {
+				_ = adapter.Close()
+				log.Printf("plugins: skip %s — invalid secrets ABI: %v", compositeID, err)
+				return false
+			}
+		}
+
 		plugins = append(plugins, adapter)
 		loadedIDs[compositeID] = struct{}{}
 		log.Printf("plugins: loaded %s (v%s) from %s", compositeID, adapter.Version(), source)
@@ -238,6 +262,33 @@ func validateMessagingPluginABI(p ports.PluginPort) error {
 		return fmt.Errorf("messaging plugin %s: adapter does not support ABI function introspection", p.ID())
 	}
 
+	if !introspector.HasFunction("send") {
+		return fmt.Errorf("messaging plugin %s: missing required function %q", p.ID(), "send")
+	}
+
+	if !introspector.HasFunction("capabilities") {
+		return fmt.Errorf("messaging plugin %s: missing required function %q", p.ID(), "capabilities")
+	}
+
+	// Check required exports based on capabilities
+	var caps struct {
+		Capabilities ports.ChannelCapabilities `json:"capabilities"`
+	}
+	if err := json.Unmarshal(raw, &caps); err == nil {
+		if caps.Capabilities.HasVoiceMessage {
+			if !introspector.HasFunction("send_voice") {
+				return fmt.Errorf("messaging plugin %s claims voice support but lacks required %q export", p.ID(), "send_voice")
+			}
+			if !introspector.HasFunction("speaking") {
+				return fmt.Errorf("messaging plugin %s claims voice support but lacks required %q indicator export", p.ID(), "speaking")
+			}
+		}
+	}
+
+	if !introspector.HasFunction("typing") {
+		return fmt.Errorf("messaging plugin %s: missing required function %q", p.ID(), "typing")
+	}
+
 	hasStart := introspector.HasFunction("start")
 	hasHandleWebhook := introspector.HasFunction(handleWebhookFn)
 	if err := validateMessagingInboundContract(inboundMode, hasStart, hasHandleWebhook); err != nil {
@@ -295,10 +346,114 @@ func validateMessagingInboundContract(inboundMode string, hasStart bool, hasHand
 func validateAIPluginABI(p ports.PluginPort) error {
 	introspector, ok := p.(ports.PluginFunctionIntrospectionPort)
 	if !ok {
-		return nil // Basic adapters might not support introspection
+		return nil
 	}
 	if !introspector.HasFunction("chat") {
 		return fmt.Errorf("AI plugin must export %q function", "chat")
 	}
+
+	// Check for multimodal audio exports if properties claim support
+	raw := p.Properties()
+	if len(raw) > 0 {
+		var props struct {
+			SupportsAudioInput  bool `json:"supports_audio_input"`
+			SupportsAudioOutput bool `json:"supports_audio_output"`
+		}
+		if err := json.Unmarshal(raw, &props); err == nil {
+			if props.SupportsAudioInput && !introspector.HasFunction("chat_with_audio") {
+				return fmt.Errorf("AI plugin claims audio input support but lacks %q export", "chat_with_audio")
+			}
+			if props.SupportsAudioOutput && !introspector.HasFunction("chat_to_audio") {
+				return fmt.Errorf("AI plugin claims audio output support but lacks %q export", "chat_to_audio")
+			}
+		}
+	}
+
+	// Functional probe: call chat with minimal input to verify JSON-RPC compliance
+	probeInput := map[string]interface{}{
+		"model": "abi-probe-model",
+		"messages": []map[string]string{
+			{"role": "user", "content": ""},
+		},
+	}
+	probeRaw, _ := json.Marshal(probeInput)
+	_, err := p.Call("chat", probeRaw)
+	if err != nil && strings.Contains(err.Error(), "broken pipe") {
+		return fmt.Errorf("AI plugin %q: functional probe failed (broken pipe)", p.ID())
+	}
+
+	return nil
+}
+
+func validateMemoryPluginABI(p ports.PluginPort) error {
+	introspector, ok := p.(ports.PluginFunctionIntrospectionPort)
+	if !ok {
+		return nil
+	}
+	required := []string{"store", "retrieve", "query"}
+	for _, fn := range required {
+		if !introspector.HasFunction(fn) {
+			return fmt.Errorf("memory plugin must export %q function", fn)
+		}
+	}
+
+	// Functional probe: query with empty filter
+	probeInput := map[string]interface{}{
+		"filter": map[string]interface{}{},
+	}
+	probeRaw, _ := json.Marshal(probeInput)
+	_, err := p.Call("query", probeRaw)
+	if err != nil && strings.Contains(err.Error(), "broken pipe") {
+		return fmt.Errorf("memory plugin %q: functional probe failed (broken pipe)", p.ID())
+	}
+
+	return nil
+}
+
+func validateAudioPluginABI(p ports.PluginPort) error {
+	introspector, ok := p.(ports.PluginFunctionIntrospectionPort)
+	if !ok {
+		return nil
+	}
+	required := []string{"tts", "stt"}
+	for _, fn := range required {
+		if !introspector.HasFunction(fn) {
+			return fmt.Errorf("audio plugin must export %q function", fn)
+		}
+	}
+
+	// Functional probe: tts with minimal text
+	probeInput := map[string]interface{}{
+		"text": "",
+	}
+	probeRaw, _ := json.Marshal(probeInput)
+	_, err := p.Call("tts", probeRaw)
+	if err != nil && strings.Contains(err.Error(), "broken pipe") {
+		return fmt.Errorf("audio plugin %q: functional probe failed (broken pipe)", p.ID())
+	}
+
+	return nil
+}
+
+func validateSecretsPluginABI(p ports.PluginPort) error {
+	introspector, ok := p.(ports.PluginFunctionIntrospectionPort)
+	if !ok {
+		return nil
+	}
+	required := []string{"get", "set", "delete", "list"}
+	for _, fn := range required {
+		if !introspector.HasFunction(fn) {
+			return fmt.Errorf("secrets plugin must export %q function", fn)
+		}
+	}
+
+	// Functional probe: list
+	probeInput := map[string]interface{}{}
+	probeRaw, _ := json.Marshal(probeInput)
+	_, err := p.Call("list", probeRaw)
+	if err != nil && strings.Contains(err.Error(), "broken pipe") {
+		return fmt.Errorf("secrets plugin %q: functional probe failed (broken pipe)", p.ID())
+	}
+
 	return nil
 }
