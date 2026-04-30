@@ -1,76 +1,373 @@
 ---
 layout: default
-title: OpenLobster
 ---
 
-<section class="hero">
-  <div class="wrap">
-    <!-- Massive Headline -->
-    <h1 class="hero__title">{{ site.data.i18n[site.active_lang].hero.title }}</h1>
-    
-    <!-- Purpose and Key Differentiators -->
-    <p class="hero__body">
-      {{ site.data.i18n[site.active_lang].hero.body }}
-    </p>
-    
-    <!-- Call to Action Buttons -->
-    <div class="hero__actions">
-      <a href="#features" class="btn btn--primary">{{ site.data.i18n[site.active_lang].hero.cta_primary }}</a>
-      <a href="https://neirth.gitbook.io/openlobster" class="btn btn--ghost">{{ site.data.i18n[site.active_lang].hero.cta_docs }}</a>
-    </div>
-  </div>
-</section>
+{% assign lang = page.lang | default: site.active_lang | default: site.default_lang | default: "en" %}
+{% assign t = site.data[lang] %}
 
-<section class="section">
-  <div class="wrap">
-    <!-- Bento Grid Layout with 1px Hairline Dividers -->
-    <div class="bento-grid">
-      <!-- Terminal Illustration (Left-aligned in first position) -->
-      <div class="bento-item terminal">
-        <!-- Using a technical SVG representation instead of photograph -->
-        <svg width="100%" height="100%" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
-          <rect width="800" height="600" fill="#000000"/>
-          <!-- Terminal window frame -->
-          <rect x="40" y="40" width="720" height="520" fill="#0a0a0a" stroke="#111111" stroke-width="2"/>
-          <!-- Terminal title bar -->
-          <rect x="40" y="40" width="720" height="40" fill="#111111"/>
-          <circle cx="60" cy="60" r="8" fill="#ff5f56"/>
-          <circle cx="80" cy="60" r="8" fill="#ffbd2e"/>
-          <circle cx="100" cy="60" r="8" fill="#27c93f"/>
-          <text x="140" y="65" fill="#888888" font-family="JetBrains Mono, monospace" font-size="16">terminal</text>
-          <!-- Terminal content -->
-          <rect x="60" y="100" width="680" height="400" fill="#050505"/>
-          <!-- Terminal prompt -->
-          <text x="80" y="140" fill="#888888" font-family="JetBrains Mono, monospace" font-size="18">$ </text>
-          <text x="100" y="140" fill="#ffffff" font-family="JetBrains Mono, monospace" font-size="18">openlobster@agent:~$ </text>
-          <text x="300" y="140" fill="#4caf50" font-family="JetBrains Mono, monospace" font-size="18">--version</text>
-          <!-- Terminal output -->
-          <text x="80" y="180" fill="#ffffff" font-family="JetBrains Mono, monospace" font-size="18">OpenLobster v0.2.0</text>
-          <text x="80" y="210" fill="#888888" font-family="JetBrains Mono, monospace" font-size="18">Copyright (c) 2026 OpenLobster Contributors</text>
-          <text x="80" y="240" fill="#ffffff" font-family="JetBrains Mono, monospace" font-size="18">License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;</text>
-          <text x="80" y="270" fill="#888888" font-family="JetBrains Mono, monospace" font-size="18">This is free software: you are free to change and redistribute it.</text>
-          <text x="80" y="300" fill="#ffffff" font-family="JetBrains Mono, monospace" font-size="18">There is NO WARRANTY, to the extent permitted by law.</text>
-          <!-- Cursor -->
-          <rect x="480" y="140" width="8" height="20" fill="#ffffff"/>
-        </svg>
+<section class="hero" style="position: relative; overflow: hidden;">
+  <canvas id="hero-ascii-canvas"
+    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; opacity: 0.35; pointer-events: none;"></canvas>
+  <div class="glow" style="z-index: 1;"></div>
+  <div class="wrap" style="position: relative; z-index: 10;">
+    <div class="hero__content">
+      <div class="reveal">
+        <h1 class="hero__title">{{ t.hero.title }}</h1>
+        <p class="hero__desc">{{ t.hero.subtitle }}</p>
+        <div class="hero__ctas">
+          <a href="#quickstart" class="btn btn--primary">{{ t.hero.cta_primary }}</a>
+          <a href="https://github.com/Neirth/OpenLobster?utm_source=openlobster_web&utm_medium=referral&utm_content=hero"
+            class="btn btn--secondary">{{ t.hero.cta_secondary }}</a>
+        </div>
       </div>
-      
-      <!-- Features (Right-aligned in second position) -->
-      <div class="bento-item features">
-        <h2 class="section__title">{{ site.data.i18n[site.active_lang].features.title }}</h2>
-        <div class="features">
-          {% for feature in site.data.i18n[site.active_lang].features.items %}
-          <div class="feature">
-            <div class="feature__num">{{ forloop.index }}</div>
-            <div class="feature__title">{{ feature.title }}</div>
-            <div class="feature__body">{{ feature.body }}</div>
-            {% if feature.tag %}
-            <div class="feature__tag">{{ feature.tag }}</div>
-            {% endif %}
-          </div>
-          {% endfor %}
+
+      <div class="terminal">
+        <div class="terminal__header">
+          <div class="terminal__dot terminal__dot--r"></div>
+          <div class="terminal__dot terminal__dot--y"></div>
+          <div class="terminal__dot terminal__dot--g"></div>
+        </div>
+        <div class="terminal__body">
+          <div style="margin-bottom: 8px; opacity: 0.5;"># {{ t.hero.terminal_comment }}</div>
+          <div>$ curl -sSL https://openlobster.app/install.sh | sh</div>
         </div>
       </div>
     </div>
+
   </div>
 </section>
+
+<section id="features" class="section">
+  <div class="wrap">
+    <div class="section__header reveal">
+      <div class="section__label">{{ t.features.label }}</div>
+      <h2 class="section__title">{{ t.features.title }}</h2>
+    </div>
+
+    <div class="carousel-wrapper">
+      <div class="features-carousel" id="featuresCarousel">
+        {% for item in t.features.items %}
+        <div class="feature-card">
+          <div class="feature__num">0{{ forloop.index }}</div>
+          <h3 class="feature__title">{{ item.title }}</h3>
+          <p class="feature__body">{{ item.body }}</p>
+          {% if item.tag %}
+          <div class="feature__tag">{{ item.tag }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="carousel-controls">
+        <button class="carousel-btn prev"
+          onclick="document.getElementById('featuresCarousel').scrollBy({left: -340, behavior: 'smooth'})"
+          aria-label="Previous">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <button class="carousel-btn next"
+          onclick="document.getElementById('featuresCarousel').scrollBy({left: 340, behavior: 'smooth'})"
+          aria-label="Next">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="compare" class="section">
+  <div class="wrap">
+    <div class="section__header reveal">
+      <div class="section__label">{{ t.compare.label }}</div>
+      <h2 class="section__title">{{ t.compare.title }}</h2>
+      <p class="section__subtitle">{{ t.compare.subtitle }}</p>
+    </div>
+
+    <div class="benchmarks reveal">
+      <div class="bench__item">
+        <div class="bench__num">{{ t.bench.boot }}</div>
+        <div class="bench__vs">{{ t.bench.boot_vs }}</div>
+      </div>
+      <div class="bench__item">
+        <div class="bench__num">{{ t.bench.ram }}</div>
+        <div class="bench__vs">{{ t.bench.ram_vs }}</div>
+      </div>
+      <div class="bench__item">
+        <div class="bench__num">{{ t.bench.binary }}</div>
+        <div class="bench__vs">{{ t.bench.binary_vs }}</div>
+      </div>
+    </div>
+
+    <div class="table-container reveal">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th>{{ t.compare.col_capability }}</th>
+            <th class="hl">{{ t.compare.col_lobster }}</th>
+            <th>{{ t.compare.col_hermes }}</th>
+            <th>{{ t.compare.col_claw }}</th>
+            <th>{{ t.compare.col_manus }}</th>
+            <th>{{ t.compare.col_hands }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="section-header">
+            <td colspan="6">{{ t.compare.sec_core }}</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_multiuser }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_graph }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_profiles }})</td>
+            <td><span class="tag-n"></span></td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_saas_colab }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_enterprise_only }})</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_sovereignty }}</td>
+            <td class="hl"><span class="tag-y"></span></td>
+            <td><span class="tag-y"></span></td>
+            <td><span class="tag-y"></span></td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_cloud }})</td>
+            <td><span class="tag-y"></span></td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_memory }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_graph }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_vector }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_markdown }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_vector }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_vector }})</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_plugins }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_rust_rpc }})</td>
+            <td><span class="tag-n"></span></td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_node_ext }})</td>
+            <td><span class="tag-n"></span></td>
+            <td><span class="tag-n"></span></td>
+          </tr>
+
+          <tr class="section-header">
+            <td colspan="6">{{ t.compare.sec_security }}</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_auth }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_secrets }})</td>
+            <td><span class="tag-n"></span></td>
+            <td><span class="tag-n"></span></td>
+            <td><span class="tag-y"></span></td>
+            <td><span class="tag-n"></span></td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_hardened }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_distroless }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_alpine }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_std_docker }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_managed }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_std_docker }})</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_isolation }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_rust_isolation }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_python_sandbox }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_node_monolith }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_cloud_managed }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_python_sandbox }})</td>
+          </tr>
+
+          <tr class="section-header">
+            <td colspan="6">{{ t.compare.sec_ecosystem }}</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_mcp }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_mcp_full }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_mcp_manual }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_mcp_manual }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_mcp_manual }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_mcp_manual }})</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_skills }}</td>
+            <td class="hl"><span class="tag-y"></span></td>
+            <td><span class="tag-y"></span></td>
+            <td><span class="tag-y"></span></td>
+            <td><span class="tag-y"></span></td>
+            <td><span class="tag-n"></span></td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_tasks }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_full_tasks }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_chat_only }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_chat_only }})</td>
+            <td><span class="tag-y"></span></td>
+            <td><span class="tag-y"></span></td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_a2a }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_native_a2a }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_dev_a2a }})</td>
+            <td><span class="tag-n"></span> ({{ t.compare.val_plugin_a2a }})</td>
+            <td><span class="tag-n"></span></td>
+            <td><span class="tag-n"></span></td>
+          </tr>
+
+          <tr class="section-header">
+            <td colspan="6">{{ t.compare.sec_deployment }}</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_purpose }}</td>
+            <td class="hl">{{ t.compare.val_personal }}</td>
+            <td>{{ t.compare.val_academic }}</td>
+            <td>{{ t.compare.val_personal }}</td>
+            <td>{{ t.compare.val_personal }}</td>
+            <td>{{ t.compare.val_swe }}</td>
+          </tr>
+          <tr>
+            <td>{{ t.compare.row_channels }}</td>
+            <td class="hl"><span class="tag-y"></span> ({{ t.compare.val_native_count }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_multichannel }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_multichannel }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_growing }})</td>
+            <td><span class="tag-y"></span> ({{ t.compare.val_web_cli }})</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="community" class="section section--alt">
+  <div class="wrap">
+    <div class="section__header reveal">
+      <div class="section__label">{{ t.community.label }}</div>
+      <h2 class="section__title">{{ t.community.title }}</h2>
+      <p class="section__subtitle">{{ t.community.subtitle }}</p>
+    </div>
+
+    <div class="community-grid">
+      <a href="https://github.com/Neirth/OpenLobster/discussions?utm_source=openlobster_web&utm_medium=referral&utm_content=community"
+        class="community-item">
+        <div class="community-item__label">{{ t.community.github_disc_label }}</div>
+        <h3 class="community-item__title">{{ t.community.github_disc_title }}</h3>
+        <p class="community-item__body">{{ t.community.github_disc_body }}</p>
+        <span class="community-item__arrow">{{ t.community.github_disc_arrow }}</span>
+      </a>
+      <a href="https://discord.gg/Qx9eJcZH5v" class="community-item">
+        <div class="community-item__label">{{ t.community.discord_label }}</div>
+        <h3 class="community-item__title">{{ t.community.discord_title }}</h3>
+        <p class="community-item__body">{{ t.community.discord_body }}</p>
+        <span class="community-item__arrow">{{ t.community.discord_arrow }}</span>
+      </a>
+      <a href="https://github.com/Neirth/OpenLobster/releases?utm_source=openlobster_web&utm_medium=referral&utm_content=community"
+        class="community-item">
+        <div class="community-item__label">{{ t.community.releases_label }}</div>
+        <h3 class="community-item__title">{{ t.community.releases_title }}</h3>
+        <p class="community-item__body">{{ t.community.releases_body }}</p>
+        <span class="community-item__arrow">{{ t.community.releases_arrow }}</span>
+      </a>
+      <a href="https://neirth.gitbook.io/openlobster?utm_source=openlobster_web&utm_medium=referral&utm_content=community"
+        class="community-item">
+        <div class="community-item__label">{{ t.community.gitbook_label }}</div>
+        <h3 class="community-item__title">{{ t.community.gitbook_title }}</h3>
+        <p class="community-item__body">{{ t.community.gitbook_body }}</p>
+        <span class="community-item__arrow">{{ t.community.gitbook_arrow }}</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart" class="section">
+  <div class="wrap">
+    <div class="section__header reveal">
+      <div class="section__label">{{ t.quickstart.label }}</div>
+      <h2 class="section__title">{{ t.quickstart.title }}</h2>
+      <p class="section__subtitle">{{ t.quickstart.subtitle }}</p>
+    </div>
+
+    <div class="quickstart-grid">
+      <div class="codeblock">
+        <div class="codeblock__header">
+          <div class="codeblock__dot" style="background: #ff5f56;"></div>
+          <div class="codeblock__title">install.sh</div>
+        </div>
+        <pre><code>curl -sSL https://openlobster.app/install.sh | sh</code></pre>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock__header">
+          <div class="codeblock__dot" style="background: #27c93f;"></div>
+          <div class="codeblock__title">docker-compose.yml</div>
+        </div>
+        <pre><code>services:
+  agent:
+    image: ghcr.io/neirth/openlobster:latest
+    ports: ["8080:8080"]
+    volumes: ["./data:/app/data"]</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt">
+  <div class="wrap">
+    <div class="section__header reveal">
+      <div class="section__label">{{ t.stack.label }}</div>
+      <h2 class="section__title">{{ t.stack.title }}</h2>
+      <p class="section__subtitle">{{ t.stack.subtitle }}</p>
+    </div>
+
+    <div class="stack-grid">
+      <div class="stack-item">
+        <div class="stack-item__label">{{ t.stack.frontend }}</div>
+        <div class="stack-item__val">{{ t.stack.frontend_val }}</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-item__label">{{ t.stack.backend }}</div>
+        <div class="stack-item__val">{{ t.stack.backend_val }}</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-item__label">{{ t.stack.plugins }}</div>
+        <div class="stack-item__val">{{ t.stack.plugins_val }}</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-item__label">{{ t.stack.database }}</div>
+        <div class="stack-item__val">{{ t.stack.database_val }}</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-item__label">{{ t.stack.memory }}</div>
+        <div class="stack-item__val">{{ t.stack.memory_val }}</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-item__label">{{ t.stack.channels }}</div>
+        <div class="stack-item__val">{{ t.stack.channels_val }}</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-item__label">{{ t.stack.ai }}</div>
+        <div class="stack-item__val">{{ t.stack.ai_val }}</div>
+      </div>
+      <div class="stack-item">
+        <div class="stack-item__label">{{ t.stack.scheduler }}</div>
+        <div class="stack-item__val">{{ t.stack.scheduler_val }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  function reveal() {
+    const reveals = document.querySelectorAll('.reveal');
+    reveals.forEach(el => {
+      const windowHeight = window.innerHeight;
+      const elementTop = el.getBoundingClientRect().top;
+      const elementVisible = 40;
+      if (elementTop < windowHeight - elementVisible) {
+        el.classList.add('active');
+      }
+    });
+  }
+  window.addEventListener('scroll', reveal);
+  window.addEventListener('load', reveal);
+  reveal();
+</script>
+<script src="{{ '/assets/js/ascii-bg.js' | relative_url }}"></script>

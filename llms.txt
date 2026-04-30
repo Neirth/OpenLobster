@@ -1,0 +1,49 @@
+# OpenLobster: The Sovereign AI Agent
+
+OpenLobster is a hyper-lightweight, self-hosted, and proactive AI agent designed for absolute data ownership and high-performance execution. It is engineered to run as a single 66MB static binary, offering a complete ecosystem for personal AI assistance across multiple channels.
+
+## Core Identity
+- **Architecture**: Dual-engine Go (Core) + Rust (Plugins).
+- **Memory**: Native Graph-based memory (Neo4j/GML) for complex relationship mapping.
+- **Sovereignty**: 100% Local-first. Encrypted by default. Hardened Docker images.
+- **Performance**: 200ms Cold start, <30MB Idle RAM footprint.
+
+## Technical Specifications
+
+### 1. Dual-Architecture Engine
+- **Go Core**: Handles orchestration, concurrent task management, and GraphQL API.
+- **Rust Subprocesses**: Critical integrations (LLM connectors, WhatsApp, Secret management) run as isolated Rust modules.
+- **Communication**: Inter-process communication via JSON-RPC, ensuring language-agnostic extensibility and process-level isolation.
+
+### 2. Graph-Based Memory Persistence
+- Unlike linear context injection or simple markdown files, OpenLobster builds a typed knowledge graph.
+- Supports **Neo4j** and **GML** backends.
+- Enables the agent to navigate non-linear relationships and maintain deep context across long-term interactions.
+
+### 3. Unified Identity System
+- **Channel Agnostic**: Seamlessly operates across Telegram, Discord, WhatsApp, Slack, and SMS.
+- **Context Isolation**: Each user has an isolated historical context.
+- **Global Synthesis**: The agent can synthesize a global knowledge graph from authorized shared data across multiple identities.
+
+### 4. Native MCP Marketplace
+- Full support for the **Model Context Protocol (MCP)**.
+- Integrated marketplace accessible via the SolidJS dashboard.
+- Hot-swappable tools (Web search, Git integration, local file access) without code modification.
+
+### 5. Proactive Event-Loop
+- Uses a strict asynchronous event loop (based on libuv principles).
+- Agent wakes only for real events or scheduled tasks.
+- Zero CPU overhead when idle.
+
+## Technology Stack
+- **Frontend**: SolidJS + Vite (Responsive Web Dashboard).
+- **Core Engine**: Go (Golang) + GraphQL API.
+- **Plugin Layer**: Rust (JSON-RPC modules).
+- **Persistence**: SQLite (Relational), Neo4j/GML (Graph), OpenBao/Vault (Secrets).
+- **Deployment**: Distroless/Hardened Docker images or standalone binary.
+
+## Project Philosophy
+"Engineered to Lead." We prioritize reliable, mature technologies (Go, Rust, Neo4j) to build an agent that is "boring" in its stability but revolutionary in its autonomy. OpenLobster is not a SaaS; it is your sovereign infrastructure.
+
+---
+*For more information, visit the [GitHub Repository](https://github.com/Neirth/OpenLobster) or join the [Discord Community](https://discord.gg/Qx9eJcZH5v).*

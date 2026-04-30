@@ -2,7 +2,7 @@ title: OpenLobster
 description: >-
   Personal, self-hosted AI assistant — runs where you want,
   connects to the channels you use.
-baseurl: "/OpenLobster"
+baseurl: ""
 url: "https://neirth.github.io"
 repository: Neirth/OpenLobster
 
@@ -16,7 +16,7 @@ plugins:
 
 languages: ["en", "es", "zh"]
 default_lang: "en"
-exclude_from_localization: ["assets", ".jekyll-cache"]
+exclude_from_localization: ["assets", ".jekyll-cache", "install.sh", "llms.txt"]
 parallel_localization: false
 
 exclude:
@@ -24,8 +24,8 @@ exclude:
   - packages/
   - schema/
   - docs/
-  - "*.lock"
-  - "*.log"
+  - ".lock"
+  - ".log"
   - node_modules/
   - .docker/
   - .github/

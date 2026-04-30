@@ -1,30 +1,135 @@
 <!DOCTYPE html>
-<html lang="{{ site.active_lang }}" data-theme="dark">
+{% assign lang = page.lang | default: site.active_lang | default: site.default_lang | default: "en" %}
+{% assign t = site.data[lang] %}
+<html lang="{{ lang }}">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% if page.title %}{{ page.title }} — OpenLobster{% else %}OpenLobster{% endif %}</title>
-  {% assign t = site.data.i18n[site.active_lang] %}
-  <meta name="description" content="{{ t.meta.description | default: site.description }}">
-  <meta property="og:title" content="{{ page.title | default: site.title }}">
-  <meta property="og:description" content="{{ t.meta.description | default: site.description }}">
-  <meta property="og:type" content="website">
-  <meta name="theme-color" content="#0D0D0D">
-  {% for lang in site.languages %}
-    {% if lang == site.default_lang %}
-  <link rel="alternate" hreflang="{{ lang }}" href="{{ site.url }}{{ site.baseurl }}/">
-    {% else %}
-  <link rel="alternate" hreflang="{{ lang }}" href="{{ site.url }}{{ site.baseurl }}/{{ lang }}/">
-    {% endif %}
-  {% endfor %}
-  <link rel="alternate" hreflang="x-default" href="{{ site.url }}{{ site.baseurl }}/">
-  <link rel="icon" type="image/svg+xml" href="{{ '/assets/images/logo.svg' | relative_url }}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <title>{{ t.title }}</title>
+  <meta name="description" content="{{ t.hero.subtitle }}">
+  <meta property="og:description" content="{{ t.hero.subtitle }}">
+  {% seo title=false %}
   <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+  <link rel="icon" type="image/svg+xml" href="{{ '/assets/images/logo.svg' | relative_url }}">
 </head>
+
 <body>
-  {{ content }}
+
+  <nav class="nav">
+    <div class="wrap">
+      <a href="{{ '/' | relative_url }}" class="nav__logo">
+        <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="Logo">
+        <span>OpenLobster</span>
+      </a>
+      <button class="nav__toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div class="nav__menu" id="navMenu">
+        <div class="nav__links">
+          <a href="#features">{{ t.nav.features }}</a>
+          <a href="#compare">{{ t.nav.compare }}</a>
+          <a href="#community">{{ t.nav.community }}</a>
+        </div>
+        <div class="nav__lang">
+          <a {% static_href %}href="{{ site.baseurl }}/" {% endstatic_href %}
+            class="{% if lang == 'en' %}active{% endif %}">EN</a>
+          <a {% static_href %}href="{{ site.baseurl }}/es/" {% endstatic_href %}
+            class="{% if lang == 'es' %}active{% endif %}">ES</a>
+          <a {% static_href %}href="{{ site.baseurl }}/zh/" {% endstatic_href %}
+            class="{% if lang == 'zh' %}active{% endif %}">ZH</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    {{ content }}
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="footer__inner">
+        <div class="footer__brand">
+          <a href="{{ '/' | relative_url }}" class="nav__logo">
+            <img src="{{ '/assets/images/logo.svg' | relative_url }}" alt="Logo">
+            <span>OpenLobster</span>
+          </a>
+          <p class="footer__tagline">{{ t.footer.tagline }}</p>
+        </div>
+        <div class="footer__col">
+          <h4 class="footer__col-title">{{ t.footer.col_project }}</h4>
+          <ul class="footer__links">
+            <li><a
+                href="https://github.com/Neirth/OpenLobster?utm_source=openlobster_web&utm_medium=referral&utm_content=footer">{{
+                t.footer.link_github }}</a></li>
+            <li><a
+                href="https://github.com/Neirth/OpenLobster/releases?utm_source=openlobster_web&utm_medium=referral&utm_content=footer">{{
+                t.footer.link_releases }}</a></li>
+            <li><a
+                href="https://github.com/Neirth/OpenLobster/issues?utm_source=openlobster_web&utm_medium=referral&utm_content=footer">{{
+                t.footer.link_issues }}</a></li>
+          </ul>
+        </div>
+        <div class="footer__col">
+          <h4 class="footer__col-title">{{ t.footer.col_resources }}</h4>
+          <ul class="footer__links">
+            <li><a
+                href="https://neirth.gitbook.io/openlobster?utm_source=openlobster_web&utm_medium=referral&utm_content=footer">{{
+                t.footer.link_docs }}</a></li>
+            <li><a href="https://discord.gg/Qx9eJcZH5v">{{ t.footer.link_discord }}</a></li>
+            <li><a
+                href="https://github.com/Neirth/OpenLobster/discussions/44?utm_source=openlobster_web&utm_medium=referral&utm_content=footer">{{
+                t.footer.link_migration }}</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer__bottom">
+        <p>&copy; {{ site.time | date: '%Y' }} OpenLobster. {{ t.footer.copyright }}</p>
+        <p>{{ t.footer.license_prefix }} <a
+            href="https://github.com/Neirth/OpenLobster/blob/master/LICENSE.md?utm_source=openlobster_web&utm_medium=referral&utm_content=footer">{{
+            t.footer.license_link }}</a></p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Mobile menu toggle
+    (function() {
+      const navToggle = document.getElementById('navToggle');
+      const navMenu = document.getElementById('navMenu');
+      const navLinks = navMenu ? navMenu.querySelectorAll('a') : [];
+
+      if (navToggle && navMenu) {
+        navToggle.addEventListener('click', function() {
+          navToggle.classList.toggle('active');
+          navMenu.classList.toggle('active');
+          document.body.style.overflow = navMenu.classList.contains('active') ? 'hidden' : '';
+        });
+
+        // Close menu when clicking a link
+        navLinks.forEach(function(link) {
+          link.addEventListener('click', function() {
+            navToggle.classList.remove('active');
+            navMenu.classList.remove('active');
+            document.body.style.overflow = '';
+          });
+        });
+
+        // Close menu when clicking outside
+        document.addEventListener('click', function(e) {
+          if (!navToggle.contains(e.target) && !navMenu.contains(e.target)) {
+            navToggle.classList.remove('active');
+            navMenu.classList.remove('active');
+            document.body.style.overflow = '';
+          }
+        });
+      }
+    })();
+  </script>
+
 </body>
+
 </html>
