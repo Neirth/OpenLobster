@@ -43,7 +43,7 @@ Este fork comenzó como un arreglo personal para todo eso y creció desde ahí.
 Ejecuta el siguiente comando para descargar el último binario e instalarlo como un servicio en segundo plano en tu máquina (soporta Linux/systemd, macOS/launchd y Windows/WSL2):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Neirth/OpenLobster/master/scripts/install.sh | sh
+curl -sSL https://openlobster.app/install.sh | sh
 ```
 
 ## Qué cambió (y por qué)

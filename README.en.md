@@ -44,7 +44,7 @@ This fork started as a personal fix for all of that and grew from there.
 Run the following command to download the latest binary and install it as a background service on your machine (supports Linux/systemd, macOS/launchd, and Windows/WSL2):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Neirth/OpenLobster/master/scripts/install.sh | sh
+curl -sSL https://openlobster.app/install.sh | sh
 ```
 
 ## What changed (and why)

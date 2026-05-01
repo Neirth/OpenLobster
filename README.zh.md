@@ -43,7 +43,7 @@ OpenClaw 曾风靡一时——自托管的AI智能体，炒作热烈，增长迅
 运行以下命令下载最新二进制文件，并将其安装为后台服务（支持 Linux/systemd、macOS/launchd 和 Windows/WSL2）：
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Neirth/OpenLobster/master/scripts/install.sh | sh
+curl -sSL https://openlobster.app/install.sh | sh
 ```
 
 ## 有什么改变（以及为什么）
