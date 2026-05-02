@@ -56,7 +56,7 @@ func ValidatePluginBinary(binaryPath string, opts types.ValidateOptions) (types.
 		addSmokeFailure(&report, "manifest", err.Error(), binaryPath)
 	}
 
-	// Verify required exports.
+// Verify required exports.
 	exportSet := make(map[string]struct{}, len(report.Exports))
 	for _, exp := range report.Exports {
 		exportSet[exp] = struct{}{}
@@ -73,22 +73,46 @@ func ValidatePluginBinary(binaryPath string, opts types.ValidateOptions) (types.
 		_ = configurePlugin(client, cloneMap(opts.SmokeConfig))
 	}
 
-	// Type-specific happy-path smoke tests.
-	switch report.Type {
-	case "memory":
-		tmpDir, _ := os.MkdirTemp("", "openlobster-smoke-")
-		defer os.RemoveAll(tmpDir)
-		runMemorySmoke(client, &report, opts, binaryPath, tmpDir)
-	case "secrets":
-		tmpDir, _ := os.MkdirTemp("", "openlobster-smoke-")
-		defer os.RemoveAll(tmpDir)
-		runSecretsSmoke(client, &report, opts, binaryPath, tmpDir)
-	case "audio":
-		runAudioSmoke(client, &report, opts, binaryPath)
-	case "ai":
-		runAISmoke(client, &report, opts, binaryPath)
-	case "messaging":
-		runMessagingSmoke(client, &report, opts, binaryPath)
+	// Determine plugin type: use opts.PluginType if provided, otherwise use report.Type, or detect from binary name
+	pluginType := opts.PluginType
+	if pluginType == "" {
+		pluginType = report.Type
+	}
+	if pluginType == "" {
+		// Fallback: detect from binary name
+		lowerPath := strings.ToLower(binaryPath)
+		if strings.Contains(lowerPath, "memory") {
+			pluginType = "memory"
+		} else if strings.Contains(lowerPath, "secrets") {
+			pluginType = "secrets"
+		} else if strings.Contains(lowerPath, "ai") {
+			pluginType = "ai"
+		} else if strings.Contains(lowerPath, "messaging") || strings.Contains(lowerPath, "message") {
+			pluginType = "messaging"
+		}
+	}
+
+	// Run smoke tests only if explicitly requested OR if this is the old behavior (no type specified)
+	shouldRunSmoke := opts.RunSmokeTest || opts.PluginType == ""
+
+	// Type-specific happy-path smoke tests, only if shouldRunSmoke is true
+	if shouldRunSmoke {
+		switch pluginType {
+		case "memory":
+			tmpDir, _ := os.MkdirTemp("", "openlobster-smoke-")
+			defer os.RemoveAll(tmpDir)
+			runMemorySmoke(client, &report, opts, binaryPath, tmpDir)
+		case "secrets":
+			tmpDir, _ := os.MkdirTemp("", "openlobster-smoke-")
+			defer os.RemoveAll(tmpDir)
+			runSecretsSmoke(client, &report, opts, binaryPath, tmpDir)
+		case "audio":
+			runAudioSmoke(client, &report, opts, binaryPath)
+		case "ai":
+			runAISmoke(client, &report, opts, binaryPath)
+		case "messaging":
+			runMessagingSmoke(client, &report, opts, binaryPath)
+		}
 	}
 
 	// Exhaustive error-path: every exported function must survive nil input.
@@ -146,16 +170,23 @@ func configurePlugin(client protocol.PluginClient, cfg map[string]any) error {
 	if !client.HasFunction("configure") {
 		return nil
 	}
-	_, err := client.CallJSON("configure", map[string]any{"config": cfg})
+	// Merge cfg at root level, not wrapped in "config"
+	payload := map[string]any{}
+	for k, v := range cfg {
+		payload[k] = v
+	}
+	_, err := client.CallJSON("configure", payload)
 	return err
 }
 
 // isTransportFailure returns true when the error indicates the plugin process
 // crashed or timed out (as opposed to returning a plugin-level error string).
 func isTransportFailure(msg string) bool {
-	return strings.Contains(msg, "timeout") ||
-		strings.Contains(msg, "EOF") ||
-		strings.Contains(msg, "read response")
+	lower := strings.ToLower(msg)
+	return strings.Contains(lower, "timeout") ||
+		strings.Contains(lower, "eof") ||
+		strings.Contains(lower, "broken pipe") ||
+		strings.Contains(lower, "read response")
 }
 
 func cloneMap(in map[string]any) map[string]any {

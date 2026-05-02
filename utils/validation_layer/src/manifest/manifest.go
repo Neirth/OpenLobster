@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	schemacontract "github.com/neirth/openlobster/utils/schema_contract"
+	"github.com/neirth/openlobster/utils/validation_layer/src/backcompat"
 	"github.com/neirth/openlobster/utils/validation_layer/src/protocol"
 	"github.com/neirth/openlobster/utils/validation_layer/src/types"
 )
@@ -71,6 +72,20 @@ func SmokeManifest(client protocol.PluginClient, report *types.PluginReport) err
 	if len(info.Schema) > 0 {
 		if err := schemacontract.ValidateSchemaStructure(info.Schema); err != nil {
 			return fmt.Errorf("plugin schema: %w", err)
+		}
+	}
+
+	// Backwards-compatibility check against 0.3.0 Viper-based config.
+	// Only applies to built-in plugins that existed as Viper sections in 0.3.0.
+	pluginID := strings.TrimSpace(info.ID)
+	if backcompat.KnownBuiltins[pluginID] && len(info.Schema) > 0 {
+		backIssues, err := backcompat.CheckReport(pluginID, info.Schema)
+		if err != nil {
+			return fmt.Errorf("backcompat check: %w", err)
+		}
+		for _, issue := range backIssues {
+			report.AddIssue(types.SeverityWarning, types.BackcompatFailRule,
+				issue.Message, "")
 		}
 	}
 

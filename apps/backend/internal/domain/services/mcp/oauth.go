@@ -435,8 +435,10 @@ func (m *OAuthManager) HandleCallback(ctx context.Context, code, state, errParam
 	}
 
 	// Exchange authorization code for access token
-	token, err := exchangeCode(entry, code)
+	log.Printf("oauth: exchanging code for token (server=%s)", entry.ServerName)
+	accessToken, refreshToken, err := exchangeCode(entry, code)
 	if err != nil {
+		log.Printf("oauth: exchangeCode failed: %v", err)
 		m.mu.Lock()
 		m.statuses[entry.ServerName] = OAuthStatusError
 		m.errs[entry.ServerName] = err.Error()
@@ -444,17 +446,31 @@ func (m *OAuthManager) HandleCallback(ctx context.Context, code, state, errParam
 		return "", err
 	}
 
+	log.Printf("oauth: received token, accessTokenLen=%d refreshTokenLen=%d", len(accessToken), len(refreshToken))
+
 	// Persist token in SecretsProvider (short timeout so callback fails fast if OpenBao is unreachable)
 	tokenKey := fmt.Sprintf("mcp/remote/%s/token", entry.ServerName)
+	log.Printf("oauth: persisting token to secrets (key=%s)", tokenKey)
 	storeCtx, storeCancel := context.WithTimeout(ctx, oauthSecretsTimeout)
 	defer storeCancel()
-	if err := m.secrets.Set(storeCtx, tokenKey, token); err != nil {
+	if err := m.secrets.Set(storeCtx, tokenKey, accessToken); err != nil {
 		log.Printf("oauth: ERROR saving token in secrets (key %s): %v", tokenKey, err)
 		m.mu.Lock()
 		m.statuses[entry.ServerName] = OAuthStatusError
 		m.errs[entry.ServerName] = err.Error()
 		m.mu.Unlock()
 		return "", fmt.Errorf("oauth: could not persist token in secrets backend (check OpenBao/Vault): %w", err)
+	}
+
+	// Store refresh_token if available
+	if refreshToken != "" {
+		refreshKey := fmt.Sprintf("mcp/remote/%s/refresh_token", entry.ServerName)
+		log.Printf("oauth: storing refresh_token (key=%s)", refreshKey)
+		if err := m.secrets.Set(storeCtx, refreshKey, refreshToken); err != nil {
+			log.Printf("oauth: WARNING could not save refresh_token: %v", err)
+		} else {
+			log.Printf("oauth: refresh_token stored for %s", entry.ServerName)
+		}
 	}
 
 	m.mu.Lock()
@@ -477,7 +493,7 @@ func (m *OAuthManager) Status(serverName string) (OAuthStatus, string) {
 }
 
 // exchangeCode performs the token exchange POST against the token endpoint.
-func exchangeCode(entry *oauthPendingEntry, code string) (string, error) {
+func exchangeCode(entry *oauthPendingEntry, code string) (accessToken, refreshToken string, err error) {
 	body := url.Values{}
 	body.Set("grant_type", "authorization_code")
 	body.Set("code", code)
@@ -491,24 +507,28 @@ func exchangeCode(entry *oauthPendingEntry, code string) (string, error) {
 	client := &http.Client{Timeout: oauthTokenExchangeTimeout}
 	resp, err := client.PostForm(entry.TokenEndpoint, body)
 	if err != nil {
-		return "", fmt.Errorf("oauth: code exchange at %s: %w", entry.TokenEndpoint, err)
+		return "", "", fmt.Errorf("oauth: code exchange at %s: %w", entry.TokenEndpoint, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("oauth: token endpoint %s returned %d: %s", entry.TokenEndpoint, resp.StatusCode, raw)
+		return "", "", fmt.Errorf("oauth: token endpoint %s returned %d: %s", entry.TokenEndpoint, resp.StatusCode, raw)
 	}
 
 	var result struct {
-		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		TokenType    string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("oauth: invalid token response: %w", err)
+		return "", "", fmt.Errorf("oauth: invalid token response: %w", err)
 	}
 	if result.AccessToken == "" {
-		return "", fmt.Errorf("oauth: token endpoint returned an empty access_token")
+		return "", "", fmt.Errorf("oauth: token endpoint returned an empty access_token")
 	}
-	return result.AccessToken, nil
+
+	log.Printf("oauth: received token (expires_in=%ds, has_refresh=%v)", result.ExpiresIn, result.RefreshToken != "")
+	return result.AccessToken, result.RefreshToken, nil
 }

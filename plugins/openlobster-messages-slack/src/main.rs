@@ -138,7 +138,7 @@ fn metadata_schema() -> Value {
                 "placeholder": "xapp-your-app-token"
             }
         },
-        "required": ["bot_token"]
+        "required": ["bot_token", "app_token"]
     })
 }
 

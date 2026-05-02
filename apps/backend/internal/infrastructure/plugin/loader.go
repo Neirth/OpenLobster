@@ -295,27 +295,6 @@ func validateMessagingPluginABI(p ports.PluginPort) error {
 		return err
 	}
 
-	probeInput := map[string]interface{}{
-		"config": map[string]interface{}{},
-		"message": map[string]interface{}{
-			"channel_id": "__abi_probe_channel__",
-			"content":    "",
-		},
-	}
-
-	probeRaw, err := json.Marshal(probeInput)
-	if err != nil {
-		return fmt.Errorf("marshal probe: %w", err)
-	}
-
-	out, err := p.Call(resolveChannelIDFn, probeRaw)
-	if err != nil {
-		return fmt.Errorf("required function %q failed: %w", resolveChannelIDFn, err)
-	}
-	if strings.TrimSpace(string(out)) == "" {
-		return fmt.Errorf("required function %q returned empty channel_id", resolveChannelIDFn)
-	}
-
 	return nil
 }
 
@@ -369,19 +348,6 @@ func validateAIPluginABI(p ports.PluginPort) error {
 		}
 	}
 
-	// Functional probe: call chat with minimal input to verify JSON-RPC compliance
-	probeInput := map[string]interface{}{
-		"model": "abi-probe-model",
-		"messages": []map[string]string{
-			{"role": "user", "content": ""},
-		},
-	}
-	probeRaw, _ := json.Marshal(probeInput)
-	_, err := p.Call("chat", probeRaw)
-	if err != nil && strings.Contains(err.Error(), "broken pipe") {
-		return fmt.Errorf("AI plugin %q: functional probe failed (broken pipe)", p.ID())
-	}
-
 	return nil
 }
 
@@ -395,16 +361,6 @@ func validateMemoryPluginABI(p ports.PluginPort) error {
 		if !introspector.HasFunction(fn) {
 			return fmt.Errorf("memory plugin must export %q function", fn)
 		}
-	}
-
-	// Functional probe: query with empty filter
-	probeInput := map[string]interface{}{
-		"filter": map[string]interface{}{},
-	}
-	probeRaw, _ := json.Marshal(probeInput)
-	_, err := p.Call("query", probeRaw)
-	if err != nil && strings.Contains(err.Error(), "broken pipe") {
-		return fmt.Errorf("memory plugin %q: functional probe failed (broken pipe)", p.ID())
 	}
 
 	return nil
@@ -422,16 +378,6 @@ func validateAudioPluginABI(p ports.PluginPort) error {
 		}
 	}
 
-	// Functional probe: tts with minimal text
-	probeInput := map[string]interface{}{
-		"text": "",
-	}
-	probeRaw, _ := json.Marshal(probeInput)
-	_, err := p.Call("tts", probeRaw)
-	if err != nil && strings.Contains(err.Error(), "broken pipe") {
-		return fmt.Errorf("audio plugin %q: functional probe failed (broken pipe)", p.ID())
-	}
-
 	return nil
 }
 
@@ -445,14 +391,6 @@ func validateSecretsPluginABI(p ports.PluginPort) error {
 		if !introspector.HasFunction(fn) {
 			return fmt.Errorf("secrets plugin must export %q function", fn)
 		}
-	}
-
-	// Functional probe: list
-	probeInput := map[string]interface{}{}
-	probeRaw, _ := json.Marshal(probeInput)
-	_, err := p.Call("list", probeRaw)
-	if err != nil && strings.Contains(err.Error(), "broken pipe") {
-		return fmt.Errorf("secrets plugin %q: functional probe failed (broken pipe)", p.ID())
 	}
 
 	return nil

@@ -5,11 +5,13 @@ on:
     branches: [ master, 'feature/**', 'fix/**', 'refactor/**', 'chore/**' ]
     paths:
       - 'apps/backend/**'
+      - 'apps/backend/internal/infrastructure/plugin/*'
       - '.github/workflows/tests.backend-ci.yaml'
   pull_request:
     branches: [ master ]
     paths:
       - 'apps/backend/**'
+      - 'apps/backend/internal/infrastructure/plugin/*'
       - '.github/workflows/tests.backend-ci.yaml'
 
 permissions:

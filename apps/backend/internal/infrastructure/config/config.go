@@ -170,7 +170,7 @@ func (c *Config) Validate() error {
 	hasAnthropic := !isPlaceholder(c.Providers.Anthropic.APIKey)
 	hasDockerModelRunner := c.Providers.DockerModelRunner.Endpoint != ""
 	hasOpenCode := !isPlaceholder(c.Providers.OpenCode.APIKey)
-	
+
 	// We allow skipping this if we have a non-standard provider set in Agent.Provider
 	isStandardProvider := false
 	for _, p := range []string{"openai", "openrouter", "ollama", "openaicompat", "anthropic", "docker-model-runner", "opencode"} {
@@ -507,6 +507,7 @@ type SecretsFileConfig struct {
 type OpenbaoSecretsConfig struct {
 	URL   string `mapstructure:"url"`
 	Token string `mapstructure:"token"`
+	Mount string `mapstructure:"mount"`
 }
 
 type WorkspaceConfig struct {
@@ -535,6 +536,7 @@ func setDefaults() {
 	viper.SetDefault("secrets.file.path", "./data/secrets.json")
 	viper.SetDefault("secrets.openbao.url", "")
 	viper.SetDefault("secrets.openbao.token", "")
+	viper.SetDefault("secrets.openbao.mount", "secret")
 	viper.SetDefault("workspace.path", "./workspace")
 	viper.SetDefault("graphql.enabled", true)
 	viper.SetDefault("graphql.port", 8080)
@@ -588,15 +590,15 @@ func setDefaults() {
 
 	viper.SetDefault("plugins.enabled", map[string]bool{
 		"openlobster-messages-telegram": true,
-		"openLobster-messages-discord": true,
-		"openLobster-ai-anthropic": true,
-		"openLobster-ai-openai": true,
-		"openLobster-ai-ollama": true,
-		"openLobster-audio-elevenlabs": true,
-		"openLobster-memory-gml": true,
-		"openLobster-memory-neo4j": true,
-		"openLobster-secrets-json": true,
-		"openLobster-secrets-openbao": true,
+		"openLobster-messages-discord":  true,
+		"openLobster-ai-anthropic":      true,
+		"openLobster-ai-openai":         true,
+		"openLobster-ai-ollama":         true,
+		"openLobster-audio-elevenlabs":  true,
+		"openLobster-memory-gml":        true,
+		"openLobster-memory-neo4j":      true,
+		"openLobster-secrets-json":      true,
+		"openLobster-secrets-openbao":   true,
 	})
 	viper.SetDefault("plugins.builtins", []string{
 		"openlobster-messages-telegram",
@@ -650,7 +652,7 @@ func bootstrapEncryptedConfig(path string) error {
 	v.SetDefault("graphql.host", "0.0.0.0")
 	v.SetDefault("graphql.base_url", "")
 	v.SetDefault("web.enabled", true)
-	v.SetDefault("a2a.enabled", true)
+	v.SetDefault("a2a.enabled", false)
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.path", "./logs")
 	v.SetDefault("subagents.max_concurrent", 3)

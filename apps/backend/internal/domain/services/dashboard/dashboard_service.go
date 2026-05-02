@@ -252,8 +252,16 @@ func (s *CommandService) UpdateNode(ctx context.Context, id, label, typ, value s
 
 // DeleteNode removes a memory node.
 func (s *CommandService) DeleteNode(ctx context.Context, id string) error {
+	// Try NodeMutatorPort first
 	if m, ok := s.memoryRepo.(NodeMutatorPort); ok {
 		return m.DeleteNode(ctx, id)
+	}
+	// Fallback: Try MemoryPort.DeleteMemoryNode directly
+	type deleteMemoryNoder interface {
+		DeleteMemoryNode(ctx context.Context, userID, nodeID string) error
+	}
+	if m, ok := s.memoryRepo.(deleteMemoryNoder); ok {
+		return m.DeleteMemoryNode(ctx, "", id)
 	}
 	return nil
 }

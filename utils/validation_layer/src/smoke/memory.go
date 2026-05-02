@@ -17,11 +17,20 @@ import (
 func runMemorySmoke(client protocol.PluginClient, report *types.PluginReport, opts types.ValidateOptions, file, tmpDir string) {
 	cfg := cloneMap(opts.SmokeConfig)
 	config.EnsureConfigValue(cfg, "path", filepath.Join(tmpDir, "memory.gml"))
+	
+	//PRIORITY: Config passed via CLI/config (-config flag) takes precedence
+	//Environment variables second priority
+	//Defaults third
 	config.FillMissingConfigFromEnv(cfg, map[string][]string{
-		"uri":      {"OPENLOBSTER_SMOKE_MEMORY_URI", "OPENLOBSTER_SMOKE_NEO4J_URI"},
-		"username": {"OPENLOBSTER_SMOKE_MEMORY_USERNAME", "OPENLOBSTER_SMOKE_NEO4J_USERNAME"},
-		"password": {"OPENLOBSTER_SMOKE_MEMORY_PASSWORD", "OPENLOBSTER_SMOKE_NEO4J_PASSWORD"},
-		"database": {"OPENLOBSTER_SMOKE_MEMORY_DATABASE", "OPENLOBSTER_SMOKE_NEO4J_DATABASE"},
+		"uri":      {"OPENLOBSTER_SMOKE_MEMORY_URI", "OPENLOBSTER_NEO4J_URI", "OPENLOBSTER_MEMORY_URI"},
+		"user":     {"OPENLOBSTER_SMOKE_MEMORY_USER", "OPENLOBSTER_NEO4J_USER", "OPENLOBSTER_MEMORY_USER"},
+		"password": {"OPENLOBSTER_SMOKE_MEMORY_PASSWORD", "OPENLOBSTER_NEO4J_PASSWORD", "OPENLOBSTER_MEMORY_PASSWORD"},
+		"database": {"OPENLOBSTER_SMOKE_MEMORY_DATABASE", "OPENLOBSTER_NEO4J_DATABASE"},
+	})
+	config.FillMissingConfigFromEnv(cfg, map[string][]string{
+		"uri":      {"NEO4J_URI", "MEMORY_URI"},
+		"user":     {"NEO4J_USER", "MEMORY_USER"},
+		"password": {"NEO4J_PASSWORD", "MEMORY_PASSWORD"},
 	})
 	if err := configurePlugin(client, cfg); err != nil {
 		addSmokeFailure(report, "memory", err.Error(), file)
@@ -30,11 +39,13 @@ func runMemorySmoke(client protocol.PluginClient, report *types.PluginReport, op
 
 	const stressWrites = 8
 	for i := 0; i < stressWrites; i++ {
+		content := fmt.Sprintf("openlobster smoke memory entry %d", i)
+		label := fmt.Sprintf("smoke-%d", i)
 		_, err := client.CallJSON("store", map[string]any{
 			"config":      cfg,
 			"user_id":     "smoke-user",
-			"content":     fmt.Sprintf("openlobster smoke memory entry %d", i),
-			"label":       fmt.Sprintf("smoke-%d", i),
+			"content":     content,
+			"label":       label,
 			"relation":    "HAS_FACT",
 			"entity_type": "fact",
 		})
@@ -42,6 +53,12 @@ func runMemorySmoke(client protocol.PluginClient, report *types.PluginReport, op
 			addSmokeFailure(report, "memory.store", err.Error(), file)
 			return
 		}
+	}
+
+	// Verify at least one of the stored entries can be retrieved
+	if err := assertMemoryContentPersisted(client, cfg, "smoke-user", "openlobster smoke memory entry 0"); err != nil {
+		addSmokeFailure(report, "memory.store.verify", err.Error(), file)
+		return
 	}
 
 	raw, err := client.CallJSON("retrieve", map[string]any{
@@ -111,6 +128,24 @@ func runMemorySmoke(client protocol.PluginClient, report *types.PluginReport, op
 
 	if err := assertMemoryRelationAbsent(client, cfg, "smoke-user", "smoke-user", peerIDs[0], relationTypes[0]); err != nil {
 		addSmokeFailure(report, "memory.delete_relation", err.Error(), file)
+	}
+
+	// Test delete_node with round-trip verification (catches plugin ID inconsistency)
+	// Query the node first to get the ID as the plugin exposes it, then delete by that ID.
+	testNodeLabel := fmt.Sprintf("smoke-%d", stressWrites-1)
+	nodeIDFromPlugin, err := getNodeIDFromGraph(client, cfg, "smoke-user", testNodeLabel)
+	if err != nil {
+		addSmokeFailure(report, "memory.delete_node.lookup", err.Error(), file)
+		return
+	}
+
+	if err := deleteMemoryNode(client, cfg, nodeIDFromPlugin); err != nil {
+		addSmokeFailure(report, "memory.delete_node", err.Error(), file)
+		return
+	}
+
+	if err := assertMemoryNodeAbsent(client, cfg, "smoke-user", testNodeLabel); err != nil {
+		addSmokeFailure(report, "memory.delete_node", err.Error(), file)
 	}
 }
 
@@ -241,6 +276,104 @@ func deleteMemoryRelation(client protocol.PluginClient, cfg map[string]any, from
 		return fmt.Errorf("delete_relation failed")
 	}
 	return lastErr
+}
+
+func assertMemoryContentPersisted(client protocol.PluginClient, cfg map[string]any, userID, expectedContent string) error {
+	raw, err := client.CallJSON("retrieve", map[string]any{
+		"config": cfg,
+		"query":  expectedContent,
+		"limit":  10,
+	})
+	if err != nil {
+		return err
+	}
+
+	var rows []map[string]any
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return fmt.Errorf("invalid retrieve JSON")
+	}
+
+	for _, row := range rows {
+		content, ok := row["content"].(string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(content, expectedContent) {
+			return nil // Found matching content
+		}
+	}
+	return fmt.Errorf("stored content not found in retrieve results: %s", expectedContent)
+}
+
+// getNodeIDFromGraph queries user_graph and returns the node ID matching the given label.
+// This ensures we delete using the exact ID format the plugin exposes.
+func getNodeIDFromGraph(client protocol.PluginClient, cfg map[string]any, userID, label string) (string, error) {
+	raw, err := client.CallJSON("query", map[string]any{
+		"config":  cfg,
+		"op":      "user_graph",
+		"user_id": userID,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	var graph struct {
+		Nodes []struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+		} `json:"nodes"`
+	}
+	if err := json.Unmarshal(raw, &graph); err != nil {
+		return "", fmt.Errorf("invalid user_graph JSON")
+	}
+
+	for _, node := range graph.Nodes {
+		if node.Label == label || node.ID == label || strings.TrimPrefix(node.ID, "user:") == label {
+			return node.ID, nil
+		}
+	}
+	return "", fmt.Errorf("node with label %s not found in user_graph", label)
+}
+
+func deleteMemoryNode(client protocol.PluginClient, cfg map[string]any, nodeID string) error {
+	_, err := client.CallJSON("delete", map[string]any{
+		"config":      cfg,
+		"target_id":   nodeID,
+		"target_type": "node",
+	})
+	return err
+}
+
+func assertMemoryNodeAbsent(client protocol.PluginClient, cfg map[string]any, userID, nodeID string) error {
+	raw, err := client.CallJSON("query", map[string]any{
+		"config":  cfg,
+		"op":      "user_graph",
+		"user_id": userID,
+	})
+	if err != nil {
+		return err
+	}
+
+	var graph struct {
+		Nodes []struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+		} `json:"nodes"`
+	}
+	if err := json.Unmarshal(raw, &graph); err != nil {
+		return fmt.Errorf("invalid user_graph JSON")
+	}
+
+	for _, node := range graph.Nodes {
+		// Flexible matching for prefix variants (user:, user:, etc.)
+		if node.ID == nodeID || strings.HasPrefix(node.ID, "user:"+nodeID) ||
+			node.ID == "user:"+nodeID || strings.TrimPrefix(node.ID, "user:") == nodeID ||
+			node.Label == nodeID || strings.HasPrefix(node.Label, "user:"+nodeID) ||
+			node.Label == "user:"+nodeID || strings.TrimPrefix(node.Label, "user:") == nodeID {
+			return fmt.Errorf("node %s still visible after deletion", nodeID)
+		}
+	}
+	return nil
 }
 
 func memoryNodeIDMatches(actual, expected string) bool {

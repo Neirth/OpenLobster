@@ -287,7 +287,7 @@ async fn chat(input: Option<Value>) -> CallResponse {
         "stream": false
     });
 
-    openlobster_sdk_base::emit_log("info", &format!("Ollama: Sending manual POST to {} (len={})", url, request_payload.to_string().len()));
+    openlobster_sdk_base::emit_log("debug", &format!("Ollama: Sending manual POST to {} (len={})", url, request_payload.to_string().len()));
     
     let mut req_builder = client.post(&url).json(&request_payload);
     if !api_key.is_empty() {
@@ -325,7 +325,7 @@ async fn chat(input: Option<Value>) -> CallResponse {
 
                 let stop_reason = if !out_tool_calls.is_empty() { "tool_use".to_string() } else { "stop".to_string() };
 
-                openlobster_sdk_base::emit_log("info", &format!("Ollama: Manual Success content_len={} tools={}", content.len(), out_tool_calls.len()));
+                openlobster_sdk_base::emit_log("debug", &format!("Ollama: Manual Success content_len={} tools={}", content.len(), out_tool_calls.len()));
 
                 CallResponse::ok(OutputPayload {
                     content, tool_calls: out_tool_calls, stop_reason,

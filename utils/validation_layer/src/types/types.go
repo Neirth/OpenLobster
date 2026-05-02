@@ -8,6 +8,11 @@ import "encoding/json"
 // SmokeFailRule is the rule name used for all runtime smoke test failures.
 const SmokeFailRule = "smoke-fail"
 
+// BackcompatFailRule is the rule name used for backwards-compatibility check
+// failures when comparing the current plugin schema against the 0.3.0
+// reference (pre-plugin era, Viper-only config).
+const BackcompatFailRule = "backcompat-fail"
+
 // Severity classifies the impact of a validation issue.
 type Severity string
 
@@ -83,6 +88,8 @@ type ValidateOptions struct {
 	SmokeConfig            map[string]any
 	SmokeTestRecipient    string
 	ExpectedInboundContent string
+	PluginType              string // memory, secrets, ai, messaging
+	RunSmokeTest          bool   // whether to run smoke tests
 }
 
 // ReceivedNotification records a fire-and-forget JSON-RPC message from the plugin.

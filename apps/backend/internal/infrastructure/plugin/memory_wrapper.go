@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
-	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
 type MemoryWrapper struct {
@@ -64,25 +64,18 @@ func (w *MemoryWrapper) SearchSimilar(ctx context.Context, query string, limit i
 }
 
 func (w *MemoryWrapper) GetUserGraph(ctx context.Context, userID string) (ports.Graph, error) {
-	if w.cfg["path"] == nil || w.cfg["path"] == "" {
-		logging.Debugf("DEBUG: WRAPPER: GetUserGraph called with EMPTY path")
-	}
 	out, err := w.call("query", map[string]interface{}{
 		"config":  w.cfg,
 		"user_id": userID,
 		"op":      "user_graph",
 	})
 	if err != nil {
-		logging.Debugf("DEBUG: WRAPPER: GetUserGraph error: %v", err)
 		return ports.Graph{}, err
 	}
-	logging.Debugf("DEBUG: WRAPPER: GetUserGraph raw output: %s", string(out))
 	var g ports.Graph
 	if err := json.Unmarshal(out, &g); err != nil {
-		logging.Debugf("DEBUG: WRAPPER: UNMARSHAL ERROR: %v", err)
 		return ports.Graph{}, fmt.Errorf("memory plugin %s: unmarshal GetUserGraph: %w", w.plugin.ID(), err)
 	}
-	logging.Debugf("DEBUG: WRAPPER: Unmarshaled %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	return g, nil
 }
 
@@ -98,13 +91,40 @@ func (w *MemoryWrapper) AddRelation(ctx context.Context, from, to, relType strin
 }
 
 func (w *MemoryWrapper) DeleteRelation(ctx context.Context, from, to string) error {
-	_, err := w.call("store", map[string]interface{}{
-		"config": w.cfg,
-		"op":     "delete_relation",
-		"from":   from,
-		"to":     to,
+	_, err := w.call("delete", map[string]interface{}{
+		"config":     w.cfg,
+		"target_type": "relation",
+		"from":        from,
+		"to":          to,
+		"user_id":     from,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	
+	// Verify deletion worked by checking if relation still exists
+	raw, _ := w.call("query", map[string]interface{}{
+		"config":  w.cfg,
+		"op":      "user_graph",
+		"user_id": from,
+	})
+	type DeletionCheckResult struct {
+		Edges []struct {
+			Source string `json:"source"`
+			Target string `json:"target"`
+		} `json:"edges"`
+	}
+	var gr DeletionCheckResult
+	if json.Unmarshal(raw, &gr) == nil {
+		for _, e := range gr.Edges {
+			effectiveTo := strings.TrimPrefix(e.Target, "user:")
+			if (from == e.Source && effectiveTo == to) || (e.Source == from+"-" && strings.Contains(e.Target, to)) {
+				return fmt.Errorf("relation still exists after delete: %s -> %s", from, to)
+			}
+		}
+	}
+	
+	return nil
 }
 
 func (w *MemoryWrapper) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
@@ -153,13 +173,52 @@ func (w *MemoryWrapper) EditMemoryNode(ctx context.Context, userID, nodeID, newV
 }
 
 func (w *MemoryWrapper) DeleteMemoryNode(ctx context.Context, userID, nodeID string) error {
-	_, err := w.call("store", map[string]interface{}{
-		"config":  w.cfg,
-		"op":      "delete_node",
-		"user_id": userID,
-		"node_id": nodeID,
+	_, err := w.call("delete", map[string]interface{}{
+		"config":      w.cfg,
+		"target_id":   nodeID,
+		"target_type": "node",
+		"user_id":     userID,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// POST-DELETE VERIFY: Check node was actually deleted
+	checkRaw, _ := w.call("query", map[string]interface{}{
+		"config":  w.cfg,
+		"op":      "user_graph",
+		"user_id": userID,
+	})
+	type NodeCheckResult struct {
+		Nodes []struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+		} `json:"nodes"`
+	}
+	var gr NodeCheckResult
+	if json.Unmarshal(checkRaw, &gr) == nil {
+		for _, n := range gr.Nodes {
+			// Flexible matching: check ID prefix variants and Label
+			nodesToCheck := []string{
+				n.ID,
+				strings.TrimPrefix(n.ID, "user:"),
+				n.Label,
+				strings.TrimPrefix(n.Label, "user:"),
+			}
+			for _, checkID := range nodesToCheck {
+				if checkID == nodeID {
+					return fmt.Errorf("node still exists after delete: %s", nodeID)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// DeleteNode implements NodeMutatorPort interface (wraps DeleteMemoryNode)
+func (w *MemoryWrapper) DeleteNode(ctx context.Context, id string) error {
+	return w.DeleteMemoryNode(ctx, "", id)
 }
 
 func (w *MemoryWrapper) UpdateUserLabel(ctx context.Context, userID, displayName string) error {

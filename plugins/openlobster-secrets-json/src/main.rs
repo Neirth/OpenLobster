@@ -55,6 +55,7 @@ fn metadata_schema() -> Value {
                 "placeholder": "Enter a strong passphrase"
             }
         },
+        "required": ["path"],
         "additionalProperties": false
     })
 }

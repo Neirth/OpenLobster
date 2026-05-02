@@ -36,14 +36,18 @@ services:
   vault:
     image: hashicorp/vault:latest
     environment:
-      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_ROOT_TOKEN:-myroot}
       - VAULT_ADDR=http://0.0.0.0:8200
     ports:
       - "8200:8200"
     cap_add:
       - IPC_LOCK
+    volumes:
+      - ./.docker/vault/config:/vault/config
+      - vault_data:/vault/data
+    command: server -config=/vault/config/vault.hcl
 
 volumes:
   openlobster_data:
   openlobster_workspace:
   neo4j_data:
+  vault_data:

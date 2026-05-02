@@ -18,6 +18,9 @@ func main() {
 }
 
 func run() int {
+	pluginPath := flag.String("plugin", "", "Path to plugin binary (required)")
+	smokeTest := flag.Bool("smoke", false, "Run smoke tests")
+	pluginType := flag.String("type", "", "Plugin type: memory, secrets, ai, messaging")
 	smokeConfigArg := flag.String("config", "", "JSON object (or @file.json) passed as config to smoke tests")
 	recipient := flag.String("recipient", "", "Optional recipient/channel ID for messaging smoke tests")
 	expect := flag.String("expect", "", "Optional expected content of inbound message (default: OK)")
@@ -25,11 +28,33 @@ func run() int {
 	flag.Parse()
 
 	args := flag.Args()
-	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "usage: validator [--config <json|@file>] [--recipient <id>] [--expect <text>] [--json] <binary-path>\n")
+
+	// Support both -plugin flag and positional argument
+	binaryPath := *pluginPath
+	if binaryPath == "" && len(args) > 0 {
+		binaryPath = args[0]
+	}
+
+	if binaryPath == "" {
+		fmt.Fprintf(os.Stderr, "usage: validator --plugin <binary-path> --smoke --type <plugin-type> [--config <json>] [--json]\n")
+		fmt.Fprintf(os.Stderr, "   or: validator <binary-path> [--config <json>] [--json]\n")
 		return 2
 	}
-	binaryPath := args[0]
+
+	// Determine plugin type from binary name if not provided
+	determinedType := *pluginType
+	if determinedType == "" {
+		lowerPath := strings.ToLower(binaryPath)
+		if strings.Contains(lowerPath, "memory") {
+			determinedType = "memory"
+		} else if strings.Contains(lowerPath, "secrets") {
+			determinedType = "secrets"
+		} else if strings.Contains(lowerPath, "ai") {
+			determinedType = "ai"
+		} else if strings.Contains(lowerPath, "messaging") || strings.Contains(lowerPath, "message") {
+			determinedType = "messaging"
+		}
+	}
 
 	smokeConfig, err := parseConfigArg(*smokeConfigArg)
 	if err != nil {
@@ -42,6 +67,8 @@ func run() int {
 		SmokeConfig:            smokeConfig,
 		SmokeTestRecipient:    *recipient,
 		ExpectedInboundContent: *expect,
+		PluginType:           determinedType,
+		RunSmokeTest:        *smokeTest,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "validator error: %v\n", err)
