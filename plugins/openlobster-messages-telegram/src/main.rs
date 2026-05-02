@@ -322,7 +322,7 @@ async fn send(input: Option<Value>) -> CallResponse {
 
     // Default text
     let escaped_content = escape_markdown_v2(&payload.message.content);
-    emit_log("info", &format!("Telegram: sending message (escaped_len={}) preview: {}", escaped_content.len(), if escaped_content.len() > 100 { format!("{}...", &escaped_content[..100]) } else { escaped_content.clone() }));
+    emit_log("debug", &format!("Telegram: sending message (escaped_len={}) preview: {}", escaped_content.len(), if escaped_content.len() > 100 { format!("{}...", &escaped_content[..100]) } else { escaped_content.clone() }));
 
     match bot.send_message(user_id, escaped_content)
         .parse_mode(teloxide::types::ParseMode::MarkdownV2)
@@ -594,7 +594,7 @@ async fn start(input: Option<Value>) -> CallResponse {
                             }
                         }));
 
-                        emit_log("info", &format!("Message Inbound: from={} content='{}' (Media: {})", sender_id, text, attachments_json.len()));
+                        emit_log("debug", &format!("Message Inbound: from={} content='{}' (Media: {})", sender_id, text, attachments_json.len()));
                     }
                 }
             }

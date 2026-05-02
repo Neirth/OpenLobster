@@ -1,0 +1,192 @@
+name: Built-in Plugins CI
+
+on:
+  push:
+    branches: [ master, 'feature/**', 'fix/**', 'refactor/**', 'chore/**', 'dependabot/**' ]
+    paths:
+      - 'plugins/**/*.yaml'
+      - 'plugins/**/*.toml'
+      - 'plugins/**/Cargo.toml'
+      - 'plugins/**/Makefile'
+      - 'plugins/openlobster-memory-*/**'
+      - 'plugins/openlobster-secrets-*/**'
+      - 'utils/validation_layer/**'
+      - '.github/workflows/tests.built-in-plugins.yaml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'plugins/**/*.yaml'
+      - 'plugins/**/*.toml'
+      - 'plugins/**/Cargo.toml'
+      - 'plugins/**/Makefile'
+      - 'plugins/openlobster-memory-*/**'
+      - 'plugins/openlobster-secrets-*/**'
+      - 'utils/validation_layer/**'
+      - '.github/workflows/tests.built-in-plugins.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Memory Plugins (Neo4j)
+  # ---------------------------------------------------------------------------
+  memory-neo4j-smoke:
+    name: Memory Neo4j Smoke Test
+    runs-on: ubuntu-24.04
+    services:
+      neo4j:
+        image: neo4j:5
+        env:
+          NEO4J_AUTH: neo4j/testpassword
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p testpassword 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 30s
+          --health-start-period 60s
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build validation layer
+        working-directory: utils/validation_layer
+        run: go build -o bin/validate ./...
+
+      - name: Build Neo4j plugin
+        working-directory: plugins/openlobster-memory-neo4j
+        run: cargo build --release
+
+      - name: Run smoke test
+        working-directory: utils/validation_layer
+        env:
+          OPENLOBSTER_SMOKE_NEO4J_URI: bolt://localhost:7687
+          OPENLOBSTER_SMOKE_NEO4J_USERNAME: neo4j
+          OPENLOBSTER_SMOKE_NEO4J_PASSWORD: testpassword
+          OPENLOBSTER_SMOKE_NEO4J_DATABASE: neo4j
+        run: |
+          ./bin/validate --plugin ../plugins/openlobster-memory-neo4j/target/release/openlobster-memory-neo4j \
+            --smoke --type memory
+
+  # ---------------------------------------------------------------------------
+  # Memory Plugins (GML)
+  # ---------------------------------------------------------------------------
+  memory-gml-smoke:
+    name: Memory GML Smoke Test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build validation layer
+        working-directory: utils/validation_layer
+        run: go build -o bin/validate ./...
+
+      - name: Build GML plugin
+        working-directory: plugins/openlobster-memory-gml
+        run: cargo build --release
+
+      - name: Set temp directory
+        run: echo "OPENLOBSTER_BASE_DIR=${{ runner.temp }}" >> $GITHUB_ENV
+
+      - name: Run smoke test
+        working-directory: utils/validation_layer
+        env:
+          OPENLOBSTER_SMOKE_MEMORY_PATH: ${{ runner.temp }}/memory.gml
+        run: |
+          ./bin/validate --plugin ../plugins/openlobster-memory-gml/target/release/openlobster-memory-gml \
+            --smoke --type memory
+
+  # ---------------------------------------------------------------------------
+  # Secrets Plugins (JSON)
+  # ---------------------------------------------------------------------------
+  secrets-json-smoke:
+    name: Secrets JSON Smoke Test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build validation layer
+        working-directory: utils/validation_layer
+        run: go build -o bin/validate ./...
+
+      - name: Build JSON plugin
+        working-directory: plugins/openlobster-secrets-json
+        run: cargo build --release
+
+      - name: Set temp directory
+        run: echo "OPENLOBSTER_BASE_DIR=${{ runner.temp }}" >> $GITHUB_ENV
+
+      - name: Run smoke test
+        working-directory: utils/validation_layer
+        env:
+          OPENLOBSTER_SMOKE_SECRETS_PATH: ${{ runner.temp }}/secrets.json
+        run: |
+          ./bin/validate --plugin ../plugins/openlobster-secrets-json/target/release/openlobster-secrets-json \
+            --smoke --type secrets
+
+  # ---------------------------------------------------------------------------
+  # Secrets Plugins (OpenBao) - Optional, requires credentials
+  # ---------------------------------------------------------------------------
+  secrets-openbao-smoke:
+    name: Secrets OpenBao Smoke Test
+    runs-on: ubuntu-24.04
+    if: vars.OPENBAO_URL != ''
+    services:
+      openbao:
+        image: openbao/openbao:latest
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: testtoken
+        ports:
+          - 8200:8200
+        options: >-
+          --health-cmd "curl -s http://localhost:8200/v1/sys/health || exit 1"
+          --health-interval 10s
+          --health-timeout 30s
+          --health-start-period 30s
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build validation layer
+        working-directory: utils/validation_layer
+        run: go build -o bin/validate ./...
+
+      - name: Build OpenBao plugin
+        working-directory: plugins/openlobster-secrets-openbao
+        run: cargo build --release
+
+      - name: Run smoke test
+        working-directory: utils/validation_layer
+        env:
+          OPENLOBSTER_SMOKE_SECRETS_URL: http://localhost:8200
+          OPENLOBSTER_SMOKE_SECRETS_TOKEN: testtoken
+        run: |
+          ./bin/validate --plugin ../plugins/openlobster-secrets-openbao/target/release/openlobster-secrets-openbao \
+            --smoke --type secrets
+
+  # ---------------------------------------------------------------------------
+  # Validation Layer Unit Tests
+  # ---------------------------------------------------------------------------
+  validation-layer-unit-tests:
+    name: Validation Layer Unit Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: utils/validation_layer/go.mod
+
+      - name: Run unit tests
+        working-directory: utils/validation_layer
+        run: go test -race -v ./src/smoke/...
+
+      - name: Run schema contract tests
+        working-directory: utils/validation_layer
+        run: go test -race -v ./utils/schema_contract/...

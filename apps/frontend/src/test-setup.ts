@@ -91,7 +91,7 @@ vi.mock("@/graphql/config", () => ({
         health: "OK", sessionCount: 5, mcpServerCount: 2, messagesReceived: 100, messagesSent: 50, uptime: "24h"
       }};
 
-      if (q.includes("agent")) return { agent: { name: "OpenLobster", version: "0.4.0" } };
+      if (q.includes("agent")) return { agent: { name: "OpenLobster", version: "0.4.1" } };
       if (q.includes("config")) return { config: { wizardCompleted: true, theme: "dark" } };
       if (q.includes("mcp") || q.includes("tool")) return { 
         mcpServers: [{ id: "m1", name: "Filesystem", status: "running" }],
@@ -112,7 +112,7 @@ vi.mock("@/graphql/config", () => {
   const mockClient = {
     request: vi.fn(async (query: string) => {
       if (query.includes("tasks")) return { tasks: [] };
-      if (query.includes("agent")) return { agent: { name: "OpenLobster" } };
+      if (query.includes("agent")) return { agent: { name: "OpenLobster", version: "0.4.1" } };
       return { data: {} };
     }),
   };

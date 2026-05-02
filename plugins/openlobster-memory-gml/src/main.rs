@@ -199,7 +199,7 @@ impl Plugin for GmlPlugin {
         PluginInfo {
             id: "memory:file",
             name: "GML Memory",
-            version: "0.1.0",
+            version: "0.1.1",
             description: "GML-based graph memory plugin",
             plugin_type: "memory",
             schema: json!({
@@ -218,7 +218,7 @@ impl Plugin for GmlPlugin {
                 }
             }),
             properties: json!({}),
-            exports: vec!["configure", "store", "retrieve", "query"],
+            exports: vec!["configure", "store", "retrieve", "query", "add_relation", "delete"],
         }
     }
 
@@ -249,12 +249,31 @@ impl Plugin for GmlPlugin {
                 let input_val = input.unwrap_or(json!({}));
                 fn_query(&input_val)
             },
+            "add_relation" => {
+                let input_val = input.unwrap_or(json!({}));
+                fn_add_relation(&input_val)
+            },
+            "delete" => {
+                let input_val = input.unwrap_or(json!({}));
+                fn_delete(&input_val)
+            },
             _ => CallResponse::err(format!("unknown function: {}", function)),
         }
     }
 }
 
 fn fn_store(input: &Value) -> CallResponse {
+    let op = str_field(input, "op");
+    if op == "add_relation" {
+        return fn_add_relation(input);
+    }
+    if op == "delete_relation" {
+        return fn_delete(input);
+    }
+    if op == "delete" {
+        return fn_delete(input);
+    }
+    
     let mut state = STATE.lock().unwrap();
     let uid = str_field(input, "user_id");
     let content = str_field(input, "content");
@@ -297,6 +316,40 @@ fn fn_retrieve(input: &Value) -> CallResponse {
 }
 
 fn fn_query(input: &Value) -> CallResponse {
+    let op = input.get("op").and_then(Value::as_str).unwrap_or("");
+    
+    // Handle cypher query operation
+    if op == "cypher" {
+        let cypher = input.get("cypher").and_then(Value::as_str).unwrap_or("");
+        if cypher.is_empty() {
+            eprintln!("[gml:error] cypher query requires 'cypher' parameter");
+            return CallResponse::err("cypher query requires 'cypher' parameter");
+        }
+        
+        // Very basic GML cypher-like support
+        // Parse patterns like "MATCH (a)-[r]->(b) RETURN a, r, b"
+        let mut state = STATE.lock().unwrap();
+        let mut results: Vec<Value> = Vec::new();
+        
+        // For now, just return all nodes as "data" for any MATCH
+        if cypher.contains("MATCH") {
+            for node in &state.nodes {
+                results.push(json!({
+                    "a": {"id": node.id.to_string(), "label": node.label}
+                }));
+            }
+            // Also return edges
+            for rel in &state.relations {
+                results.push(json!({
+                    "r": {"source": rel.source, "target": rel.target, "label": rel.label}
+                }));
+            }
+        }
+        
+        eprintln!("[gml:info] cypher query executed, returning {} results", results.len());
+        return CallResponse::ok(json!({"data": results, "errors": []}));
+    }
+    
     let user_id = input.get("user_id").and_then(Value::as_str).unwrap_or("");
     let hot = CONFIG.merge(None);
     let path_val = input.get("config").and_then(|c| c.get("path")).and_then(Value::as_str).unwrap_or("");
@@ -310,7 +363,8 @@ fn fn_query(input: &Value) -> CallResponse {
          state.load(&path);
     }
 
-    eprintln!("[gml:info] Querying User Graph for '{}' via path '{}'. Total nodes in state: {}.", user_id, path, state.nodes.len());
+    eprintln!("[gml:info] Querying User Graph for '{}' via path '{}'. Total nodes: {}, relations: {}.", 
+        user_id, path, state.nodes.len(), state.relations.len());
 
     let nodes: Vec<Value> = state.nodes.iter()
         .filter(|n| user_id.is_empty() || n.user_id == user_id)
@@ -329,6 +383,154 @@ fn fn_query(input: &Value) -> CallResponse {
 
     eprintln!("[gml:info] Returning {} nodes and {} edges.", nodes.len(), edges.len());
     CallResponse::ok(json!({"nodes": nodes, "edges": edges}))
+}
+
+fn fn_add_relation(input: &Value) -> CallResponse {
+    let from_raw = str_field(input, "from");
+    let to_raw = str_field(input, "to");
+    let from = from_raw.trim_start_matches("user:").to_string();
+    let to = to_raw.trim_start_matches("user:").to_string();
+
+    if from.is_empty() || to.is_empty() {
+        eprintln!("[gml:error] add_relation requires non-empty from and to");
+        return CallResponse::err("add_relation: from and to are required and must be non-empty");
+    }
+
+    let rel_type = str_field(input, "rel_type");
+    if rel_type.is_empty() {
+        eprintln!("[gml:error] add_relation requires non-empty rel_type");
+        return CallResponse::err("add_relation: rel_type is required");
+    }
+
+    eprintln!("[gml:info] add_relation user:{} -[{}]-> user:{}", from, rel_type, to);
+
+    let mut state = STATE.lock().unwrap();
+
+    let from_normalized = from.trim_start_matches("user:").to_string();
+    let to_normalized = to.trim_start_matches("user:").to_string();
+    let from_id_str = from_normalized.clone();
+    let to_id_str = to_normalized.clone();
+    let node_ids: Vec<String> = state.nodes.iter().map(|n| n.user_id.clone()).collect();
+    let node_id_nums: Vec<String> = state.nodes.iter().map(|n| n.id.to_string()).collect();
+
+    let from_exists = node_ids.contains(&from_id_str) || node_id_nums.contains(&from_id_str);
+    let to_exists = node_ids.contains(&to_id_str) || node_id_nums.contains(&to_id_str);
+
+    let mut new_next_id = state.next_id;
+
+    if !from_exists {
+        eprintln!("[gml:debug] auto-creating source node for add_relation: {}", from);
+        state.nodes.push(Node {
+            id: new_next_id,
+            user_id: from_normalized.clone(),
+            content: String::new(),
+            label: "user".to_string(),
+            entity_type: "user".to_string(),
+        });
+        new_next_id += 1;
+    }
+
+    if !to_exists {
+        eprintln!("[gml:debug] auto-creating target node for add_relation: {}", to);
+        state.nodes.push(Node {
+            id: new_next_id,
+            user_id: to_normalized.clone(),
+            content: String::new(),
+            label: "user".to_string(),
+            entity_type: "user".to_string(),
+        });
+        new_next_id += 1;
+    }
+
+    state.next_id = new_next_id;
+
+    let rel = Relation {
+        source: format!("user:{}", from_normalized),
+        target: format!("user:{}", to_normalized),
+        label: rel_type.to_string(),
+    };
+    state.relations.push(rel);
+
+    let hot = CONFIG.merge(None);
+    let mut path = input.get("config").and_then(|c| c.get("path")).and_then(Value::as_str).unwrap_or("").to_string();
+    if path.is_empty() {
+        path = hot.get("path").and_then(Value::as_str).unwrap_or("").to_string();
+    }
+
+    state.save(&path);
+    eprintln!("[gml:info] add_relation OK");
+    CallResponse::ok(json!({"ok": true}))
+}
+
+fn fn_delete(input: &Value) -> CallResponse {
+    let target_type = str_field(input, "target_type");
+    let target_id = str_field(input, "target_id").to_string();
+    let from = str_field(input, "from").to_string();
+    let to = str_field(input, "to").to_string();
+    
+    let delete_target = if !target_id.is_empty() { 
+        target_id.clone() 
+    } else if !from.is_empty() && !to.is_empty() {
+        format!("{}->{}", from, to)
+    } else {
+        "".to_string()
+    };
+
+    if delete_target.is_empty() {
+        eprintln!("[gml:error] delete requires non-empty target_id or from/to");
+        return CallResponse::err("delete: target_id is required");
+    }
+
+    eprintln!("[gml:info] delete target_type={} target={}", target_type, delete_target);
+
+    let mut state = STATE.lock().unwrap();
+
+    let mut removed = false;
+    if target_type.is_empty() || target_type == "node" {
+        let target_normalized = delete_target.trim_start_matches("user:");
+        let original_len = state.nodes.len();
+        state.nodes.retain(|n| n.id.to_string() != delete_target && n.user_id != target_normalized);
+        if state.nodes.len() < original_len {
+            removed = true;
+            eprintln!("[gml:debug] deleted node target={}", delete_target);
+        }
+        state.relations.retain(|r| !r.source.contains(&delete_target) && !r.target.contains(&delete_target));
+        if !from.is_empty() && !to.is_empty() {
+            let from_norm = from.trim_start_matches("user:");
+            let to_norm = to.trim_start_matches("user:");
+            let original_rels = state.relations.len();
+            state.relations.retain(|r| {
+                !(r.source.contains(from_norm) && r.target.contains(to_norm))
+            });
+            if state.relations.len() < original_rels {
+                removed = true;
+                eprintln!("[gml:debug] deleted relation from={} to={}", from, to);
+            }
+        }
+    } else if target_type == "relation" {
+        if let Ok(rel_id) = delete_target.parse::<usize>() {
+            if rel_id < state.relations.len() {
+                state.relations.remove(rel_id);
+                removed = true;
+                eprintln!("[gml:debug] deleted relation index={}", rel_id);
+            }
+        }
+    }
+
+    let hot = CONFIG.merge(None);
+    let mut path = input.get("config").and_then(|c| c.get("path")).and_then(Value::as_str).unwrap_or("").to_string();
+    if path.is_empty() {
+        path = hot.get("path").and_then(Value::as_str).unwrap_or("").to_string();
+    }
+
+    state.save(&path);
+    if removed {
+        eprintln!("[gml:info] delete OK");
+        CallResponse::ok(json!({"ok": true}))
+    } else {
+        eprintln!("[gml:warn] delete target not found: {}", target_id);
+        CallResponse::err(format!("delete: target {} not found", target_id))
+    }
 }
 
 fn str_field<'a>(v: &'a Value, key: &str) -> &'a str {

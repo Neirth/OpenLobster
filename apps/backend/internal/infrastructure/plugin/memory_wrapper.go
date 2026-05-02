@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/neirth/openlobster/internal/domain/ports"
 	"github.com/neirth/openlobster/internal/infrastructure/logging"
@@ -31,6 +32,7 @@ func (w *MemoryWrapper) call(fn string, payload interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("memory plugin %s: marshal: %w", w.plugin.ID(), err)
 	}
+	fmt.Printf("DEBUG WRAPPER call: fn=%s payload=%s\n", fn, string(raw))
 	return w.plugin.Call(fn, raw)
 }
 
@@ -87,6 +89,7 @@ func (w *MemoryWrapper) GetUserGraph(ctx context.Context, userID string) (ports.
 }
 
 func (w *MemoryWrapper) AddRelation(ctx context.Context, from, to, relType string) error {
+	fmt.Printf("DEBUG: AddRelation called: from=%s to=%s relType=%s\n", from, to, relType)
 	_, err := w.call("store", map[string]interface{}{
 		"config":   w.cfg,
 		"op":       "add_relation",
@@ -98,13 +101,40 @@ func (w *MemoryWrapper) AddRelation(ctx context.Context, from, to, relType strin
 }
 
 func (w *MemoryWrapper) DeleteRelation(ctx context.Context, from, to string) error {
-	_, err := w.call("store", map[string]interface{}{
-		"config": w.cfg,
-		"op":     "delete_relation",
-		"from":   from,
-		"to":     to,
+	_, err := w.call("delete", map[string]interface{}{
+		"config":     w.cfg,
+		"target_type": "relation",
+		"from":        from,
+		"to":          to,
+		"user_id":     from,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	
+	// Verify deletion worked by checking if relation still exists
+	raw, _ := w.call("query", map[string]interface{}{
+		"config":  w.cfg,
+		"op":      "user_graph",
+		"user_id": from,
+	})
+	type DeletionCheckResult struct {
+		Edges []struct {
+			Source string `json:"source"`
+			Target string `json:"target"`
+		} `json:"edges"`
+	}
+	var gr DeletionCheckResult
+	if json.Unmarshal(raw, &gr) == nil {
+		for _, e := range gr.Edges {
+			effectiveTo := strings.TrimPrefix(e.Target, "user:")
+			if (from == e.Source && effectiveTo == to) || (e.Source == from+"-" && strings.Contains(e.Target, to)) {
+				return fmt.Errorf("relation still exists after delete: %s -> %s", from, to)
+			}
+		}
+	}
+	
+	return nil
 }
 
 func (w *MemoryWrapper) QueryGraph(ctx context.Context, cypher string) (ports.GraphResult, error) {
@@ -153,13 +183,46 @@ func (w *MemoryWrapper) EditMemoryNode(ctx context.Context, userID, nodeID, newV
 }
 
 func (w *MemoryWrapper) DeleteMemoryNode(ctx context.Context, userID, nodeID string) error {
-	_, err := w.call("store", map[string]interface{}{
-		"config":  w.cfg,
-		"op":      "delete_node",
-		"user_id": userID,
-		"node_id": nodeID,
+	_, err := w.call("delete", map[string]interface{}{
+		"config":      w.cfg,
+		"target_id":   nodeID,
+		"target_type": "node",
+		"user_id":     userID,
 	})
-	return err
+	if err != nil {
+		logging.Debugf("deleteMemoryNode: plugin returned error: %v", err)
+		return err
+	}
+
+	// VERIFY: Check node was actually deleted
+	checkRaw, _ := w.call("query", map[string]interface{}{
+		"config":  w.cfg,
+		"op":      "user_graph",
+		"user_id": userID,
+	})
+	type NodeCheckResult struct {
+		Nodes []struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+		} `json:"nodes"`
+	}
+	var gr NodeCheckResult
+	if json.Unmarshal(checkRaw, &gr) == nil {
+		for _, n := range gr.Nodes {
+			if n.ID == nodeID || n.ID == "user:"+nodeID {
+				logging.Debugf("deleteMemoryNode: node still exists after delete: %s", nodeID)
+				return fmt.Errorf("node still exists after delete: %s", nodeID)
+			}
+		}
+	}
+
+	logging.Debugf("deleteMemoryNode: success nodeID=%s", nodeID)
+	return nil
+}
+
+// DeleteNode implements NodeMutatorPort interface (wraps DeleteMemoryNode)
+func (w *MemoryWrapper) DeleteNode(ctx context.Context, id string) error {
+	return w.DeleteMemoryNode(ctx, "", id)
 }
 
 func (w *MemoryWrapper) UpdateUserLabel(ctx context.Context, userID, displayName string) error {

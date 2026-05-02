@@ -5,11 +5,13 @@ on:
     branches: [ master, 'feature/**', 'fix/**', 'refactor/**', 'chore/**' ]
     paths:
       - 'apps/backend/**'
+      - 'apps/backend/internal/infrastructure/plugin/*'
       - '.github/workflows/tests.backend-ci.yaml'
   pull_request:
     branches: [ master ]
     paths:
       - 'apps/backend/**'
+      - 'apps/backend/internal/infrastructure/plugin/*'
       - '.github/workflows/tests.backend-ci.yaml'
 
 permissions:
@@ -94,3 +96,68 @@ jobs:
 
       - name: Build binary
         run: make build
+
+  # ---------------------------------------------------------------------------
+  # Validate built-in plugins against validation layer
+  # ---------------------------------------------------------------------------
+  validate-builtin-plugins:
+    name: Validate Built-in Plugins
+    runs-on: ubuntu-24.04
+    needs: [ build ]
+    services:
+      neo4j:
+        image: neo4j:5
+        env:
+          NEO4J_AUTH: neo4j/testpassword
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p testpassword 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 30s
+          --health-start-period 60s
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build validation layer
+        working-directory: utils/validation_layer
+        run: go build -o bin/validate .
+
+      - name: Build Neo4j plugin
+        working-directory: plugins/openlobster-memory-neo4j
+        run: cargo build --release
+
+      - name: Build GML plugin
+        working-directory: plugins/openlobster-memory-gml
+        run: cargo build --release
+
+      - name: Build Secrets JSON plugin
+        working-directory: plugins/openlobster-secrets-json
+        run: cargo build --release
+
+      - name: Validate Neo4j plugin
+        working-directory: utils/validation_layer
+        env:
+          OPENLOBSTER_SMOKE_NEO4J_URI: bolt://localhost:7687
+          OPENLOBSTER_SMOKE_NEO4J_USERNAME: neo4j
+          OPENLOBSTER_SMOKE_NEO4J_PASSWORD: testpassword
+          OPENLOBSTER_SMOKE_NEO4J_DATABASE: neo4j
+        run: |
+          echo "=== Validating Neo4j memory plugin ==="
+          ./bin/validate --plugin ../plugins/openlobster-memory-neo4j/target/release/openlobster-memory-neo4j --smoke --type memory || exit 1
+
+      - name: Validate GML plugin
+        working-directory: utils/validation_layer
+        env:
+          OPENLOBSTER_BASE_DIR: /tmp/validation-test
+        run: |
+          mkdir -p /tmp/validation-test
+          echo "=== Validating GML memory plugin ==="
+          ./bin/validate --plugin ../plugins/openlobster-memory-gml/target/release/openlobster-memory-gml --smoke --type memory || exit 1
+
+      - name: Validate Secrets JSON plugin
+        run: |
+          echo "=== Validating Secrets JSON plugin ==="
+          ./bin/validate --plugin ../plugins/openlobster-secrets-json/target/release/openlobster-secrets-json --smoke --type secrets || exit 1

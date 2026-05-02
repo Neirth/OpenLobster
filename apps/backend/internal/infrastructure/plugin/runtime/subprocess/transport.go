@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/neirth/openlobster/internal/infrastructure/logging"
 )
 
 // jrpcConn is a JSON-RPC 2.0 client over a plugin's stdin/stdout pipes.
@@ -155,7 +157,7 @@ func normalizeMetadataSchema(raw json.RawMessage) []byte {
 
 func (a *Adapter) startLocked(ctx context.Context) error {
 	cmd := exec.Command(a.binaryPath)
-	
+
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return fmt.Errorf("plugin %s: stderr pipe: %w", a.id, err)
@@ -223,7 +225,13 @@ func (a *Adapter) startLocked(ctx context.Context) error {
 				if level == "" {
 					level = "info"
 				}
-				log.Printf("plugin %s [%s]: %s", a.id, level, strings.TrimSpace(p.Message))
+				msg := strings.TrimSpace(p.Message)
+				switch level {
+				case "debug":
+					logging.Debugf("plugin %s [debug]: %s", a.id, msg)
+				default:
+					log.Printf("plugin %s [%s]: %s", a.id, level, msg)
+				}
 			}
 		}
 	}

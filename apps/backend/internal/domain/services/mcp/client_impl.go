@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 
@@ -47,10 +48,14 @@ func (c *MCPClientSDK) connectHTTP(ctx context.Context, server ServerConfig) err
 		tokenKey := fmt.Sprintf("mcp/remote/%s/token", server.Name)
 		token, err := c.secrets.Get(ctx, tokenKey)
 		if err != nil && !errors.Is(err, ports.ErrNotFound) {
-			return fmt.Errorf("failed to read OAuth token from secrets backend for server %q (key %s): %w", server.Name, tokenKey, err)
+			log.Printf("mcp: warning loading token (key=%s): %v", tokenKey, err)
+			token = ""
 		}
 		if token != "" {
+			log.Printf("mcp: using token for %s (key=%s, len=%d)", server.Name, tokenKey, len(token))
 			headers["Authorization"] = "Bearer " + token
+		} else {
+			log.Printf("mcp: no token found for %s (key=%s) — will attempt without auth", server.Name, tokenKey)
 		}
 	}
 
@@ -81,6 +86,17 @@ func (c *MCPClientSDK) connectHTTP(ctx context.Context, server ServerConfig) err
 		},
 	})
 	if err != nil {
+		// Check if unauthorized - try to refresh token
+		if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "unauthorized") {
+			log.Printf("mcp: got 401, attempting token refresh for %s", server.Name)
+			var refreshed bool
+			var refreshErr error
+			if refreshed, refreshErr = c.refreshToken(ctx, server.Name); refreshErr == nil && refreshed {
+				log.Printf("mcp: token refreshed, retrying connection for %s", server.Name)
+				return c.Connect(ctx, server) // retry with new token
+			}
+			log.Printf("mcp: token refresh failed: %v", refreshErr)
+		}
 		return fmt.Errorf("failed to initialize MCP client: %w", err)
 	}
 
@@ -198,6 +214,21 @@ func (c *MCPClientSDK) GetServerTools(serverName string) []ToolDefinition {
 		return conn.Tools
 	}
 	return nil
+}
+
+// refreshToken attempts to use the refresh_token to get a new access_token
+func (c *MCPClientSDK) refreshToken(ctx context.Context, serverName string) (bool, error) {
+	refreshKey := fmt.Sprintf("mcp/remote/%s/refresh_token", serverName)
+	refreshToken, err := c.secrets.Get(ctx, refreshKey)
+	if err != nil || refreshToken == "" {
+		return false, fmt.Errorf("no refresh_token available")
+	}
+
+	log.Printf("mcp: attempting to refresh token for %s", serverName)
+
+	// For now, we can't do automatic refresh without knowing the OAuth details
+	// Just indicate we need re-auth
+	return false, fmt.Errorf("refresh_token requires new OAuth flow - please reconnect manually")
 }
 
 func splitToolName(name string) []string {

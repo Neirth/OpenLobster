@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -61,21 +62,77 @@ func setupDB(t *testing.T) *persistence.Database {
 // ─── mock implementations ─────────────────────────────────────────────────────
 
 type stubSkillsPort struct {
-	skills []dto.SkillSnapshot
+	skills          []dto.SkillSnapshot
+	disabledSkills map[string]bool
+	importedSkills  map[string][]byte
 }
 
-func (s *stubSkillsPort) ListSkills() ([]dto.SkillSnapshot, error) { return s.skills, nil }
-func (s *stubSkillsPort) EnableSkill(name string) error            { return nil }
-func (s *stubSkillsPort) DisableSkill(name string) error           { return nil }
-func (s *stubSkillsPort) DeleteSkill(name string) error            { return nil }
-func (s *stubSkillsPort) ImportSkill(data []byte) error            { return nil }
+func (s *stubSkillsPort) ListSkills() ([]dto.SkillSnapshot, error) {
+	var out []dto.SkillSnapshot
+	for _, skill := range s.skills {
+		if s.disabledSkills[skill.Name] {
+			continue
+		}
+		out = append(out, skill)
+	}
+	return out, nil
+}
+func (s *stubSkillsPort) EnableSkill(name string) error {
+	if s.disabledSkills == nil {
+		s.disabledSkills = make(map[string]bool)
+	}
+	delete(s.disabledSkills, name)
+	return nil
+}
+func (s *stubSkillsPort) DisableSkill(name string) error {
+	if s.disabledSkills == nil {
+		s.disabledSkills = make(map[string]bool)
+	}
+	s.disabledSkills[name] = true
+	return nil
+}
+func (s *stubSkillsPort) DeleteSkill(name string) error {
+	out := s.skills[:0]
+	for _, skill := range s.skills {
+		if skill.Name != name {
+			out = append(out, skill)
+		}
+	}
+	s.skills = out
+	if s.disabledSkills != nil {
+		delete(s.disabledSkills, name)
+	}
+	if s.importedSkills != nil {
+		delete(s.importedSkills, name)
+	}
+	return nil
+}
+func (s *stubSkillsPort) ImportSkill(data []byte) error {
+	if s.importedSkills == nil {
+		s.importedSkills = make(map[string][]byte)
+	}
+	s.importedSkills[fmt.Sprintf("imported-%d", len(s.importedSkills))] = data
+	return nil
+}
 
 type stubSysFilesPort struct {
-	files []dto.SystemFileSnapshot
+	files map[string]string
 }
 
-func (s *stubSysFilesPort) ListFiles() ([]dto.SystemFileSnapshot, error) { return s.files, nil }
-func (s *stubSysFilesPort) WriteFile(name, content string) error         { return nil }
+func (s *stubSysFilesPort) ListFiles() ([]dto.SystemFileSnapshot, error) {
+	var out []dto.SystemFileSnapshot
+	for name, content := range s.files {
+		out = append(out, dto.SystemFileSnapshot{Name: name, Content: content})
+	}
+	return out, nil
+}
+func (s *stubSysFilesPort) WriteFile(name, content string) error {
+	if s.files == nil {
+		s.files = make(map[string]string)
+	}
+	s.files[name] = content
+	return nil
+}
 
 type stubToolPermRepo struct {
 	perms []dto.ToolPermissionRecord
@@ -115,11 +172,21 @@ func (s *stubToolPermRepo) ListAll(ctx context.Context) ([]dto.ToolPermissionRec
 }
 
 type stubPairingPort struct {
-	active []dto.PairingSnapshot
+	active     []dto.PairingSnapshot
+	deniedMap map[string]string
 }
 
 func (s *stubPairingPort) ListActive(ctx context.Context) ([]dto.PairingSnapshot, error) {
-	return s.active, nil
+	var out []dto.PairingSnapshot
+	for _, p := range s.active {
+		if s.deniedMap != nil {
+			if _, denied := s.deniedMap[p.Code]; denied {
+				continue
+			}
+		}
+		out = append(out, p)
+	}
+	return out, nil
 }
 func (s *stubPairingPort) Approve(ctx context.Context, code, userID, displayName string) (*dto.PairingSnapshot, error) {
 	for _, p := range s.active {
@@ -130,7 +197,13 @@ func (s *stubPairingPort) Approve(ctx context.Context, code, userID, displayName
 	}
 	return nil, nil
 }
-func (s *stubPairingPort) Deny(ctx context.Context, code, reason string) error { return nil }
+func (s *stubPairingPort) Deny(ctx context.Context, code, reason string) error {
+	if s.deniedMap == nil {
+		s.deniedMap = make(map[string]string)
+	}
+	s.deniedMap[code] = reason
+	return nil
+}
 
 type stubUserRepo struct {
 	users []models.User
@@ -151,16 +224,29 @@ func (s *stubUserRepo) GetByID(ctx context.Context, id string) (*models.User, er
 }
 func (s *stubUserRepo) ListAll(ctx context.Context) ([]models.User, error) { return s.users, nil }
 
-type stubUserChannelRepo struct{}
+type stubUserChannelRepo struct {
+	bindings map[string]string
+	users    map[string]struct{ channelType, username string }
+}
 
 func (s *stubUserChannelRepo) ExistsByPlatformUserID(ctx context.Context, platformUserID string) (bool, error) {
-	return false, nil
+	_, exists := s.bindings[platformUserID]
+	return exists, nil
 }
 func (s *stubUserChannelRepo) Create(ctx context.Context, userID, channelType, platformUserID, username string) error {
+	if s.bindings == nil {
+		s.bindings = make(map[string]string)
+		s.users = make(map[string]struct{ channelType, username string })
+	}
+	s.bindings[platformUserID] = userID
+	s.users[userID] = struct{ channelType, username string }{channelType: channelType, username: username}
 	return nil
 }
 func (s *stubUserChannelRepo) GetDisplayNameByUserID(ctx context.Context, userID string) (string, error) {
-	return "DisplayName", nil
+	if u, ok := s.users[userID]; ok {
+		return u.username, nil
+	}
+	return "", nil
 }
 
 type stubMCPServerRepo struct {
@@ -210,17 +296,38 @@ func (s *stubMcpConnectPort) GetConnectionStatus(name string) string {
 }
 func (s *stubMcpConnectPort) GetServerToolCount(name string) int { return 0 }
 
-type stubMcpOAuthPort struct{}
+type stubMcpOAuthPort struct {
+	creds map[string]struct{ clientID, clientSecret string }
+}
 
 func (s *stubMcpOAuthPort) InitiateOAuth(ctx context.Context, serverName, mcpURL string) (string, error) {
 	return "https://example.com/oauth", nil
 }
-func (s *stubMcpOAuthPort) Status(serverName string) (string, string) { return "none", "" }
+func (s *stubMcpOAuthPort) Status(serverName string) (string, string) {
+	if c, ok := s.creds[serverName]; ok {
+		if c.clientID != "" && c.clientSecret != "" {
+			return "configured", ""
+		}
+		return "partial", ""
+	}
+	return "none", ""
+}
 func (s *stubMcpOAuthPort) SetClientID(ctx context.Context, serverName, clientID string) error {
+	if s.creds == nil {
+		s.creds = make(map[string]struct{ clientID, clientSecret string })
+	}
+	rec := s.creds[serverName]
+	rec.clientID = clientID
+	s.creds[serverName] = rec
 	return nil
 }
-
 func (s *stubMcpOAuthPort) SetClientSecret(ctx context.Context, serverName, clientSecret string) error {
+	if s.creds == nil {
+		s.creds = make(map[string]struct{ clientID, clientSecret string })
+	}
+	rec := s.creds[serverName]
+	rec.clientSecret = clientSecret
+	s.creds[serverName] = rec
 	return nil
 }
 
@@ -248,14 +355,38 @@ func (s *stubSubAgentSvc) Kill(ctx context.Context, id string) error {
 }
 
 type stubConvPort struct {
-	convs []dto.ConversationSnapshot
+	convs       []dto.ConversationSnapshot
+	deletedUser map[string]bool
+	deletedGrp  map[string]bool
 }
 
 func (s *stubConvPort) ListConversations() ([]dto.ConversationSnapshot, error) {
-	return s.convs, nil
+	var out []dto.ConversationSnapshot
+	for _, c := range s.convs {
+		if !c.IsGroup && s.deletedUser[c.ID] {
+			continue
+		}
+		if c.IsGroup && s.deletedGrp[c.ID] {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out, nil
 }
-func (s *stubConvPort) DeleteUser(ctx context.Context, conversationID string) error  { return nil }
-func (s *stubConvPort) DeleteGroup(ctx context.Context, conversationID string) error { return nil }
+func (s *stubConvPort) DeleteUser(ctx context.Context, conversationID string) error {
+	if s.deletedUser == nil {
+		s.deletedUser = make(map[string]bool)
+	}
+	s.deletedUser[conversationID] = true
+	return nil
+}
+func (s *stubConvPort) DeleteGroup(ctx context.Context, conversationID string) error {
+	if s.deletedGrp == nil {
+		s.deletedGrp = make(map[string]bool)
+	}
+	s.deletedGrp[conversationID] = true
+	return nil
+}
 
 type stubMsgRepo struct {
 	msgs []models.Message
@@ -804,8 +935,8 @@ func TestIntegration_Query_SystemFiles(t *testing.T) {
 	reg := registry.NewAgentRegistry()
 	reg.UpdateAgent(&dto.AgentSnapshot{Name: "Bot", Status: "ok"})
 	sysFiles := &stubSysFilesPort{
-		files: []dto.SystemFileSnapshot{
-			{Name: "system_prompt.txt", Content: "You are helpful"},
+		files: map[string]string{
+			"system_prompt.txt": "You are helpful",
 		},
 	}
 	deps := &resolvers.Deps{AgentRegistry: reg, SysFilesPort: sysFiles}

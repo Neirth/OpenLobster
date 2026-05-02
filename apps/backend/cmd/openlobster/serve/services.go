@@ -466,7 +466,7 @@ func (a *App) initPlugins() {
 		}
 
 		if p.ID() != selectedPluginID {
-			log.Printf("plugins: %s skipped (not default for %s). Expected: %s, Got: %s", p.ID(), p.Type(), selectedPluginID, p.ID())
+			log.Printf("plugins: %s skipped (selected %s for %s)", p.ID(), selectedPluginID, p.Type())
 			continue
 		}
 
@@ -498,6 +498,10 @@ func (a *App) initPlugins() {
 		} else {
 			log.Printf("plugins: audio provider → %s", orderedAudioProviders[0].name)
 		}
+		// Probe only the primary audio plugin for liveness
+		if primary, ok := findPluginByID(activePlugins, orderedAudioProviders[0].id); ok {
+			probeConfiguredPlugin(primary, liveConfigForPluginFromApp(a, primary))
+		}
 	}
 
 	// Pass 2: AI, messaging, memory plugins.
@@ -517,6 +521,7 @@ func (a *App) initPlugins() {
 					a.AIModel = m
 				}
 				log.Printf("plugins: AI provider -> %s (model: %s)", p.Name(), a.AIModel)
+				probeConfiguredPlugin(p, cfg)
 			}
 
 		case "messaging":
@@ -534,6 +539,7 @@ func (a *App) initPlugins() {
 			if a.MemoryAdapter == nil {
 				a.MemoryAdapter = pluginadapter.NewMemoryWrapper(p, cfg)
 				log.Printf("plugins: memory backend → %s", p.Name())
+				probeConfiguredPlugin(p, cfg)
 			}
 		case "secrets":
 			if selectedPluginByType["secrets"] != "" && p.ID() != selectedPluginByType["secrets"] {
@@ -546,6 +552,7 @@ func (a *App) initPlugins() {
 			if a.SecretsProvider == nil {
 				a.SecretsProvider = pluginadapter.NewSecretsWrapper(p, cfg)
 				log.Printf("plugins: secrets backend → %s", p.Name())
+				probeConfiguredPlugin(p, cfg)
 			}
 		}
 	}
@@ -1032,4 +1039,13 @@ func (a *App) initServices() {
 		}
 		return m
 	})
+}
+
+func findPluginByID(plugins []ports.PluginPort, id string) (ports.PluginPort, bool) {
+	for _, p := range plugins {
+		if p.ID() == id {
+			return p, true
+		}
+	}
+	return nil, false
 }

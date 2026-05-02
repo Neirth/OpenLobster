@@ -185,7 +185,3 @@ func isInboundModeValid(mode string) bool {
 	}
 }
 
-func isTransportFailure(errMsg string) bool {
-	msg := strings.ToLower(errMsg)
-	return strings.Contains(msg, "broken pipe") || strings.Contains(msg, "eof")
-}

@@ -6,7 +6,7 @@
 //! Uses the vaultrs SDK for OpenBao/Vault KV v2 operations.
 
 use async_trait::async_trait;
-use openlobster_sdk_base::{run, CallResponse, HotConfig, Plugin, PluginInfo};
+use openlobster_sdk_base::{run, emit_log, CallResponse, HotConfig, Plugin, PluginInfo};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use vaultrs::client::{VaultClient, VaultClientSettingsBuilder};
@@ -99,12 +99,18 @@ async fn fn_get(input: &Value) -> CallResponse {
     let cfg    = CONFIG.merge(per_call_config(input));
     let client = match require_client(&cfg) { Ok(c) => c, Err(e) => return CallResponse::err(e) };
     let mount  = effective_mount(&cfg);
+    emit_log("debug", &format!("OpenBao: get key='{}' mount='{}'", key, mount));
     match kv2::read::<HashMap<String, String>>(&client, &mount, key).await {
         Ok(data) => {
             let value = data.get("value").cloned().unwrap_or_default();
+            let preview = if value.len() > 40 { format!("{}...", &value[..40]) } else { value.clone() };
+            emit_log("debug", &format!("OpenBao: get OK key='{}' value='{}'", key, preview));
             CallResponse::ok(json!({"value": value}))
         }
-        Err(e) => CallResponse::err(format!("OpenBao get failed: {}", e)),
+        Err(e) => {
+            emit_log("error", &format!("OpenBao: get FAILED key='{}' — {}", key, e));
+            CallResponse::err(format!("OpenBao get failed: {}", e))
+        }
     }
 }
 
@@ -115,11 +121,18 @@ async fn fn_set(input: &Value) -> CallResponse {
     let cfg    = CONFIG.merge(per_call_config(input));
     let client = match require_client(&cfg) { Ok(c) => c, Err(e) => return CallResponse::err(e) };
     let mount  = effective_mount(&cfg);
+    emit_log("debug", &format!("OpenBao: set key='{}' mount='{}' len={}", key, mount, value.len()));
     let mut data = HashMap::new();
     data.insert("value".to_string(), value.to_string());
     match kv2::set(&client, &mount, key, &data).await {
-        Ok(_)  => CallResponse::ok(json!({"ok": true})),
-        Err(e) => CallResponse::err(format!("OpenBao set failed: {}", e)),
+        Ok(_)  => {
+            emit_log("debug", &format!("OpenBao: set OK key='{}'", key));
+            CallResponse::ok(json!({"ok": true}))
+        }
+        Err(e) => {
+            emit_log("error", &format!("OpenBao: set FAILED key='{}' — {}", key, e));
+            CallResponse::err(format!("OpenBao set failed: {}", e))
+        }
     }
 }
 
@@ -129,10 +142,16 @@ async fn fn_delete(input: &Value) -> CallResponse {
     let cfg    = CONFIG.merge(per_call_config(input));
     let client = match require_client(&cfg) { Ok(c) => c, Err(e) => return CallResponse::err(e) };
     let mount  = effective_mount(&cfg);
-    // Use metadata delete to ensure it disappears from the list
+    emit_log("debug", &format!("OpenBao: delete key='{}' mount='{}'", key, mount));
     match kv2::delete_metadata(&client, &mount, key).await {
-        Ok(())  => CallResponse::ok(json!({"ok": true})),
-        Err(e)  => CallResponse::err(format!("OpenBao delete failed: {}", e)),
+        Ok(())  => {
+            emit_log("debug", &format!("OpenBao: delete OK key='{}'", key));
+            CallResponse::ok(json!({"ok": true}))
+        }
+        Err(e)  => {
+            emit_log("error", &format!("OpenBao: delete FAILED key='{}' — {}", key, e));
+            CallResponse::err(format!("OpenBao delete failed: {}", e))
+        }
     }
 }
 
@@ -140,8 +159,8 @@ async fn fn_list(input: &Value) -> CallResponse {
     let cfg    = CONFIG.merge(per_call_config(input));
     let client = match require_client(&cfg) { Ok(c) => c, Err(e) => return CallResponse::err(e) };
     let mount  = effective_mount(&cfg);
+    emit_log("debug", &format!("OpenBao: list mount='{}'", mount));
 
-    // Recursive list helper
     async fn list_recursive(client: &VaultClient, mount: &str, path: &str) -> Vec<String> {
         let mut results = Vec::new();
         if let Ok(keys) = kv2::list(client, mount, path).await {
@@ -158,6 +177,7 @@ async fn fn_list(input: &Value) -> CallResponse {
     }
 
     let keys = list_recursive(&client, &mount, "").await;
+    emit_log("debug", &format!("OpenBao: list OK mount='{}' total_keys={}", mount, keys.len()));
     CallResponse::ok(json!({"keys": keys}))
 }
 
@@ -185,7 +205,13 @@ impl Plugin for OpenBaoPlugin {
     async fn call(&mut self, function: &str, input: Option<Value>) -> CallResponse {
         let input = input.unwrap_or(Value::Null);
         match function {
-            "configure" => CONFIG.configure(Some(input)),
+            "configure" => {
+                let url = str_field(&input, "url");
+                let has_token = input.get("token").and_then(Value::as_str).map(|s| !s.is_empty()).unwrap_or(false);
+                let mount = str_field(&input, "mount");
+                emit_log("debug", &format!("OpenBao: configure url='{}' has_token={} mount='{}'", url, has_token, if mount.is_empty() { "secret" } else { mount }));
+                CONFIG.configure(Some(input))
+            }
             "get"       => fn_get(&input).await,
             "set"       => fn_set(&input).await,
             "delete"    => fn_delete(&input).await,

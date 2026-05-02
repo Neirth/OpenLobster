@@ -30,8 +30,19 @@ func runSecretsSmoke(client protocol.PluginClient, report *types.PluginReport, o
 	const key = "smoke/key"
 	const value = "smoke-value"
 
-	if _, err := client.CallJSON("set", map[string]any{"config": cfg, "key": key, "value": value}); err != nil {
+	if err := validateSetInput(key, value); err != nil {
+		addSmokeFailure(report, "secrets.set.validation", err.Error(), file)
+		return
+	}
+
+	setRaw, err := client.CallJSON("set", map[string]any{"config": cfg, "key": key, "value": value})
+	if err != nil {
 		addSmokeFailure(report, "secrets.set", err.Error(), file)
+		return
+	}
+
+	if err := validateSetResponse(setRaw, key, value); err != nil {
+		addSmokeFailure(report, "secrets.set.response_validation", err.Error(), file)
 		return
 	}
 
@@ -48,21 +59,37 @@ func runSecretsSmoke(client protocol.PluginClient, report *types.PluginReport, o
 		return
 	}
 
-	// Verify the key appears in the list.
+	if err := validateGetResponse(getRaw, key); err != nil {
+		addSmokeFailure(report, "secrets.get.validation", err.Error(), file)
+		return
+	}
+
 	if client.HasFunction("list") {
 		if err := assertSecretsKeyInList(client, cfg, key, true, report, file); err != nil {
 			return
 		}
+
+		if err := validateListKeysExist(client, cfg, []string{key}); err != nil {
+			addSmokeFailure(report, "secrets.list.validation", err.Error(), file)
+			return
+		}
 	}
 
-	if _, err := client.CallJSON("delete", map[string]any{"config": cfg, "key": key}); err != nil {
+	delRaw, err := client.CallJSON("delete", map[string]any{"config": cfg, "key": key})
+	if err != nil {
 		addSmokeFailure(report, "secrets.delete", err.Error(), file)
 		return
 	}
 
-	// After deletion the key must be absent from the list.
+	if err := validateDeleteResponse(delRaw, key); err != nil {
+		addSmokeFailure(report, "secrets.delete.validation", err.Error(), file)
+		return
+	}
+
 	if client.HasFunction("list") {
-		_ = assertSecretsKeyInList(client, cfg, key, false, report, file)
+		if err := assertSecretsKeyInList(client, cfg, key, false, report, file); err != nil {
+			return
+		}
 	}
 }
 
@@ -123,5 +150,85 @@ func parseSecretsList(raw json.RawMessage) []string {
 	if json.Unmarshal(raw, &obj) == nil {
 		return obj.Keys
 	}
+	return nil
+}
+
+func validateSetInput(key, value string) error {
+	if strings.TrimSpace(key) == "" {
+		return fmt.Errorf("FATAL: set operation has empty key - key is required")
+	}
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("FATAL: set operation has empty value - value is required")
+	}
+	return nil
+}
+
+func validateSetResponse(raw []byte, expectedKey, expectedValue string) error {
+	if len(raw) == 0 {
+		return fmt.Errorf("FATAL: set operation returned empty response")
+	}
+	return nil
+}
+
+func validateGetResponse(raw []byte, key string) error {
+	if len(raw) == 0 {
+		return fmt.Errorf("FATAL: get operation returned empty response")
+	}
+	var resp struct {
+		Value    string `json:"value"`
+		Data     any    `json:"data"`
+		Response any    `json:"response"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return fmt.Errorf("FATAL: get operation returned invalid JSON: %w", err)
+	}
+	if resp.Value == "" && resp.Data == nil && resp.Response == nil {
+		return fmt.Errorf("FATAL: get operation returned nil/empty value for key %q - key must exist before get", key)
+	}
+	return nil
+}
+
+func validateDeleteResponse(raw []byte, key string) error {
+	if len(raw) == 0 {
+		return fmt.Errorf("FATAL: delete operation returned empty response")
+	}
+	var resp struct {
+		Deleted bool   `json:"deleted"`
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &resp); err == nil {
+		if resp.Error != "" && strings.TrimSpace(resp.Error) != "" {
+			return fmt.Errorf("FATAL: delete operation returned error: %s", resp.Error)
+		}
+	}
+	return nil
+}
+
+func validateListKeysExist(client protocol.PluginClient, cfg map[string]any, expectedKeys []string) error {
+	listRaw, err := client.CallJSON("list", map[string]any{"config": cfg})
+	if err != nil {
+		return fmt.Errorf("FATAL: list validation failed - list call error: %w", err)
+	}
+
+	keys := parseSecretsList(listRaw)
+	if keys == nil {
+		return fmt.Errorf("FATAL: list validation failed - could not parse list response")
+	}
+
+	keySet := make(map[string]bool)
+	for _, k := range keys {
+		if strings.TrimSpace(k) == "" {
+			return fmt.Errorf("FATAL: list returned key with empty string")
+		}
+		keySet[strings.TrimSpace(k)] = true
+	}
+
+	for _, expected := range expectedKeys {
+		if !keySet[expected] {
+			return fmt.Errorf("FATAL: list validation failed - key %q not found in list response", expected)
+		}
+	}
+
 	return nil
 }
